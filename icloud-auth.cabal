@@ -1,21 +1,16 @@
 cabal-version:      3.0
 name:               icloud-auth
 version:            0.1.0.0
-synopsis:           A terse description of this package
+synopsis:           `icloud-auth` allows logon to iCloud servers
 description:
-  Expands on the terse description above; here is how to do a link [TmpProc](https://hackage.haskell.org/package/tmp-proc-0.5.3.0/docs/System-TmpProc.html)
+  `icloud-auth` allows logon to iCloud servers
 
-  - a fine point
-  - an even better one
+  Upon provision of a username and password, it retrieves and stores an
+  authorization token, for use in programmatic sessions with other iCloud
+  services.
 
-license:            BSD-3-Clause
-license-file:       LICENSE
-author:             Tim Emiola
-maintainer:         adetokunbo@emio.la
-category:           Web
-homepage:           https://github.com/adetokunbo/icloud-auth#readme
-bug-reports:
-  https://github.com/adetokunbo/icloud-auth/issues
+  It is unofficial, i.e, *not* supported by Apple, and not guaranteed to work -
+  use at your own risk
 
 build-type:         Simple
 extra-source-files:
