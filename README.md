@@ -27,6 +27,30 @@ is required. There is no way to control to the duratiion, it is set by iCloud
 itself. At the time of writing (2024/10). the duration is two months.
 
 
+### Usage
+
+#### Securely store your access credentials
+
+Store your Apple ID and password in XDG-CONFIG-HOME/hs-icloud-auth/credential.json
+E.g, use the following bash snippet, updating it with your username and password
+accordingly
+
+```
+$ ICLOUD_AUTH_CONF="${XDG_CONFIG_HOME:=${HOME}/.config}/hs-icloud-auth"
+$ mkdir -p $ICLOUD_AUTH_CONF
+$ cat << EOF > $ICLOUD_AUTH_CONF/credential.json
+{
+  "accountName":  "your-username",
+  "password": "your-password"
+}
+EOF
+```
+
+Ensure the 'credential.json' is only readable by you:
+
+```
+$ chmod 600 $XDG_CONFIG_HOME/hs-icloud-auth/credential.json
+```
 [hackage-deps-badge]: <https://img.shields.io/hackage-deps/v/icloud-auth.svg>
 [hackage-deps]:       <http://packdeps.haskellers.com/feed?needle=icloud-auth>
 [hackage-badge]:      <https://img.shields.io/hackage/v/icloud-auth.svg>
