@@ -24,8 +24,17 @@ library
   exposed-modules:  Network.ICloud.Auth
   hs-source-dirs:   src
   build-depends:
-    , base                        >=4.10 && <5
-    , hspec                       >=2.7.0 && <2.12.0
+    , aeson                >=1.5.1 && <2.3
+    , aeson-casing         >= 0.1 && < 0.3
+    , base                 >=4.12 && <5
+    , dhall                >=1.35 && < 1.50
+    , directory            >=1.3 &&  <1.4
+    , filepath             >=1.4 && <1.6
+    , hspec                >=2.7 && <2.14
+    , http-client          >=0.5 && <0.8
+    , http-client-tls      >=0.3 && <0.4
+    , text                 >=1.2.3 && <2.2
+    , uuid                 >=1.3 && <1.4
 
   default-language: Haskell2010
   ghc-options:      -Wall -Wincomplete-uni-patterns -Wpartial-fields -fwarn-tabs
