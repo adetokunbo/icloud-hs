@@ -25,14 +25,17 @@ library
   hs-source-dirs:   src
   build-depends:
     , aeson                >=1.5.1 && <2.3
-    , aeson-casing         >= 0.1 && < 0.3
+    , aeson-casing         >=0.1 && <0.3
     , base                 >=4.12 && <5
-    , dhall                >=1.35 && < 1.50
-    , directory            >=1.3 &&  <1.4
+    , case-insensitive     >=1.2 && <1.3
+    , dhall                >=1.35 && <1.50
+    , directory            >=1.3 && <1.4
     , filepath             >=1.4 && <1.6
     , hspec                >=2.7 && <2.14
     , http-client          >=0.5 && <0.8
     , http-client-tls      >=0.3 && <0.4
+    , http-types           >=0.12.1 && <0.13
+    , string-conv          >=0.1 && <0.3
     , text                 >=1.2.3 && <2.2
     , uuid                 >=1.3 && <1.4
 
@@ -48,7 +51,11 @@ test-suite test
   ghc-options:      -threaded -rtsopts -with-rtsopts=-N -Wall -fwarn-tabs
   build-depends:
     , base
-    , hspec           >=2.1
+    , bytestring           >=0.10.8   && <0.11 || >=0.11.3 && <0.13
+    , hspec                >=2.1
+    , http-types
     , QuickCheck
     , icloud-auth
+    , string-conv
+    , text
 

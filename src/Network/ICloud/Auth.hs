@@ -14,11 +14,23 @@ module Network.ICloud.Auth (
   Session (..),
   sessionPath,
   cookiePath,
+  SessionData (..),
+  mkSessionData,
+
+  -- * HTTP header names
+  hCounter,
+  hCountry,
+  hSessionId,
+  hSessionToken,
+  hTrustToken,
 ) where
 
+import Data.CaseInsensitive (mk)
 import Data.Char (isAlphaNum)
+import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Network.HTTP.Types (Header, HeaderName)
 import System.FilePath ((</>))
 
 
@@ -65,3 +77,33 @@ cookieBase = (<> ".cookies.txt") . sprucedName
 
 sessionBase :: Credentials -> Text
 sessionBase = (<> ".session.json") . sprucedName
+
+
+-- | Data obtained from HTTP response headers that define a user session
+data SessionData = SessionData
+  { sdAccountCountry :: !(Maybe Text)
+  , sdSessionId :: !(Maybe Text)
+  , sdSessionToken :: !(Maybe Text)
+  , sdTrustToken :: !(Maybe Text)
+  , sdCounter :: !(Maybe Text)
+  }
+  deriving (Eq, Show)
+
+
+hCountry, hSessionId, hSessionToken, hTrustToken, hCounter :: HeaderName
+hCountry = mk "X-Apple-ID-Account-Country"
+hSessionId = mk "X-Apple-ID-Session-Id"
+hSessionToken = mk "X-Apple-Session-Token"
+hTrustToken = mk "X-Apple-TwoSV-Trust-Token"
+hCounter = mk "scnt"
+
+
+mkSessionData :: [Header] -> SessionData
+mkSessionData hs =
+  SessionData
+    { sdAccountCountry = toS <$> lookup hCountry hs
+    , sdSessionId = toS <$> lookup hSessionId hs
+    , sdSessionToken = toS <$> lookup hSessionToken hs
+    , sdTrustToken = toS <$> lookup hTrustToken hs
+    , sdCounter = toS <$> lookup hCounter hs
+    }
