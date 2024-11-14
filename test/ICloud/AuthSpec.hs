@@ -8,15 +8,40 @@ SPDX-License-Identifier: BSD3
 -}
 module ICloud.AuthSpec (spec) where
 
-import Test.Hspec
-import Network.ICloud.Auth
+import Network.ICloud.Auth (
+  Credentials (..),
+  Session (..),
+  cookiePath,
+  sessionPath,
+ )
+import Test.Hspec (Spec, context, describe, it, shouldBe)
+
 
 spec :: Spec
-spec = describe "Auth" $ do
-  context "endsThen" $
-    it "should be a simple test" $ do
-      getIt `endsThen` (== (Just "a string"))
+spec = describe "Session" $ do
+  context "using a simple example" $ do
+    context "sessionPath" $ do
+      it "should be computed correctly" $ do
+        let want = "/tmp/icloud_authspec/myaccountid-applecom.cookies.txt"
+        cookiePath exampleSession `shouldBe` want
+
+    context "cookiePath" $ do
+      it "should be computed correctly" $ do
+        let want = "/tmp/icloud_authspec/myaccountid-applecom.session.json"
+        sessionPath exampleSession `shouldBe` want
 
 
-getIt :: IO (Maybe String)
-getIt = pure $ Just "a string"
+exampleCred :: Credentials
+exampleCred =
+  Credentials
+    { credAccountName = "my-account-id@apple.com"
+    , credPassword = "notasecret"
+    }
+
+
+exampleSession :: Session
+exampleSession =
+  Session
+    { sessionCreds = exampleCred
+    , sessionTopDir = "/tmp/icloud_authspec"
+    }
