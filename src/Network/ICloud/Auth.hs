@@ -1,8 +1,10 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 {- |
-Module      : Network.ICloud.Auth
-Copyright   : (c) 2023 Tim Emiola
+Module      : etwork.ICloud.Auth
+Copyright   : (c) 2025 Tim Emiola
 Maintainer  : Tim Emiola <adetokunbo@emio.la>
 SPDX-License-Identifier: BSD3
 
@@ -12,25 +14,39 @@ module Network.ICloud.Auth (
   -- * datatypes
   Credentials (..),
   Session (..),
+  clientIdPath,
   sessionPath,
   cookiePath,
   SessionData (..),
-  mkSessionData,
+  Endpoints (..),
 
-  -- * HTTP header names
-  hCounter,
-  hCountry,
-  hSessionId,
-  hSessionToken,
-  hTrustToken,
+  -- * functions
+  newClientId,
+  sessionInit,
 ) where
 
-import Data.CaseInsensitive (mk)
+import Data.Aeson (
+  FromJSON (..),
+  Options (..),
+  ToJSON (..),
+  eitherDecodeFileStrict,
+  genericParseJSON,
+  genericToEncoding,
+  genericToJSON,
+  withObject,
+  (.:),
+ )
+import Data.Aeson.Casing (aesonPrefix, snakeCase)
+import Data.ByteString (ByteString)
 import Data.Char (isAlphaNum)
-import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Network.HTTP.Types (Header, HeaderName)
+import qualified Data.Text.IO as Text
+import Data.UUID (toText)
+import Data.UUID.V4 (nextRandom)
+import GHC.Generics (Generic)
+import System.Directory (doesFileExist)
+import System.Environment.XDG.BaseDir (getUserConfigDir)
 import System.FilePath ((</>))
 
 
@@ -42,26 +58,41 @@ data Session = Session
   deriving (Eq)
 
 
+newClientId :: IO Text
+newClientId = ("auth-" <>) . toText <$> nextRandom
+
+
 sessionPath :: Session -> FilePath
-sessionPath = sessionStatePath sessionBase
+sessionPath = sessionDataPath sessionBase
 
 
 cookiePath :: Session -> FilePath
-cookiePath = sessionStatePath cookieBase
+cookiePath = sessionDataPath cookieBase
 
 
-sessionStatePath :: (Credentials -> Text) -> Session -> FilePath
-sessionStatePath credPathF s = sessionTopDir s </> (Text.unpack . credPathF) (sessionCreds s)
+clientIdPath :: Session -> FilePath
+clientIdPath = sessionDataPath clientIdBase
+
+
+sessionDataPath :: (Credentials -> Text) -> Session -> FilePath
+sessionDataPath credPathF s = sessionTopDir s </> (Text.unpack . credPathF) (sessionCreds s)
 
 
 -- | don't derive Show to avoid the risk of logging a password
 data Credentials = Credentials
   { credAccountName :: !Text
-  -- ^ the account name is  the user's AppleId, usually an email address
+  -- ^ the account name is the user's AppleId, usually an email address
   , credPassword :: !Text
   -- ^ the password used to logon to ICloud
   }
   deriving (Eq)
+
+
+instance FromJSON Credentials where
+  parseJSON = withObject "Credentials" $ \o ->
+    let accountName = o .: "accountName"
+        password = o .: "password"
+     in Credentials <$> accountName <*> password
 
 
 sprucedName :: Credentials -> Text
@@ -79,6 +110,54 @@ sessionBase :: Credentials -> Text
 sessionBase = (<> ".session.json") . sprucedName
 
 
+clientIdBase :: Credentials -> Text
+clientIdBase = (<> ".client-id.txt") . sprucedName
+
+
+realmEndpoints :: Realm -> Endpoints
+realmEndpoints China = chinaEndpoints
+realmEndpoints Usual = defaultEndpoints
+
+
+-- | The known "realms" with different Endpoints.
+data Realm = China | Usual
+  deriving (Eq, Show)
+
+
+defaultEndpoints :: Endpoints
+defaultEndpoints =
+  Endpoints
+    { epAuth = "https://idmsa.apple.com/appleauth/auth"
+    , epHome = "https://www.icloud.com"
+    , epSetup = "https://setup.icloud.com/setup/ws/1"
+    }
+
+
+chinaEndpoints :: Endpoints
+chinaEndpoints =
+  Endpoints
+    { epAuth = "https://idmsa.apple.com/appleauth/auth"
+    , epHome = "https://www.icloud.com.cn"
+    , epSetup = "https://setup.icloud.com.cn/setup/ws/1"
+    }
+
+
+-- | A fixed set of HTTP URL roots used by all the service URLs
+data Endpoints = Endpoints
+  { epHome :: !ByteString
+  , epAuth :: !ByteString
+  , epSetup :: !ByteString
+  }
+  deriving (Eq, Show)
+
+
+-- instance FromJSON Endpoints where
+--   parseJSON = withObject "Endpoints" $ \o ->
+--     let home = o .: "home"
+--         auth = o .: "auth"
+--         setup = o .: "setup"
+--      in Endpoints <$> home <*> auth <*> setup
+
 -- | Data obtained from HTTP response headers that define a user session
 data SessionData = SessionData
   { sdAccountCountry :: !(Maybe Text)
@@ -87,23 +166,77 @@ data SessionData = SessionData
   , sdTrustToken :: !(Maybe Text)
   , sdCounter :: !(Maybe Text)
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 
-hCountry, hSessionId, hSessionToken, hTrustToken, hCounter :: HeaderName
-hCountry = mk "X-Apple-ID-Account-Country"
-hSessionId = mk "X-Apple-ID-Session-Id"
-hSessionToken = mk "X-Apple-Session-Token"
-hTrustToken = mk "X-Apple-TwoSV-Trust-Token"
-hCounter = mk "scnt"
+instance FromJSON SessionData where
+  parseJSON = genericParseJSON simpleOptions
 
 
-mkSessionData :: [Header] -> SessionData
-mkSessionData hs =
-  SessionData
-    { sdAccountCountry = toS <$> lookup hCountry hs
-    , sdSessionId = toS <$> lookup hSessionId hs
-    , sdSessionToken = toS <$> lookup hSessionToken hs
-    , sdTrustToken = toS <$> lookup hTrustToken hs
-    , sdCounter = toS <$> lookup hCounter hs
-    }
+instance ToJSON SessionData where
+  toJSON = genericToJSON simpleOptions
+  toEncoding = genericToEncoding simpleOptions
+
+
+emptySessionData :: SessionData
+emptySessionData = SessionData Nothing Nothing Nothing Nothing Nothing
+
+
+{- |  init
+ignore impl
+  [x]   [ ] when password not given: get from keyring
+  [x]   [ ] make user dict from username and password
+  [ ]   [x] when clientId not saved on filesystem: generate using UUID and save
+  [x]   [ ] store bool args 'with_family' and 'verify'
+  [ ]   [x] store auth, home, and setup endpoints
+  [x]   [ ] setup the password filter
+  [ ]   [x] ensure the cookie directory exists
+  [x]   [ ] update 'session' Origin and Referer header
+  [ ]   [ ]
+  [ ]   [ ]
+  [ ]   [ ]
+-}
+sessionInit :: Realm -> IO ()
+sessionInit realm = do
+  let _endpoints = realmEndpoints realm
+  sessionTopDir <- getUserConfigDir appPath
+  session <- loadUserSession sessionTopDir >>= either fail pure
+  _sessionData <- loadSessionData session >>= either fail pure
+  _client <- loadClientId session
+  pure ()
+
+
+loadUserSession :: FilePath -> IO (Either String Session)
+loadUserSession sessionTopDir = do
+  let credsPath = sessionTopDir </> "credentials.json"
+      mkSession' sessionCreds = Session {sessionCreds, sessionTopDir}
+  fmap mkSession' <$> eitherDecodeFileStrict credsPath
+
+
+loadSessionData :: Session -> IO (Either String SessionData)
+loadSessionData s = do
+  let dataPath = sessionPath s
+  pathExists <- doesFileExist dataPath
+  if not pathExists
+    then pure $ Right emptySessionData
+    else eitherDecodeFileStrict dataPath
+
+
+loadClientId :: Session -> IO Text
+loadClientId s = do
+  let dataPath = clientIdPath s
+  pathExists <- doesFileExist dataPath
+  if pathExists
+    then Text.readFile dataPath
+    else do
+      anId <- newClientId
+      Text.writeFile dataPath anId
+      pure anId
+
+
+simpleOptions :: Options
+simpleOptions = aesonPrefix snakeCase
+
+
+appPath :: FilePath
+appPath = "hs-config-auth"

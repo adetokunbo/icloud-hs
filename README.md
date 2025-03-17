@@ -39,7 +39,7 @@ accordingly
 $ ICLOUD_AUTH_CONF="${XDG_CONFIG_HOME:=${HOME}/.config}/hs-icloud-auth"
 $ mkdir -p $ICLOUD_AUTH_CONF
 $ cat << EOF > $ICLOUD_AUTH_CONF/credential.json
-{
+{ 
   "accountName":  "your-username",
   "password": "your-password"
 }
@@ -51,8 +51,48 @@ Ensure the 'credential.json' is only readable by you:
 ```
 $ chmod 600 $XDG_CONFIG_HOME/hs-icloud-auth/credential.json
 ```
+
+### Design Details
+
+#### From [icloudpy][]
+
+- obtain the cookie and session file basenames using spruced accountName
+  - the spruced accountName the accountName filtered using Char#isAlphaNum
+
+#### data types
+
+```haskell
+
+-- | don't derive Show to avoid the risk of logging a password
+data Credentials = Credentials
+  { credAccountName :: !Text
+  , credPassword    :: !Text
+  } deriving (Eq)
+
+
+-- | don't derive Show to avoid the risk of logging a password
+data Session = Session
+  { sessionCreds :: !Credentials
+  , sessionTopDir :: !FilePath!
+  } deriving (Eq)
+
+data SessionData = SessionData
+  { sdAccountCountry :: !(Maybe Text)
+  , sdSessionId      :: !(Maybe Text)
+  , sdSessionToken   :: !(Maybe Text)
+  , sdCounter        :: !(Maybe Text)
+  } deriving (Eq, Show)
+```
+
+#### states
+
+```haskell
+
+```
+
 [hackage-deps-badge]: <https://img.shields.io/hackage-deps/v/icloud-auth.svg>
 [hackage-deps]:       <http://packdeps.haskellers.com/feed?needle=icloud-auth>
 [hackage-badge]:      <https://img.shields.io/hackage/v/icloud-auth.svg>
 [hackage]:            <https://hackage.haskell.org/package/icloud-auth>
 [iCloud]:             <https://www.icloud.com/>
+[icloudpy]:           <https://github.com/mandarons/icloudpy">

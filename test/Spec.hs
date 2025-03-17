@@ -1,10 +1,10 @@
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Main where
 
+import qualified Crypto.SRPSpec as SRP
 import qualified ICloud.AuthSpec as Auth
+import qualified ICloud.HttpSpec as Http
 import System.IO (
   BufferMode (..),
   hSetBuffering,
@@ -20,3 +20,5 @@ main = do
   hSetBuffering stderr NoBuffering
   hspec $ do
     Auth.spec
+    Http.spec
+    SRP.spec
