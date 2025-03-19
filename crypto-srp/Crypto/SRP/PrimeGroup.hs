@@ -13,9 +13,11 @@ module Crypto.SRP.PrimeGroup (
   PrimeGroup (..),
   generatorFor,
   safePrimeFor,
+  asByteString,
 ) where
 
 import Crypto.SRP.Constants (
+  fromHexBS,
   n1024Bits,
   n1536Bits,
   n2048Bits,
@@ -23,8 +25,8 @@ import Crypto.SRP.Constants (
   n4096Bits,
   n6144Bits,
   n8192Bits,
-  sumBytes,
  )
+import Data.ByteString (ByteString)
 import Data.Word (Word8)
 
 
@@ -40,7 +42,7 @@ data PrimeGroup
   deriving (Eq, Show)
 
 
--- | The generator for a 'PrimeGroup'
+-- | The generator for 'PrimeGroup'
 generatorFor :: PrimeGroup -> Word8
 generatorFor G1024 = 2
 generatorFor G2048 = 2
@@ -48,15 +50,20 @@ generatorFor G1536 = 2
 generatorFor G3072 = 5
 generatorFor G4096 = 5
 generatorFor G6144 = 5
-generatorFor G8192 = 19
+generatorFor G8192 = 27
 
 
--- | The large safe prime for 'PrimeGroup'
+-- | The safe prime for 'PrimeGroup'
 safePrimeFor :: PrimeGroup -> Integer
-safePrimeFor G1024 = sumBytes n1024Bits
-safePrimeFor G2048 = sumBytes n2048Bits
-safePrimeFor G1536 = sumBytes n1536Bits
-safePrimeFor G3072 = sumBytes n3072Bits
-safePrimeFor G4096 = sumBytes n4096Bits
-safePrimeFor G6144 = sumBytes n6144Bits
-safePrimeFor G8192 = sumBytes n8192Bits
+safePrimeFor = fromHexBS . asByteString
+
+
+-- | A bytestring representing the safe prime in hexadecimal
+asByteString :: PrimeGroup -> ByteString
+asByteString G1024 = n1024Bits
+asByteString G2048 = n2048Bits
+asByteString G1536 = n1536Bits
+asByteString G3072 = n3072Bits
+asByteString G4096 = n4096Bits
+asByteString G6144 = n6144Bits
+asByteString G8192 = n8192Bits

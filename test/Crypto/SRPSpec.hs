@@ -5,6 +5,7 @@ module Crypto.SRPSpec (
 ) where
 
 import Crypto.SRP.Constants (
+  fromHexBS,
   n1024Bits,
   n1536Bits,
   n2048Bits,
@@ -12,7 +13,6 @@ import Crypto.SRP.Constants (
   n4096Bits,
   n6144Bits,
   n8192Bits,
-  sumBytes,
  )
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -40,11 +40,10 @@ largeNumberSpec = describe "the fixed large numbers" $ do
 
 oneNumberSpec :: ByteString -> Int -> Spec
 oneNumberSpec b bitSize = do
-  context ("for the " +| bitSize |+ " bit number") $ do
+  context ("the ByteString representing the " +| bitSize |+ " bit number") $ do
     context "each byte" $ do
       it "should be a valid hexadecimal value" $ isAllHex b
-    context "roundtrips with its integer value" $ do
-      it "should roundtrip with its integer value" $ sumBytes b == sumBytes (bsShow (sumBytes b))
+    it "should roundtrip with its integer value" $ fromHexBS b == fromHexBS (bsShow (fromHexBS b))
 
 
 isHexChar :: Word8 -> Bool

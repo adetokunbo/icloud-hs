@@ -9,7 +9,7 @@ Maintainer: Tim Emiola <adetokunbo@emio.la>
 SPDX-License-Identifier: BSD3
 -}
 module Crypto.SRP.Constants (
-  -- * the hexadecimal printed versions of the PrimeGroups
+  -- * Hex ByteStrings of SRP primes
   n1024Bits,
   n1536Bits,
   n2048Bits,
@@ -17,7 +17,9 @@ module Crypto.SRP.Constants (
   n4096Bits,
   n6144Bits,
   n8192Bits,
-  sumBytes,
+
+  -- * Convert a hex Bytestring to the corresponding Integer
+  fromHexBS,
 ) where
 
 import Data.ByteString (ByteString)
@@ -196,8 +198,8 @@ addHex :: Integer -> Word8 -> Integer
 addHex acc d = (acc * 16) + hexCharToInt d
 
 
-sumBytes :: ByteString -> Integer
-sumBytes = BS.foldl' addHex 0
+fromHexBS :: ByteString -> Integer
+fromHexBS = BS.foldl' addHex 0
 
 -- why is the username included in the verifier calculation
 -- https://crypto.stackexchange.com/questions/8626/why-is-tls-srp-verifier-based-on-user-name
