@@ -11,20 +11,26 @@ SPDX-License-Identifier: BSD3
 Provides functions and/or data types that support Top Sample goals
 -}
 module Network.ICloud.Auth (
-  -- * datatypes
+  -- * Credentials
   Credentials (..),
-  Session (..),
+
+  -- * paths dependent on @Credentials@
   clientIdPath,
   savedHeadersPath,
   cookiePath,
-  SavedHeaders (..),
   Endpoints (..),
 
-  -- * functions
-  newClientId,
+  -- * Session
+  Session (..),
+  SavedHeaders (..),
+  loadSession,
   sessionInit,
+
+  -- * clientID generation
+  newClientId,
 ) where
 
+import Control.Monad ((>=>))
 import Data.Aeson (
   FromJSON (..),
   Options (..),
@@ -192,28 +198,38 @@ ignore impl
   [x]   [ ] update 'session' Origin and Referer header
   [ ]   [ ]
   [ ]   [ ]
-
-  [ ]   [ ]
 -}
 sessionInit :: Realm -> IO ()
 sessionInit realm = do
   let _endpoints = realmEndpoints realm
   sessionTopDir <- getUserConfigDir appPath
-  _session <- loadUserSession sessionTopDir >>= either fail pure
+  _session <- loadSession sessionTopDir >>= either fail pure
   pure ()
 
 
-loadUserSession :: FilePath -> IO (Either String Session)
-loadUserSession sessionTopDir = do
-  let credsPath = sessionTopDir </> "credentials.json"
-      withCreds sessionCreds = do
-        sessionClientId <- loadClientId sessionTopDir sessionCreds
-        orSavedHeaders <- loadSavedHeaders sessionTopDir sessionCreds
-        case orSavedHeaders of
-          Left err -> pure (Left err)
-          Right sessionSavedHdrs ->
-            pure $ Right Session {sessionClientId, sessionCreds, sessionTopDir, sessionSavedHdrs}
-  eitherDecodeFileStrict credsPath >>= either (pure . Left) withCreds
+loadCredentials :: FilePath -> IO (Either String Credentials)
+loadCredentials topDir = do
+  let credsPath = topDir </> "credentials.json"
+  eitherDecodeFileStrict credsPath
+
+
+loadCredentials' :: FilePath -> IO (Either String (FilePath, Credentials))
+loadCredentials' topDir = fmap ((,) topDir) <$> loadCredentials topDir
+
+
+loadSession' :: Either String (FilePath, Credentials) -> IO (Either String Session)
+loadSession' (Left err) = pure $ Left err
+loadSession' (Right (sessionTopDir, sessionCreds)) = do
+  sessionClientId <- loadClientId sessionTopDir sessionCreds
+  orSavedHeaders <- loadSavedHeaders sessionTopDir sessionCreds
+  case orSavedHeaders of
+    Left err -> pure (Left err)
+    Right sessionSavedHdrs ->
+      pure $ Right Session {sessionClientId, sessionCreds, sessionTopDir, sessionSavedHdrs}
+
+
+loadSession :: FilePath -> IO (Either String Session)
+loadSession = loadCredentials' >=> loadSession'
 
 
 loadSavedHeaders :: FilePath -> Credentials -> IO (Either String SavedHeaders)
