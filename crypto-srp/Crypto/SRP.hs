@@ -8,13 +8,21 @@ Maintainer  : Tim Emiola <adetokunbo@emio.la>
 SPDX-License-Identifier: BSD3
 -}
 module Crypto.SRP (
+  -- * client-side inputs
   FromClient (..),
-  FromServer (..),
   mkFromClient,
+
+  -- * server-side inputs
+  FromServer (..),
+
+  -- * client-side calculations
   calcKeyAndProof,
   verifyServerProof,
   fromBytes,
   bytesOf,
+
+  -- * re-exports
+  PrimeGroup,
 ) where
 
 import Crypto.SRP.Hashing (
