@@ -220,7 +220,7 @@ currently unhandled:
 -}
 updateSavedHeadersOf :: Session -> [Header] -> IO ()
 updateSavedHeadersOf s headers = do
-  let dataPath = savedHeadersPath s
+  let dataPath = savedHeadersPath (sessionTopDir s) (sessionCreds s)
   pathExists <- doesFileExist dataPath
   if pathExists
     then do

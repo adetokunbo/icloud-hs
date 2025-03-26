@@ -63,8 +63,8 @@ newClientId :: IO Text
 newClientId = ("auth-" <>) . toText <$> nextRandom
 
 
-savedHeadersPath :: Session -> FilePath
-savedHeadersPath = sessionDataPath sessionBase
+savedHeadersPath :: FilePath -> Credentials -> FilePath
+savedHeadersPath topDir creds = topDir </> Text.unpack (sessionBase creds)
 
 
 cookiePath :: Session -> FilePath
@@ -195,6 +195,7 @@ ignore impl
   [x]   [ ] update 'session' Origin and Referer header
   [ ]   [ ]
   [ ]   [ ]
+
   [ ]   [ ]
 -}
 sessionInit :: Realm -> IO ()
@@ -202,7 +203,6 @@ sessionInit realm = do
   let _endpoints = realmEndpoints realm
   sessionTopDir <- getUserConfigDir appPath
   session <- loadUserSession sessionTopDir >>= either fail pure
-  _sessionData <- loadSavedHeaders session >>= either fail pure
   pure ()
 
 
@@ -211,13 +211,14 @@ loadUserSession sessionTopDir = do
   let credsPath = sessionTopDir </> "credentials.json"
       withCreds sessionCreds = do
         sessionClientId <- loadClientId sessionTopDir sessionCreds
+        _savedHeaders <- loadSavedHeaders sessionTopDir sessionCreds
         pure $ Right Session {sessionClientId, sessionCreds, sessionTopDir}
   eitherDecodeFileStrict credsPath >>= either (pure . Left) withCreds
 
 
-loadSavedHeaders :: Session -> IO (Either String SavedHeaders)
-loadSavedHeaders s = do
-  let dataPath = savedHeadersPath s
+loadSavedHeaders :: FilePath -> Credentials -> IO (Either String SavedHeaders)
+loadSavedHeaders topDir creds = do
+  let dataPath = savedHeadersPath topDir creds
   pathExists <- doesFileExist dataPath
   if not pathExists
     then pure $ Right emptySavedHeaders

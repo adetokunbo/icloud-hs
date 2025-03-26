@@ -26,6 +26,7 @@ spec = do
 sessionSpec :: Spec
 sessionSpec = describe "Session" $ do
   context "using a simple example" $ do
+    let topDir = sessionTopDir exampleSession
     context "cookiePath" $ do
       it "should be computed correctly" $ do
         let want = "/tmp/icloud_authspec/myaccountid-applecom.cookies.txt"
@@ -34,12 +35,12 @@ sessionSpec = describe "Session" $ do
     context "savedHeadersPath" $ do
       it "should be computed correctly" $ do
         let want = "/tmp/icloud_authspec/myaccountid-applecom.session.json"
-        savedHeadersPath exampleSession `shouldBe` want
+        savedHeadersPath topDir exampleCred `shouldBe` want
 
     context "clientIdPath" $ do
       it "should be computed correctly" $ do
         let want = "/tmp/icloud_authspec/myaccountid-applecom.client-id.txt"
-        clientIdPath (sessionTopDir exampleSession) exampleCred `shouldBe` want
+        clientIdPath topDir exampleCred `shouldBe` want
 
 
 exampleCred :: Credentials
