@@ -4,6 +4,7 @@ module Crypto.SRPSpec (
   spec,
 ) where
 
+import Crypto.SRP (bytesOf, fromBytes)
 import Crypto.SRP.Constants (
   fromHexBS,
   n1024Bits,
@@ -20,11 +21,42 @@ import Data.Char (ord)
 import Data.Word (Word8)
 import Fmt (build, fmt, hexF, (+|), (|+))
 import Test.Hspec (Spec, context, describe, it)
+import Test.QuickCheck (
+  Gen,
+  Property,
+  chooseInteger,
+  elements,
+  forAll,
+  forAllBlind,
+  frequency,
+  sublistOf,
+  vectorOf,
+ )
 
 
 spec :: Spec
 spec = describe "module Crypto.SRP.Constants" $ do
   largeNumberSpec
+  viaBytesSpec
+
+
+viaBytes :: Integer -> Integer
+viaBytes = fromBytes . bytesOf
+
+
+max64Bit :: Integer
+max64Bit = (2 ^ 63) - 1
+
+
+prop_roundtripViaBytes :: Property
+prop_roundtripViaBytes = forAll (chooseInteger (0, max64Bit)) $ \anInteger ->
+  viaBytes anInteger == anInteger
+
+
+viaBytesSpec :: Spec
+viaBytesSpec = describe "roundtrip bytesOf then fromBytes" $ do
+  context "for any 64-bit integer" $ do
+    it "should succeed" prop_roundtripViaBytes
 
 
 largeNumberSpec :: Spec
@@ -44,6 +76,8 @@ oneNumberSpec b bitSize = do
     context "each byte" $ do
       it "should be a valid hexadecimal value" $ isAllHex b
     it "should roundtrip with its integer value" $ fromHexBS b == fromHexBS (bsShow (fromHexBS b))
+    context "hexLength" $ do
+      it "should be consistent with the number of bits" $ BS.length b == bitSize `div` 4
 
 
 isHexChar :: Word8 -> Bool
