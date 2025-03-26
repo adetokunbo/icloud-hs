@@ -184,7 +184,7 @@ currently unhandled:
 -}
 updateCookieJarOf :: Session -> Response a -> Request -> IO (Response a)
 updateCookieJarOf s resp req = do
-  let dataPath = cookiePath s
+  let dataPath = cookiePath (sessionTopDir s) (sessionCreds s)
   pathExists <- doesFileExist dataPath
   now <- getCurrentTime
   if pathExists

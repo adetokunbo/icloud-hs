@@ -67,16 +67,12 @@ savedHeadersPath :: FilePath -> Credentials -> FilePath
 savedHeadersPath topDir creds = topDir </> Text.unpack (sessionBase creds)
 
 
-cookiePath :: Session -> FilePath
-cookiePath = sessionDataPath cookieBase
+cookiePath :: FilePath -> Credentials -> FilePath
+cookiePath topDir creds = topDir </> Text.unpack (cookieBase creds)
 
 
 clientIdPath :: FilePath -> Credentials -> FilePath
 clientIdPath topDir creds = topDir </> Text.unpack (clientIdBase creds)
-
-
-sessionDataPath :: (Credentials -> Text) -> Session -> FilePath
-sessionDataPath credPathF s = sessionTopDir s </> (Text.unpack . credPathF) (sessionCreds s)
 
 
 -- | don't derive Show to avoid the risk of logging a password

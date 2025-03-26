@@ -10,7 +10,6 @@ module ICloud.AuthSpec (spec) where
 
 import Network.ICloud.Auth (
   Credentials (..),
-  Session (..),
   clientIdPath,
   cookiePath,
   savedHeadersPath,
@@ -24,13 +23,13 @@ spec = do
 
 
 sessionSpec :: Spec
-sessionSpec = describe "Session" $ do
+sessionSpec = describe "module Network.ICloud.Auth" $ do
   context "using a simple example" $ do
-    let topDir = sessionTopDir exampleSession
+    let topDir = "/tmp/icloud_authspec"
     context "cookiePath" $ do
       it "should be computed correctly" $ do
         let want = "/tmp/icloud_authspec/myaccountid-applecom.cookies.txt"
-        cookiePath exampleSession `shouldBe` want
+        cookiePath topDir exampleCred `shouldBe` want
 
     context "savedHeadersPath" $ do
       it "should be computed correctly" $ do
@@ -48,13 +47,4 @@ exampleCred =
   Credentials
     { credAccountName = "my-account-id@apple.com"
     , credPassword = "notasecret"
-    }
-
-
-exampleSession :: Session
-exampleSession =
-  Session
-    { sessionCreds = exampleCred
-    , sessionTopDir = "/tmp/icloud_authspec"
-    , sessionClientId = "a-client-id"
     }
