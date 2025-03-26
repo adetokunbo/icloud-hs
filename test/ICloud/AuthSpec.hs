@@ -13,7 +13,7 @@ import Network.ICloud.Auth (
   Session (..),
   clientIdPath,
   cookiePath,
-  sessionPath,
+  savedHeadersPath,
  )
 import Test.Hspec (Spec, context, describe, it, shouldBe)
 
@@ -31,10 +31,10 @@ sessionSpec = describe "Session" $ do
         let want = "/tmp/icloud_authspec/myaccountid-applecom.cookies.txt"
         cookiePath exampleSession `shouldBe` want
 
-    context "sessionPath" $ do
+    context "savedHeadersPath" $ do
       it "should be computed correctly" $ do
         let want = "/tmp/icloud_authspec/myaccountid-applecom.session.json"
-        sessionPath exampleSession `shouldBe` want
+        savedHeadersPath exampleSession `shouldBe` want
 
     context "clientIdPath" $ do
       it "should be computed correctly" $ do

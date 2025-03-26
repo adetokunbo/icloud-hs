@@ -72,7 +72,7 @@ import Network.ICloud.Auth (
   SavedHeaders (..),
   Session (..),
   cookiePath,
-  sessionPath,
+  savedHeadersPath,
  )
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 
@@ -220,7 +220,7 @@ currently unhandled:
 -}
 updateSavedHeadersOf :: Session -> [Header] -> IO ()
 updateSavedHeadersOf s headers = do
-  let dataPath = sessionPath s
+  let dataPath = savedHeadersPath s
   pathExists <- doesFileExist dataPath
   if pathExists
     then do

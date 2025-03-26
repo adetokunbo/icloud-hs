@@ -15,7 +15,7 @@ module Network.ICloud.Auth (
   Credentials (..),
   Session (..),
   clientIdPath,
-  sessionPath,
+  savedHeadersPath,
   cookiePath,
   SavedHeaders (..),
   Endpoints (..),
@@ -63,8 +63,8 @@ newClientId :: IO Text
 newClientId = ("auth-" <>) . toText <$> nextRandom
 
 
-sessionPath :: Session -> FilePath
-sessionPath = sessionDataPath sessionBase
+savedHeadersPath :: Session -> FilePath
+savedHeadersPath = sessionDataPath sessionBase
 
 
 cookiePath :: Session -> FilePath
@@ -217,7 +217,7 @@ loadUserSession sessionTopDir = do
 
 loadSavedHeaders :: Session -> IO (Either String SavedHeaders)
 loadSavedHeaders s = do
-  let dataPath = sessionPath s
+  let dataPath = savedHeadersPath s
   pathExists <- doesFileExist dataPath
   if not pathExists
     then pure $ Right emptySavedHeaders
