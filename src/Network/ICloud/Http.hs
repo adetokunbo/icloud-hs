@@ -23,7 +23,7 @@ module Network.ICloud.Http (
   -- * functions
   rawRequest,
   jsonSessionRequest,
-  mkSessionData,
+  mkSavedHeaders,
 
   -- * HTTP header names
   hCounter,
@@ -50,6 +50,7 @@ import Data.Aeson (
 import Data.Aeson.KeyMap (member)
 import Data.Aeson.Types (Parser, (.:?))
 import Data.Attoparsec.Cookie (readJar, writeNetscapeJar)
+import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.CaseInsensitive (mk)
 import Data.Maybe (catMaybes)
@@ -68,8 +69,8 @@ import Network.HTTP.Client (
 import Network.HTTP.Types (Header, HeaderName, RequestHeaders, hContentType, hReferer)
 import Network.ICloud.Auth (
   Endpoints (..),
+  SavedHeaders (..),
   Session (..),
-  SessionData (..),
   cookiePath,
   sessionPath,
  )
@@ -81,7 +82,7 @@ rawRequest :: Manager -> Session -> Request -> IO (Response LBS.ByteString)
 rawRequest mgr s req = do
   resp <- httpLbs req mgr
   resp' <- updateCookieJarOf s resp req
-  updateSessionDataOf s $ responseHeaders resp'
+  updateSavedHeadersOf s $ responseHeaders resp'
   pure resp'
 
 
@@ -217,21 +218,21 @@ currently unhandled:
   cannot write due to permissions
   files exists, but data cannot be parsed
 -}
-updateSessionDataOf :: Session -> [Header] -> IO ()
-updateSessionDataOf s headers = do
+updateSavedHeadersOf :: Session -> [Header] -> IO ()
+updateSavedHeadersOf s headers = do
   let dataPath = sessionPath s
   pathExists <- doesFileExist dataPath
   if pathExists
     then do
       eitherDecodeFileStrict dataPath >>= \case
         Left e -> fail $ show e
-        Right old -> encodeFile dataPath $ updateSessionData headers old
+        Right old -> encodeFile dataPath $ updateSavedHeaders headers old
     else do
       createDirectoryIfMissing True $ sessionTopDir s
-      encodeFile dataPath $ mkSessionData headers
+      encodeFile dataPath $ mkSavedHeaders headers
 
 
-authHeaders :: Text -> Endpoints -> SessionData -> RequestHeaders
+authHeaders :: Text -> Endpoints -> SavedHeaders -> RequestHeaders
 authHeaders cid ep sd =
   let epHeaders = [(hOrigin, epHome ep), (hReferer, epHome ep <> "/")]
       headerOf name x = (name, toS x)
@@ -239,8 +240,8 @@ authHeaders cid ep sd =
       cidHeader = [(hClientId, toS cid)]
       sdHeaders =
         catMaybes
-          [ maybeHeaderOf hCounter $ sdCounter sd
-          , maybeHeaderOf hSessionId $ sdSessionId sd
+          [ maybeHeaderOf hCounter $ shCounter sd
+          , maybeHeaderOf hSessionId $ shSessionId sd
           ]
    in staticHeaders <> epHeaders <> sdHeaders <> cidHeader
 
@@ -263,25 +264,25 @@ hOrigin = mk "Origin"
 hClientId = mk "X-Apple-OAuth-State"
 
 
-mkSessionData :: [Header] -> SessionData
-mkSessionData hs =
-  SessionData
-    { sdAccountCountry = toS <$> lookup hCountry hs
-    , sdSessionId = toS <$> lookup hSessionId hs
-    , sdSessionToken = toS <$> lookup hSessionToken hs
-    , sdTrustToken = toS <$> lookup hTrustToken hs
-    , sdCounter = toS <$> lookup hCounter hs
+mkSavedHeaders :: [Header] -> SavedHeaders
+mkSavedHeaders hs =
+  SavedHeaders
+    { shCountry = toS <$> lookup hCountry hs
+    , shSessionId = toS <$> lookup hSessionId hs
+    , shSessionToken = toS <$> lookup hSessionToken hs
+    , shTrustToken = toS <$> lookup hTrustToken hs
+    , shCounter = toS <$> lookup hCounter hs
     }
 
 
-updateSessionData :: [Header] -> SessionData -> SessionData
-updateSessionData hs sd =
+updateSavedHeaders :: [Header] -> SavedHeaders -> SavedHeaders
+updateSavedHeaders hs sd =
   sd
-    { sdAccountCountry = (toS <$> lookup hCountry hs) <|> sdAccountCountry sd
-    , sdSessionId = (toS <$> lookup hSessionId hs) <|> sdSessionId sd
-    , sdSessionToken = (toS <$> lookup hSessionToken hs) <|> sdSessionToken sd
-    , sdTrustToken = (toS <$> lookup hTrustToken hs) <|> sdTrustToken sd
-    , sdCounter = (toS <$> lookup hCounter hs) <|> sdCounter sd
+    { shCountry = (toS <$> lookup hCountry hs) <|> shCountry sd
+    , shSessionId = (toS <$> lookup hSessionId hs) <|> shSessionId sd
+    , shSessionToken = (toS <$> lookup hSessionToken hs) <|> shSessionToken sd
+    , shTrustToken = (toS <$> lookup hTrustToken hs) <|> shTrustToken sd
+    , shCounter = (toS <$> lookup hCounter hs) <|> shCounter sd
     }
 
 

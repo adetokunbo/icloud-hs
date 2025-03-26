@@ -11,7 +11,7 @@ import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified ICloud.Examples as Examples
 import Network.HTTP.Types (HeaderName)
-import Network.ICloud.Auth (SessionData (..))
+import Network.ICloud.Auth (SavedHeaders (..))
 import Network.ICloud.Http (
   ApiError (..),
   hCounter,
@@ -19,7 +19,7 @@ import Network.ICloud.Http (
   hSessionId,
   hSessionToken,
   hTrustToken,
-  mkSessionData,
+  mkSavedHeaders,
  )
 import Test.Hspec (Spec, context, describe, it)
 import Test.QuickCheck (
@@ -41,9 +41,9 @@ spec = describe "module Network.ICloud.Http" $ do
 
 
 sessionDataSpec :: Spec
-sessionDataSpec = describe "mkSessionData" $ do
+sessionDataSpec = describe "mkSavedHeaders" $ do
   context "using generated headers" $ do
-    it "should generated the expected value" prop_mkSessionData
+    it "should generated the expected value" prop_mkSavedHeaders
 
 
 httpSpec :: Spec
@@ -97,13 +97,13 @@ genKeyValue keyGen = do
   pure (key, value)
 
 
-prop_mkSessionData :: Property
-prop_mkSessionData = forAllBlind genHdrsAndExpectedSessionData $ \(hdrs, f) ->
-  f $ mkSessionData hdrs
+prop_mkSavedHeaders :: Property
+prop_mkSavedHeaders = forAllBlind genHdrsAndExpectedSavedHeaders $ \(hdrs, f) ->
+  f $ mkSavedHeaders hdrs
 
 
-genHdrsAndExpectedSessionData :: Gen ([(HeaderName, ByteString)], SessionData -> Bool)
-genHdrsAndExpectedSessionData = do
+genHdrsAndExpectedSavedHeaders :: Gen ([(HeaderName, ByteString)], SavedHeaders -> Bool)
+genHdrsAndExpectedSavedHeaders = do
   checks <- sublistOf sdChecks
   values <- vectorOf (length checks) (elements Examples.byteStrings)
   let headers = zip (map fst checks) values
@@ -113,11 +113,11 @@ genHdrsAndExpectedSessionData = do
   pure (headers, combine preds)
 
 
-sdChecks :: [(HeaderName, SessionData -> Maybe Text)]
+sdChecks :: [(HeaderName, SavedHeaders -> Maybe Text)]
 sdChecks =
-  [ (hCountry, sdAccountCountry)
-  , (hSessionId, sdSessionId)
-  , (hSessionToken, sdSessionToken)
-  , (hTrustToken, sdTrustToken)
-  , (hCounter, sdCounter)
+  [ (hCountry, shCountry)
+  , (hSessionId, shSessionId)
+  , (hSessionToken, shSessionToken)
+  , (hTrustToken, shTrustToken)
+  , (hCounter, shCounter)
   ]

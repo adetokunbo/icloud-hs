@@ -17,7 +17,7 @@ module Network.ICloud.Auth (
   clientIdPath,
   sessionPath,
   cookiePath,
-  SessionData (..),
+  SavedHeaders (..),
   Endpoints (..),
 
   -- * functions
@@ -159,27 +159,27 @@ data Endpoints = Endpoints
 --      in Endpoints <$> home <*> auth <*> setup
 
 -- | Data obtained from HTTP response headers that define a user session
-data SessionData = SessionData
-  { sdAccountCountry :: !(Maybe Text)
-  , sdSessionId :: !(Maybe Text)
-  , sdSessionToken :: !(Maybe Text)
-  , sdTrustToken :: !(Maybe Text)
-  , sdCounter :: !(Maybe Text)
+data SavedHeaders = SavedHeaders
+  { shCountry :: !(Maybe Text)
+  , shSessionId :: !(Maybe Text)
+  , shSessionToken :: !(Maybe Text)
+  , shTrustToken :: !(Maybe Text)
+  , shCounter :: !(Maybe Text)
   }
   deriving (Eq, Show, Generic)
 
 
-instance FromJSON SessionData where
+instance FromJSON SavedHeaders where
   parseJSON = genericParseJSON simpleOptions
 
 
-instance ToJSON SessionData where
+instance ToJSON SavedHeaders where
   toJSON = genericToJSON simpleOptions
   toEncoding = genericToEncoding simpleOptions
 
 
-emptySessionData :: SessionData
-emptySessionData = SessionData Nothing Nothing Nothing Nothing Nothing
+emptySavedHeaders :: SavedHeaders
+emptySavedHeaders = SavedHeaders Nothing Nothing Nothing Nothing Nothing
 
 
 {- |  init
@@ -201,7 +201,7 @@ sessionInit realm = do
   let _endpoints = realmEndpoints realm
   sessionTopDir <- getUserConfigDir appPath
   session <- loadUserSession sessionTopDir >>= either fail pure
-  _sessionData <- loadSessionData session >>= either fail pure
+  _sessionData <- loadSavedHeaders session >>= either fail pure
   _client <- loadClientId session
   pure ()
 
@@ -213,12 +213,12 @@ loadUserSession sessionTopDir = do
   fmap mkSession' <$> eitherDecodeFileStrict credsPath
 
 
-loadSessionData :: Session -> IO (Either String SessionData)
-loadSessionData s = do
+loadSavedHeaders :: Session -> IO (Either String SavedHeaders)
+loadSavedHeaders s = do
   let dataPath = sessionPath s
   pathExists <- doesFileExist dataPath
   if not pathExists
-    then pure $ Right emptySessionData
+    then pure $ Right emptySavedHeaders
     else eitherDecodeFileStrict dataPath
 
 

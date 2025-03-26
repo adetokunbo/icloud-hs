@@ -19,7 +19,7 @@ module Network.ICloud.Internal.LoginFSM where
 
 import Data.Functor ((<&>))
 import Data.Kind (Type)
-import Network.ICloud.Auth (Credentials, SessionData)
+import Network.ICloud.Auth (Credentials, SavedHeaders)
 
 
 {- |
@@ -102,8 +102,8 @@ data LoginFSM s where
   MkArtificatDir :: Credentials -> LoginFSM MkArtificatDir
   HaltCannotMkArtifactDir :: Credentials -> LoginFSM HaltCannotMkArtifactDir
   LoadLastSession :: Credentials -> LoginFSM LoadLastSession
-  MakeClientId :: Credentials -> SessionData -> LoginFSM MakeClientId
-  ReadyToAuth :: Credentials -> SessionData -> LoginFSM ReadyToAuth
+  MakeClientId :: Credentials -> SavedHeaders -> LoginFSM MakeClientId
+  ReadyToAuth :: Credentials -> SavedHeaders -> LoginFSM ReadyToAuth
 
 
 -- | Phantom type linked to a unique state in 'LoginFSM'

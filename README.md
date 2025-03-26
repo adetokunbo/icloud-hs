@@ -76,11 +76,12 @@ data Session = Session
   , sessionTopDir :: !FilePath!
   } deriving (Eq)
 
-data SessionData = SessionData
-  { sdAccountCountry :: !(Maybe Text)
-  , sdSessionId      :: !(Maybe Text)
-  , sdSessionToken   :: !(Maybe Text)
-  , sdCounter        :: !(Maybe Text)
+data SavedHeaders = SavedHeaders
+  { shCountry        :: !(Maybe Text)
+  , shSessionId      :: !(Maybe Text)
+  , shSessionToken   :: !(Maybe Text)
+  , shTrustToken     :: !(Maybe Text)
+  , shCounter        :: !(Maybe Text)
   } deriving (Eq, Show)
 ```
 
