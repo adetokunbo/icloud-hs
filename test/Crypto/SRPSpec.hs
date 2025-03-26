@@ -22,15 +22,9 @@ import Data.Word (Word8)
 import Fmt (build, fmt, hexF, (+|), (|+))
 import Test.Hspec (Spec, context, describe, it)
 import Test.QuickCheck (
-  Gen,
   Property,
   chooseInteger,
-  elements,
   forAll,
-  forAllBlind,
-  frequency,
-  sublistOf,
-  vectorOf,
  )
 
 
@@ -45,7 +39,7 @@ viaBytes = fromBytes . bytesOf
 
 
 max64Bit :: Integer
-max64Bit = (2 ^ 63) - 1
+max64Bit = (2 ^ (63 :: Int)) - 1
 
 
 prop_roundtripViaBytes :: Property
