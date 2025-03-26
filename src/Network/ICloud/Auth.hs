@@ -54,6 +54,7 @@ import System.FilePath ((</>))
 data Session = Session
   { sessionCreds :: !Credentials
   , sessionTopDir :: !FilePath
+  , sessionClientId :: !Text
   }
   deriving (Eq)
 
@@ -70,8 +71,8 @@ cookiePath :: Session -> FilePath
 cookiePath = sessionDataPath cookieBase
 
 
-clientIdPath :: Session -> FilePath
-clientIdPath = sessionDataPath clientIdBase
+clientIdPath :: FilePath -> Credentials -> FilePath
+clientIdPath topDir creds = topDir </> Text.unpack (clientIdBase creds)
 
 
 sessionDataPath :: (Credentials -> Text) -> Session -> FilePath
@@ -202,15 +203,16 @@ sessionInit realm = do
   sessionTopDir <- getUserConfigDir appPath
   session <- loadUserSession sessionTopDir >>= either fail pure
   _sessionData <- loadSavedHeaders session >>= either fail pure
-  _client <- loadClientId session
   pure ()
 
 
 loadUserSession :: FilePath -> IO (Either String Session)
 loadUserSession sessionTopDir = do
   let credsPath = sessionTopDir </> "credentials.json"
-      mkSession' sessionCreds = Session {sessionCreds, sessionTopDir}
-  fmap mkSession' <$> eitherDecodeFileStrict credsPath
+      withCreds sessionCreds = do
+        sessionClientId <- loadClientId sessionTopDir sessionCreds
+        pure $ Right Session {sessionClientId, sessionCreds, sessionTopDir}
+  eitherDecodeFileStrict credsPath >>= either (pure . Left) withCreds
 
 
 loadSavedHeaders :: Session -> IO (Either String SavedHeaders)
@@ -222,9 +224,9 @@ loadSavedHeaders s = do
     else eitherDecodeFileStrict dataPath
 
 
-loadClientId :: Session -> IO Text
-loadClientId s = do
-  let dataPath = clientIdPath s
+loadClientId :: FilePath -> Credentials -> IO Text
+loadClientId topDir creds = do
+  let dataPath = clientIdPath topDir creds
   pathExists <- doesFileExist dataPath
   if pathExists
     then Text.readFile dataPath

@@ -39,7 +39,7 @@ sessionSpec = describe "Session" $ do
     context "clientIdPath" $ do
       it "should be computed correctly" $ do
         let want = "/tmp/icloud_authspec/myaccountid-applecom.client-id.txt"
-        clientIdPath exampleSession `shouldBe` want
+        clientIdPath (sessionTopDir exampleSession) exampleCred `shouldBe` want
 
 
 exampleCred :: Credentials
@@ -55,4 +55,5 @@ exampleSession =
   Session
     { sessionCreds = exampleCred
     , sessionTopDir = "/tmp/icloud_authspec"
+    , sessionClientId = "a-client-id"
     }
