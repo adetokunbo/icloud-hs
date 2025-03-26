@@ -19,7 +19,6 @@ module Network.ICloud.Auth (
   clientIdPath,
   savedHeadersPath,
   cookiePath,
-  Endpoints (..),
 
   -- * Session
   Session (..),
@@ -127,43 +126,6 @@ clientIdBase :: Credentials -> Text
 clientIdBase = (<> ".client-id.txt") . sprucedName
 
 
-realmEndpoints :: Realm -> Endpoints
-realmEndpoints China = chinaEndpoints
-realmEndpoints Usual = defaultEndpoints
-
-
--- | The known "realms" with different Endpoints.
-data Realm = China | Usual
-  deriving (Eq, Show)
-
-
-defaultEndpoints :: Endpoints
-defaultEndpoints =
-  Endpoints
-    { epAuth = "https://idmsa.apple.com/appleauth/auth"
-    , epHome = "https://www.icloud.com"
-    , epSetup = "https://setup.icloud.com/setup/ws/1"
-    }
-
-
-chinaEndpoints :: Endpoints
-chinaEndpoints =
-  Endpoints
-    { epAuth = "https://idmsa.apple.com/appleauth/auth"
-    , epHome = "https://www.icloud.com.cn"
-    , epSetup = "https://setup.icloud.com.cn/setup/ws/1"
-    }
-
-
--- | A fixed set of HTTP URL roots used by all the service URLs
-data Endpoints = Endpoints
-  { epHome :: !ByteString
-  , epAuth :: !ByteString
-  , epSetup :: !ByteString
-  }
-  deriving (Eq, Show)
-
-
 -- instance FromJSON Endpoints where
 --   parseJSON = withObject "Endpoints" $ \o ->
 --     let home = o .: "home"
@@ -208,9 +170,8 @@ ignore impl
   [ ]   [ ]
   [ ]   [ ]
 -}
-sessionInit :: Realm -> IO ()
-sessionInit realm = do
-  let _endpoints = realmEndpoints realm
+sessionInit :: IO ()
+sessionInit = do
   sessionTopDir <- getUserConfigDir appPath
   _session <- loadSession sessionTopDir >>= either fail pure
   pure ()

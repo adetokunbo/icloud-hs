@@ -68,7 +68,6 @@ import Network.HTTP.Client (
  )
 import Network.HTTP.Types (Header, HeaderName, RequestHeaders, hContentType, hReferer)
 import Network.ICloud.Auth (
-  Endpoints (..),
   SavedHeaders (..),
   Session (..),
   cookiePath,
@@ -244,6 +243,43 @@ authHeaders cid ep sd =
           , maybeHeaderOf hSessionId $ shSessionId sd
           ]
    in staticHeaders <> epHeaders <> sdHeaders <> cidHeader
+
+
+realmEndpoints :: Realm -> Endpoints
+realmEndpoints China = chinaEndpoints
+realmEndpoints Usual = defaultEndpoints
+
+
+-- | The known "realms" with different 'Endpoints'.
+data Realm = China | Usual
+  deriving (Eq, Show)
+
+
+defaultEndpoints :: Endpoints
+defaultEndpoints =
+  Endpoints
+    { epAuth = "https://idmsa.apple.com/appleauth/auth"
+    , epHome = "https://www.icloud.com"
+    , epSetup = "https://setup.icloud.com/setup/ws/1"
+    }
+
+
+chinaEndpoints :: Endpoints
+chinaEndpoints =
+  Endpoints
+    { epAuth = "https://idmsa.apple.com/appleauth/auth"
+    , epHome = "https://www.icloud.com.cn"
+    , epSetup = "https://setup.icloud.com.cn/setup/ws/1"
+    }
+
+
+-- | A fixed set of HTTP URL roots used by all the service URLs
+data Endpoints = Endpoints
+  { epHome :: {-# UNPACK #-} !ByteString
+  , epAuth :: {-# UNPACK #-} !ByteString
+  , epSetup :: {-# UNPACK #-} !ByteString
+  }
+  deriving (Eq, Show)
 
 
 -- | Header used in auth and server HTTP requests
