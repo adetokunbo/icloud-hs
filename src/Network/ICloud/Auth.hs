@@ -55,6 +55,7 @@ data Session = Session
   { sessionCreds :: !Credentials
   , sessionTopDir :: !FilePath
   , sessionClientId :: !Text
+  , sessionSavedHdrs :: !SavedHeaders
   }
   deriving (Eq)
 
@@ -198,7 +199,7 @@ sessionInit :: Realm -> IO ()
 sessionInit realm = do
   let _endpoints = realmEndpoints realm
   sessionTopDir <- getUserConfigDir appPath
-  session <- loadUserSession sessionTopDir >>= either fail pure
+  _session <- loadUserSession sessionTopDir >>= either fail pure
   pure ()
 
 
@@ -207,8 +208,11 @@ loadUserSession sessionTopDir = do
   let credsPath = sessionTopDir </> "credentials.json"
       withCreds sessionCreds = do
         sessionClientId <- loadClientId sessionTopDir sessionCreds
-        _savedHeaders <- loadSavedHeaders sessionTopDir sessionCreds
-        pure $ Right Session {sessionClientId, sessionCreds, sessionTopDir}
+        orSavedHeaders <- loadSavedHeaders sessionTopDir sessionCreds
+        case orSavedHeaders of
+          Left err -> pure (Left err)
+          Right sessionSavedHdrs ->
+            pure $ Right Session {sessionClientId, sessionCreds, sessionTopDir, sessionSavedHdrs}
   eitherDecodeFileStrict credsPath >>= either (pure . Left) withCreds
 
 
