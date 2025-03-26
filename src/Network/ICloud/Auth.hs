@@ -32,6 +32,14 @@ module Network.ICloud.Auth (
 ) where
 
 import Control.Monad ((>=>))
+import Crypto.SRP (
+  FromClient (..),
+  FromServer (..),
+  PrimeGroup (..),
+  Results,
+  calcResults,
+  mkFromClient,
+ )
 import Data.Aeson (
   FromJSON (..),
   Options (..),
@@ -206,6 +214,20 @@ sessionInit realm = do
   sessionTopDir <- getUserConfigDir appPath
   _session <- loadSession sessionTopDir >>= either fail pure
   pure ()
+
+
+runSrpAuth ::
+  (PrimeGroup -> ByteString -> IO (FromServer, b)) ->
+  (b -> FromClient -> Results -> IO a) ->
+  Session ->
+  IO a
+runSrpAuth stepOne stepTwo session = do
+  let pg = G2048
+      Session {sessionCreds = creds} = session
+      Credentials {credAccountName = user, credPassword = password} = creds
+  clientSide <- mkFromClient user password pg
+  (serverSide, extra) <- stepOne pg (fcPublicBytes clientSide)
+  stepTwo extra clientSide (calcResults clientSide serverSide)
 
 
 loadCredentials :: FilePath -> IO (Either String Credentials)
