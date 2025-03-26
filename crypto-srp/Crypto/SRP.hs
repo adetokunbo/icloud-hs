@@ -15,18 +15,22 @@ module Crypto.SRP (
   -- * server-side inputs
   FromServer (..),
 
-  -- * client-side calculations
-  calcKeyAndProof,
+  -- * shared key and proofs
+  Results (..),
+  calcResults,
   verifyServerProof,
-  fromBytes,
+
+  -- * Integer <=> ByteString
   bytesOf,
+  fromBytes,
 
   -- * re-exports
-  PrimeGroup,
+  PrimeGroup (..),
+  KnownAlgorithm (..),
 ) where
 
 import Crypto.SRP.Hashing (
-  KnownAlgorithm,
+  KnownAlgorithm (..),
   calcClientX,
   calcCombinedPubKeys,
   calcK,
@@ -36,7 +40,7 @@ import Crypto.SRP.Hashing (
   hashText,
  )
 import Crypto.SRP.PrimeGroup (
-  PrimeGroup,
+  PrimeGroup (..),
   modExpPrime,
   primeMod,
   pubOf,
@@ -54,6 +58,14 @@ type Username = Text
 
 -- | A user's cleartext password
 type Password = Text
+
+
+data Results = Results
+  { rKey :: !ByteString
+  , rClientProof :: !ByteString
+  , rServerProof :: !ByteString
+  }
+  deriving (Eq)
 
 
 data FromServer = FromServer
@@ -92,26 +104,38 @@ mkFromClient fcUser fcPassword pg = do
 
 verifyServerProof :: ByteString -> FromClient -> FromServer -> Bool
 verifyServerProof serverProof fc fs =
-  let (theKey, theProof) = calcKeyAndProof fc fs
-      clientProof = hashMany (fsKnownAlgorithm fs) [fcPublicBytes fc, theProof, theKey]
-   in clientProof == serverProof
+  serverProof == rServerProof (calcResults fc fs)
 
 
-{- | Calculate the session key and proof
+{- | Calculate the shared session key and proofs
 
-  K = H(S) -- S is the premaster secret
+  K = H(S) -- S is the premaster secret, K is the shared session key
+
+  M (clientProof) is calculated independently on the server and client and is
+  sent from the cient to the server. If this does not match the server's value
+  the server aborts the authentication process.  The client calculates this as:
+
   M = H(H(N) XOR H(g) | H(U) | s | A | B | K)
+
+  AMK (serverProof) is also calculated on both the server and client, but it's
+  sent by the server to the client after the server accepts the clientProof
+  received from the client
+
+  AMK = H(A | M | K)
+
+  if the serverProof does not match what the client expects, it aborts
 -}
-calcKeyAndProof :: FromClient -> FromServer -> (ByteString, ByteString)
-calcKeyAndProof fc fs =
+calcResults :: FromClient -> FromServer -> Results
+calcResults fc fs =
   let FromServer {fsPublicBytes, fsSalt, fsPrimeGroup = pg, fsKnownAlgorithm = alg} = fs
       FromClient {fcUser, fcPublicBytes = publicBytes} = fc
       bigS = calcPremasterSecret fc fs
       xorNG = bytesOf $ calcXorHashnHashg alg pg
       hashedName = hashText alg fcUser
-      theKey = hash alg $ bytesOf bigS
-      theProof = hashMany alg [xorNG, hashedName, fsSalt, publicBytes, fsPublicBytes, theKey]
-   in (theKey, theProof)
+      rKey = hash alg $ bytesOf bigS
+      rClientProof = hashMany alg [xorNG, hashedName, fsSalt, publicBytes, fsPublicBytes, rKey]
+      rServerProof = hashMany alg [publicBytes, rClientProof, rKey]
+   in Results {rKey, rClientProof, rServerProof}
 
 
 {- |
@@ -143,10 +167,12 @@ calcPremasterSecret fc fs =
     modExpPrime base power pg
 
 
+-- | Obtain an @Integer@ from its @ByteString@ encoding
 fromBytes :: ByteString -> Integer
 fromBytes = BS.foldl' (\acc b -> acc * 256 + fromIntegral b) 0
 
 
+-- | Encode an @Integer@ as a @ByteString@
 bytesOf :: Integer -> BS.ByteString
 bytesOf n
   | n == 0 = BS.pack [0]
