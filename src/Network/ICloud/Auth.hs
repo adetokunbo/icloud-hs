@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 
 {- |
 Module      : etwork.ICloud.Auth
@@ -214,7 +215,7 @@ loadCredentials topDir = do
 
 
 loadCredentials' :: FilePath -> IO (Either String (FilePath, Credentials))
-loadCredentials' topDir = fmap ((,) topDir) <$> loadCredentials topDir
+loadCredentials' topDir = fmap (topDir,) <$> loadCredentials topDir
 
 
 loadSession' :: Either String (FilePath, Credentials) -> IO (Either String Session)
