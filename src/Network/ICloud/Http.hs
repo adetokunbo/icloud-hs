@@ -60,13 +60,22 @@ import Data.Time (getCurrentTime)
 import GHC.Generics (Generic)
 import Network.HTTP.Client (
   Manager,
-  Request,
+  Request (..),
   Response (..),
   createCookieJar,
+  defaultRequest,
   httpLbs,
   updateCookieJar,
  )
-import Network.HTTP.Types (Header, HeaderName, RequestHeaders, hContentType, hReferer)
+import Network.HTTP.Types (
+  Header,
+  HeaderName,
+  RequestHeaders,
+  hContentType,
+  hReferer,
+  methodGet,
+  methodPost,
+ )
 import Network.ICloud.Auth (
   SavedHeaders (..),
   Session (..),
@@ -233,7 +242,7 @@ updateSavedHeadersOf s headers = do
 
 authHeaders :: Text -> Endpoints -> SavedHeaders -> RequestHeaders
 authHeaders cid ep sd =
-  let epHeaders = [(hOrigin, epHome ep), (hReferer, epHome ep <> "/")]
+  let epHeaders = [(hOrigin, ep2Home ep), (hReferer, ep2Home ep <> "/")]
       headerOf name x = (name, toS x)
       maybeHeaderOf name = fmap (headerOf name)
       cidHeader = [(hClientId, toS cid)]
@@ -245,41 +254,52 @@ authHeaders cid ep sd =
    in staticHeaders <> epHeaders <> sdHeaders <> cidHeader
 
 
-realmEndpoints :: Realm -> Endpoints
-realmEndpoints China = chinaEndpoints
-realmEndpoints Usual = defaultEndpoints
-
-
 -- | The known "realms" with different 'Endpoints'.
 data Realm = China | Usual
   deriving (Eq, Show)
 
 
-defaultEndpoints :: Endpoints
-defaultEndpoints =
+realmEndpoints :: Realm -> Endpoints
+realmEndpoints China = chinaEndpoints
+realmEndpoints Usual = usualEndpoints
+
+
+apiRequest :: Request
+apiRequest = defaultRequest {secure = True, method = methodPost}
+
+
+authReq :: Request
+authReq = apiRequest {host = "idmsa.apple.com", path = "/appleauth/auth"}
+
+
+setupReq :: Request
+setupReq = apiRequest {host = "setup.icloud.com", path = "/setup/ws/1"}
+
+
+usualEndpoints :: Endpoints
+usualEndpoints =
   Endpoints
-    { epAuth = "https://idmsa.apple.com/appleauth/auth"
-    , epHome = "https://www.icloud.com"
-    , epSetup = "https://setup.icloud.com/setup/ws/1"
+    { ep2Home = "https://www.icloud.com"
+    , ep2Auth = authReq
+    , ep2Setup = setupReq
     }
 
 
 chinaEndpoints :: Endpoints
 chinaEndpoints =
   Endpoints
-    { epAuth = "https://idmsa.apple.com/appleauth/auth"
-    , epHome = "https://www.icloud.com.cn"
-    , epSetup = "https://setup.icloud.com.cn/setup/ws/1"
+    { ep2Home = "https://www.icloud.com.cn"
+    , ep2Auth = authReq
+    , ep2Setup = setupReq {host = "setup.icloud.com.cn"}
     }
 
 
--- | A fixed set of HTTP URL roots used by all the service URLs
+-- | A base URL roots and default Request used to construct other service Requests
 data Endpoints = Endpoints
-  { epHome :: {-# UNPACK #-} !ByteString
-  , epAuth :: {-# UNPACK #-} !ByteString
-  , epSetup :: {-# UNPACK #-} !ByteString
+  { ep2Home :: !ByteString
+  , ep2Auth :: !Request
+  , ep2Setup :: !Request
   }
-  deriving (Eq, Show)
 
 
 -- | Header used in auth and server HTTP requests
@@ -336,3 +356,47 @@ staticHeaders =
 
 xAppleKey :: ByteString
 xAppleKey = "d39ba9916b7251055b22c7f910e2ea796ee65e98b2ddecea8f5dde8d9d1a815d"
+
+
+signinInit :: Endpoints -> Request
+signinInit = (`extendPath` "/signin/init") . ep2Auth
+
+
+signinComplete :: Endpoints -> Request
+signinComplete = (`extendPath` "/signin/complete") . ep2Auth
+
+
+twoSvTrust :: Endpoints -> Request
+twoSvTrust = (`extendPath` "/2sv/trust") . toGet . ep2Auth
+
+
+accounLogin :: Endpoints -> Request
+accounLogin = (`extendPath` "/signin/accountLogin") . ep2Setup
+
+
+validate2FA :: Endpoints -> Request
+validate2FA = (`extendPath` "/verify/trusteddevice/securitycode") . ep2Setup
+
+
+validate :: Endpoints -> Request
+validate = (`extendPath` "/validate") . ep2Setup
+
+
+validateVerification :: Endpoints -> Request
+validateVerification = (`extendPath` "/validateVerificationCode") . ep2Setup
+
+
+sendVerification :: Endpoints -> Request
+sendVerification = (`extendPath` "/sendVerificationCode") . ep2Setup
+
+
+listDevices :: Endpoints -> Request
+listDevices = (`extendPath` "/listDevices") . toGet . ep2Setup
+
+
+extendPath :: Request -> ByteString -> Request
+extendPath req suffix = req {path = path req <> suffix}
+
+
+toGet :: Request -> Request
+toGet req = req {method = methodGet}
