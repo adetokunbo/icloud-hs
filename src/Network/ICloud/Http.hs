@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -22,6 +23,7 @@ module Network.ICloud.Http (
   -- * type family extensions
 
   -- * functions
+  signinInit,
   rawRequest,
   jsonSessionRequest,
   mkSavedHeaders,
@@ -390,8 +392,12 @@ xAppleKey :: ByteString
 xAppleKey = "d39ba9916b7251055b22c7f910e2ea796ee65e98b2ddecea8f5dde8d9d1a815d"
 
 
-signinInit :: Endpoints -> FromClient -> Request
-signinInit = mkJsonRequest signinInitBase signinInitValue
+signinInit :: (FromJSON a) => Api -> FromClient -> IO (Response (ApiResponse a))
+signinInit = invoke signinInitReq
+
+
+signinInitReq :: Endpoints -> FromClient -> Request
+signinInitReq = mkJsonRequest signinInitBase signinInitValue
 
 
 signinInitBase :: Endpoints -> Request
@@ -417,8 +423,12 @@ data SigninCompletion = SigninCompletion
   }
 
 
-signinComplete :: Endpoints -> SigninCompletion -> Request
-signinComplete = mkJsonRequest signinCompleteBase signinCompleteValue
+signinComplete :: (FromJSON a) => Api -> SigninCompletion -> IO (Response (ApiResponse a))
+signinComplete = invoke signinCompleteReq
+
+
+signinCompleteReq :: Endpoints -> SigninCompletion -> Request
+signinCompleteReq = mkJsonRequest signinCompleteBase signinCompleteValue
 
 
 signinCompleteBase :: Endpoints -> Request
@@ -521,3 +531,15 @@ mkJsonRequest mkBase mkBody baseSrc bodySrc =
       body = mkBody bodySrc
       encodedBody = encode body
    in base {requestBody = RequestBodyLBS encodedBody}
+
+
+invoke ::
+  (FromJSON a) =>
+  (Endpoints -> b -> Request) ->
+  Api ->
+  b ->
+  IO (Response (ApiResponse a))
+invoke mkReq api x =
+  let Api {apiEndpoints} = api
+      req = mkReq apiEndpoints x
+   in jsonSessionRequest api req
