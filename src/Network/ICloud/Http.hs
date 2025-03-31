@@ -470,7 +470,6 @@ data SigninCompletion = SigninCompletion
   { siTag :: !Text
   , siAccountName :: !Text
   , siSavedHeaders :: !SavedHeaders
-  , siFromClient :: !FromClient
   , siResults :: !Results
   }
 
