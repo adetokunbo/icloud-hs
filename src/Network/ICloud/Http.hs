@@ -288,70 +288,40 @@ authHeaders api =
    in staticHeaders <> epHeaders <> sdHeaders <> cidHeader
 
 
--- | The known "realms" with different 'Endpoints'.
-data Realm = China | Usual
-  deriving (Eq, Show)
+extendPath :: Request -> ByteString -> Request
+extendPath req suffix = req {path = path req <> suffix}
 
 
-realmEndpoints :: Realm -> Endpoints
-realmEndpoints China = chinaEndpoints
-realmEndpoints Usual = usualEndpoints
+toGet :: Request -> Request
+toGet req = req {method = methodGet}
 
 
-apiRequest :: Request
-apiRequest = defaultRequest {secure = True, method = methodPost}
+maybeValue :: (a -> Value) -> Maybe a -> Value
+maybeValue = maybe Null
 
 
-authReq :: Request
-authReq = apiRequest {host = "idmsa.apple.com", path = "/appleauth/auth"}
+asObject :: [(Key, Value)] -> Value
+asObject = Object . fromList
 
 
-setupReq :: Request
-setupReq = apiRequest {host = "setup.icloud.com", path = "/setup/ws/1"}
+mkJsonRequest :: (a -> Request) -> (b -> Value) -> a -> b -> Request
+mkJsonRequest mkBase mkBody baseSrc bodySrc =
+  let base = mkBase baseSrc
+      body = mkBody bodySrc
+      encodedBody = encode body
+   in base {requestBody = RequestBodyLBS encodedBody}
 
 
-usualEndpoints :: Endpoints
-usualEndpoints =
-  Endpoints
-    { ep2Home = "https://www.icloud.com"
-    , ep2Auth = authReq
-    , ep2Setup = setupReq
-    }
-
-
-chinaEndpoints :: Endpoints
-chinaEndpoints =
-  Endpoints
-    { ep2Home = "https://www.icloud.com.cn"
-    , ep2Auth = authReq
-    , ep2Setup = setupReq {host = "setup.icloud.com.cn"}
-    }
-
-
--- | A base URL roots and default Request used to construct other service Requests
-data Endpoints = Endpoints
-  { ep2Home :: !ByteString
-  , ep2Auth :: !Request
-  , ep2Setup :: !Request
-  }
-
-
--- | Header used in auth and server HTTP requests
-hCountry
-  , hSessionId
-  , hSessionToken
-  , hTrustToken
-  , hCounter
-  , hOrigin
-  , hClientId ::
-    HeaderName
-hCountry = mk "X-Apple-ID-Account-Country"
-hSessionId = mk "X-Apple-ID-Session-Id"
-hSessionToken = mk "X-Apple-Session-Token"
-hTrustToken = mk "X-Apple-TwoSV-Trust-Token"
-hCounter = mk "scnt"
-hOrigin = mk "Origin"
-hClientId = mk "X-Apple-OAuth-State"
+invoke ::
+  (FromJSON a) =>
+  (Endpoints -> b -> Request) ->
+  Api ->
+  b ->
+  IO (Response (ApiResponse a))
+invoke mkReq api x =
+  let Api {apiEndpoints} = api
+      req = mkReq apiEndpoints x
+   in jsonSessionRequest api req
 
 
 mkSavedHeaders :: [Header] -> SavedHeaders
@@ -374,6 +344,72 @@ updateSavedHeaders hs sd =
     , shTrustToken = (toS <$> lookup hTrustToken hs) <|> shTrustToken sd
     , shCounter = (toS <$> lookup hCounter hs) <|> shCounter sd
     }
+
+
+-- | The known "realms" with different 'Endpoints'.
+data Realm = China | Usual
+  deriving (Eq, Show)
+
+
+realmEndpoints :: Realm -> Endpoints
+realmEndpoints China = chinaEndpoints
+realmEndpoints Usual = usualEndpoints
+
+
+-- | A base URL roots and default Request used to construct other service Requests
+data Endpoints = Endpoints
+  { ep2Home :: !ByteString
+  , ep2Auth :: !Request
+  , ep2Setup :: !Request
+  }
+
+
+usualEndpoints :: Endpoints
+usualEndpoints =
+  Endpoints
+    { ep2Home = "https://www.icloud.com"
+    , ep2Auth = authReq
+    , ep2Setup = setupReq
+    }
+
+
+chinaEndpoints :: Endpoints
+chinaEndpoints =
+  Endpoints
+    { ep2Home = "https://www.icloud.com.cn"
+    , ep2Auth = authReq
+    , ep2Setup = setupReq {host = "setup.icloud.com.cn"}
+    }
+
+
+apiRequest :: Request
+apiRequest = defaultRequest {secure = True, method = methodPost}
+
+
+authReq :: Request
+authReq = apiRequest {host = "idmsa.apple.com", path = "/appleauth/auth"}
+
+
+setupReq :: Request
+setupReq = apiRequest {host = "setup.icloud.com", path = "/setup/ws/1"}
+
+
+-- | Header names used in auth and server HTTP requests
+hCountry
+  , hSessionId
+  , hSessionToken
+  , hTrustToken
+  , hCounter
+  , hOrigin
+  , hClientId ::
+    HeaderName
+hCountry = mk "X-Apple-ID-Account-Country"
+hSessionId = mk "X-Apple-ID-Session-Id"
+hSessionToken = mk "X-Apple-Session-Token"
+hTrustToken = mk "X-Apple-TwoSV-Trust-Token"
+hCounter = mk "scnt"
+hOrigin = mk "Origin"
+hClientId = mk "X-Apple-OAuth-State"
 
 
 staticHeaders :: [Header]
@@ -507,39 +543,3 @@ sendVerification = (`extendPath` "/sendVerificationCode") . ep2Setup
 
 listDevices :: Endpoints -> Request
 listDevices = (`extendPath` "/listDevices") . toGet . ep2Setup
-
-
-extendPath :: Request -> ByteString -> Request
-extendPath req suffix = req {path = path req <> suffix}
-
-
-toGet :: Request -> Request
-toGet req = req {method = methodGet}
-
-
-maybeValue :: (a -> Value) -> Maybe a -> Value
-maybeValue = maybe Null
-
-
-asObject :: [(Key, Value)] -> Value
-asObject = Object . fromList
-
-
-mkJsonRequest :: (a -> Request) -> (b -> Value) -> a -> b -> Request
-mkJsonRequest mkBase mkBody baseSrc bodySrc =
-  let base = mkBase baseSrc
-      body = mkBody bodySrc
-      encodedBody = encode body
-   in base {requestBody = RequestBodyLBS encodedBody}
-
-
-invoke ::
-  (FromJSON a) =>
-  (Endpoints -> b -> Request) ->
-  Api ->
-  b ->
-  IO (Response (ApiResponse a))
-invoke mkReq api x =
-  let Api {apiEndpoints} = api
-      req = mkReq apiEndpoints x
-   in jsonSessionRequest api req
