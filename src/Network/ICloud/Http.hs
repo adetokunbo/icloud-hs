@@ -276,7 +276,7 @@ authHeaders :: Api -> RequestHeaders
 authHeaders api =
   let Api {apiSession = session, apiEndpoints = ep} = api
       Session {sessionClientId = cid, sessionSavedHdrs = sd} = session
-      epHeaders = [(hOrigin, ep2Home ep), (hReferer, ep2Home ep <> "/")]
+      epHeaders = [(hOrigin, epHome ep), (hReferer, epHome ep <> "/")]
       headerOf name x = (name, toS x)
       maybeHeaderOf name = fmap (headerOf name)
       cidHeader = [(hClientId, toS cid)]
@@ -372,27 +372,27 @@ realmEndpoints Usual = usualEndpoints
 
 -- | A base URL roots and default Request used to construct other service Requests
 data Endpoints = Endpoints
-  { ep2Home :: !ByteString
-  , ep2Auth :: !Request
-  , ep2Setup :: !Request
+  { epHome :: !ByteString
+  , epAuth :: !Request
+  , epSetup :: !Request
   }
 
 
 usualEndpoints :: Endpoints
 usualEndpoints =
   Endpoints
-    { ep2Home = "https://www.icloud.com"
-    , ep2Auth = authReq
-    , ep2Setup = setupReq
+    { epHome = "https://www.icloud.com"
+    , epAuth = authReq
+    , epSetup = setupReq
     }
 
 
 chinaEndpoints :: Endpoints
 chinaEndpoints =
   Endpoints
-    { ep2Home = "https://www.icloud.com.cn"
-    , ep2Auth = authReq
-    , ep2Setup = setupReq {host = "setup.icloud.com.cn"}
+    { epHome = "https://www.icloud.com.cn"
+    , epAuth = authReq
+    , epSetup = setupReq {host = "setup.icloud.com.cn"}
     }
 
 
@@ -451,7 +451,7 @@ signinInitReq = mkJsonRequest signinInitBase signinInitValue
 
 
 signinInitBase :: Endpoints -> Request
-signinInitBase = (`extendPath` "/signin/init") . ep2Auth
+signinInitBase = (`extendPath` "/signin/init") . epAuth
 
 
 signinInitValue :: FromClient -> Value
@@ -482,7 +482,7 @@ signinCompleteReq = mkJsonRequest signinCompleteBase signinCompleteValue
 
 
 signinCompleteBase :: Endpoints -> Request
-signinCompleteBase = (`extendPath` "/signin/complete") . ep2Auth
+signinCompleteBase = (`extendPath` "/signin/complete") . epAuth
 
 
 signinCompleteValue :: SigninCompletion -> Value
@@ -503,11 +503,11 @@ signinCompleteValue si =
 
 
 twoSvTrust :: Endpoints -> Request
-twoSvTrust = (`extendPath` "/2sv/trust") . toGet . ep2Auth
+twoSvTrust = (`extendPath` "/2sv/trust") . toGet . epAuth
 
 
 accountLoginBase :: Endpoints -> Request
-accountLoginBase = (`extendPath` "/signin/accountLoginBase") . ep2Setup
+accountLoginBase = (`extendPath` "/signin/accountLoginBase") . epSetup
 
 
 accountLoginValue :: SavedHeaders -> Value
@@ -525,7 +525,7 @@ accountLogin = mkJsonRequest accountLoginBase accountLoginValue
 
 
 validate :: Endpoints -> Request
-validate = (`extendPath` "/validate") . ep2Setup
+validate = (`extendPath` "/validate") . epSetup
 
 
 validateValue :: Value
@@ -533,7 +533,7 @@ validateValue = Null
 
 
 validate2FA :: Endpoints -> Request
-validate2FA = (`extendPath` "/verify/trusteddevice/securitycode") . ep2Setup
+validate2FA = (`extendPath` "/verify/trusteddevice/securitycode") . epSetup
 
 
 validate2FAValue :: Text -> Value
@@ -548,12 +548,12 @@ validate2FAValue code =
 
 
 validateVerification :: Endpoints -> Request
-validateVerification = (`extendPath` "/validateVerificationCode") . ep2Setup
+validateVerification = (`extendPath` "/validateVerificationCode") . epSetup
 
 
 sendVerification :: Endpoints -> Request
-sendVerification = (`extendPath` "/sendVerificationCode") . ep2Setup
+sendVerification = (`extendPath` "/sendVerificationCode") . epSetup
 
 
 listDevices :: Endpoints -> Request
-listDevices = (`extendPath` "/listDevices") . toGet . ep2Setup
+listDevices = (`extendPath` "/listDevices") . toGet . epSetup
