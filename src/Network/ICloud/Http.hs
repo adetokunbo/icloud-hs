@@ -24,6 +24,8 @@ module Network.ICloud.Http (
 
   -- * functions
   signinInit,
+  signinComplete,
+  accountLogin,
   rawRequest,
   jsonSessionRequest,
   mkSavedHeaders,
@@ -506,6 +508,14 @@ twoSvTrust :: Endpoints -> Request
 twoSvTrust = (`extendPath` "/2sv/trust") . toGet . epAuth
 
 
+accountLogin :: (FromJSON a) => Api -> IO (Response (ApiResponse a))
+accountLogin api = invoke accountLoginReq api (sessionSavedHdrs $ apiSession api)
+
+
+accountLoginReq :: Endpoints -> SavedHeaders -> Request
+accountLoginReq = mkJsonRequest accountLoginBase accountLoginValue
+
+
 accountLoginBase :: Endpoints -> Request
 accountLoginBase = (`extendPath` "/signin/accountLoginBase") . epSetup
 
@@ -518,10 +528,6 @@ accountLoginValue hs =
     , ("trustToken", maybeValue String (shTrustToken hs))
     , ("extended_login", Bool True)
     ]
-
-
-accountLogin :: Endpoints -> SavedHeaders -> Request
-accountLogin = mkJsonRequest accountLoginBase accountLoginValue
 
 
 validate :: Endpoints -> Request
