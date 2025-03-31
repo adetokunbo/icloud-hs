@@ -126,13 +126,6 @@ clientIdBase :: Credentials -> Text
 clientIdBase = (<> ".client-id.txt") . sprucedName
 
 
--- instance FromJSON Endpoints where
---   parseJSON = withObject "Endpoints" $ \o ->
---     let home = o .: "home"
---         auth = o .: "auth"
---         setup = o .: "setup"
---      in Endpoints <$> home <*> auth <*> setup
-
 -- | Data obtained from HTTP response headers that define a user session
 data SavedHeaders = SavedHeaders
   { shCountry :: !(Maybe Text)
