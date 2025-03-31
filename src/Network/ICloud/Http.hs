@@ -324,6 +324,20 @@ invoke mkReq api x =
    in jsonSessionRequest api req
 
 
+invokeWithAuthHdrs ::
+  (FromJSON a) =>
+  (Endpoints -> b -> Request) ->
+  Api ->
+  b ->
+  IO (Response (ApiResponse a))
+invokeWithAuthHdrs mkReq api x =
+  let Api {apiEndpoints} = api
+      req = mkReq apiEndpoints x
+      requestHeaders = authHeaders api
+      req' = req {requestHeaders}
+   in jsonSessionRequest api req'
+
+
 mkSavedHeaders :: [Header] -> SavedHeaders
 mkSavedHeaders hs =
   SavedHeaders
@@ -429,7 +443,7 @@ xAppleKey = "d39ba9916b7251055b22c7f910e2ea796ee65e98b2ddecea8f5dde8d9d1a815d"
 
 
 signinInit :: (FromJSON a) => Api -> FromClient -> IO (Response (ApiResponse a))
-signinInit = invoke signinInitReq
+signinInit = invokeWithAuthHdrs signinInitReq
 
 
 signinInitReq :: Endpoints -> FromClient -> Request
