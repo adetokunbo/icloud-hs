@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -66,6 +67,7 @@ import Data.CaseInsensitive (mk)
 import Data.Maybe (catMaybes)
 import Data.String.Conv (toS)
 import Data.Text (Text)
+import qualified Data.Text as Text
 import Data.Time (getCurrentTime)
 import GHC.Generics (Generic)
 import Network.HTTP.Client (
@@ -159,6 +161,24 @@ asJson :: (FromJSON a) => LBS.ByteString -> IO a
 asJson resp = case eitherDecode resp of
   Left _err -> fail "did not decode JSON response correctly"
   Right x -> pure x
+
+
+failIfError :: Response (ApiResponse a) -> IO a
+failIfError resp = do
+  if
+    | statusCode (responseStatus resp) >= 400 -> fail $ showStatusOf resp
+    | Failed x <- responseBody resp -> fail $ Text.unpack $ aeReason x
+    | Succeeded x <- responseBody resp -> pure x
+
+
+showStatusOf :: Response a -> String
+showStatusOf resp =
+  let showResponse' x s | x >= 400 = "bad request:" ++ show s
+      showResponse' x s | x >= 500 = "server error:" ++ show s
+      showResponse' _x s = "ok:" ++ show s
+      theStatus = responseStatus resp
+      theCode = statusCode theStatus
+   in showResponse' theCode theStatus
 
 
 {--| Represents an API response that may succeed or fail with 'ApiError' -}
@@ -319,11 +339,11 @@ invoke ::
   (Endpoints -> b -> Request) ->
   Api ->
   b ->
-  IO (Response (ApiResponse a))
+  IO a
 invoke mkReq api x =
   let Api {apiEndpoints} = api
       req = mkReq apiEndpoints x
-   in jsonSessionRequest api req
+   in jsonSessionRequest api req >>= failIfError
 
 
 invokeWithAuthHdrs ::
@@ -331,13 +351,13 @@ invokeWithAuthHdrs ::
   (Endpoints -> b -> Request) ->
   Api ->
   b ->
-  IO (Response (ApiResponse a))
+  IO a
 invokeWithAuthHdrs mkReq api x =
   let Api {apiEndpoints} = api
       req = mkReq apiEndpoints x
       requestHeaders = authHeaders api
       req' = req {requestHeaders}
-   in jsonSessionRequest api req'
+   in jsonSessionRequest api req' >>= failIfError
 
 
 mkSavedHeaders :: [Header] -> SavedHeaders
@@ -444,7 +464,7 @@ xAppleKey :: ByteString
 xAppleKey = "d39ba9916b7251055b22c7f910e2ea796ee65e98b2ddecea8f5dde8d9d1a815d"
 
 
-signinInit :: (FromJSON a) => Api -> FromClient -> IO (Response (ApiResponse a))
+signinInit :: (FromJSON a) => Api -> FromClient -> IO a
 signinInit = invokeWithAuthHdrs signinInitReq
 
 
@@ -474,7 +494,7 @@ data SigninCompletion = SigninCompletion
   }
 
 
-signinComplete :: (FromJSON a) => Api -> SigninCompletion -> IO (Response (ApiResponse a))
+signinComplete :: (FromJSON a) => Api -> SigninCompletion -> IO a
 signinComplete = invoke signinCompleteReq
 
 
@@ -507,7 +527,7 @@ twoSvTrust :: Endpoints -> Request
 twoSvTrust = (`extendPath` "/2sv/trust") . toGet . epAuth
 
 
-accountLogin :: (FromJSON a) => Api -> IO (Response (ApiResponse a))
+accountLogin :: Api -> IO Value
 accountLogin api = invoke accountLoginReq api (sessionSavedHdrs $ apiSession api)
 
 
