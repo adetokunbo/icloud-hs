@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 {- |
@@ -38,19 +39,24 @@ module Network.ICloud.Http (
 
 import Control.Applicative (Alternative (..), (<|>))
 import Control.Monad (unless)
+import Crypto.SRP (FromClient (..), Results (..))
 import Data.Aeson (
   FromJSON (..),
+  Key,
   Object,
   eitherDecode,
   eitherDecodeFileStrict,
+  encode,
   encodeFile,
   withObject,
   (.:),
  )
-import Data.Aeson.KeyMap (member)
-import Data.Aeson.Types (Parser, (.:?))
+import Data.Aeson.KeyMap (fromList, member, singleton)
+import Data.Aeson.Types (Parser, Value (..), (.:?))
 import Data.Attoparsec.Cookie (readJar, writeNetscapeJar)
+import Data.Base64.Types (extractBase64)
 import Data.ByteString (ByteString)
+import Data.ByteString.Base64 (encodeBase64)
 import qualified Data.ByteString.Lazy as LBS
 import Data.CaseInsensitive (mk)
 import Data.Maybe (catMaybes)
@@ -61,6 +67,7 @@ import GHC.Generics (Generic)
 import Network.HTTP.Client (
   Manager,
   Request (..),
+  RequestBody (..),
   Response (..),
   createCookieJar,
   defaultRequest,
@@ -358,28 +365,101 @@ xAppleKey :: ByteString
 xAppleKey = "d39ba9916b7251055b22c7f910e2ea796ee65e98b2ddecea8f5dde8d9d1a815d"
 
 
-signinInit :: Endpoints -> Request
-signinInit = (`extendPath` "/signin/init") . ep2Auth
+signinInit :: Endpoints -> FromClient -> Request
+signinInit = mkJsonRequest signinInitBase signinInitValue
 
 
-signinComplete :: Endpoints -> Request
-signinComplete = (`extendPath` "/signin/complete") . ep2Auth
+signinInitBase :: Endpoints -> Request
+signinInitBase = (`extendPath` "/signin/init") . ep2Auth
+
+
+signinInitValue :: FromClient -> Value
+signinInitValue fc =
+  let a = extractBase64 $ encodeBase64 $ fcPublicBytes fc
+   in asObject
+        [ ("a", String a)
+        , ("accountName", String (fcUser fc))
+        , ("protocols", Array ["s2k", "s2k_fo"])
+        ]
+
+
+data SigninCompletion = SigninCompletion
+  { siTag :: !Text
+  , siAccountName :: !Text
+  , siSavedHeaders :: !SavedHeaders
+  , siFromClient :: !FromClient
+  , siResults :: !Results
+  }
+
+
+signinComplete :: Endpoints -> SigninCompletion -> Request
+signinComplete = mkJsonRequest signinCompleteBase signinCompleteValue
+
+
+signinCompleteBase :: Endpoints -> Request
+signinCompleteBase = (`extendPath` "/signin/complete") . ep2Auth
+
+
+signinCompleteValue :: SigninCompletion -> Value
+signinCompleteValue si =
+  let SigninCompletion {siResults = results} = si
+      m1 = extractBase64 $ encodeBase64 $ rClientProof results
+      m2 = extractBase64 $ encodeBase64 $ rServerProof results
+      singleElem x = Array [String x]
+      maybeArray = maybe (Array []) singleElem
+   in asObject
+        [ ("m1", String m1)
+        , ("m2", String m2)
+        , ("trustTokens", maybeArray (shTrustToken (siSavedHeaders si)))
+        , ("rememberMe", Bool True)
+        , ("accountName", String (siAccountName si))
+        , ("c", String (siTag si))
+        ]
 
 
 twoSvTrust :: Endpoints -> Request
 twoSvTrust = (`extendPath` "/2sv/trust") . toGet . ep2Auth
 
 
-accounLogin :: Endpoints -> Request
-accounLogin = (`extendPath` "/signin/accountLogin") . ep2Setup
+accountLoginBase :: Endpoints -> Request
+accountLoginBase = (`extendPath` "/signin/accountLoginBase") . ep2Setup
+
+
+accountLoginValue :: SavedHeaders -> Value
+accountLoginValue hs =
+  asObject
+    [ ("accountCountryCode", maybeValue String (shCountry hs))
+    , ("dsWebAuthToken", maybeValue String (shSessionToken hs))
+    , ("trustToken", maybeValue String (shTrustToken hs))
+    , ("extended_login", Bool True)
+    ]
+
+
+accountLogin :: Endpoints -> SavedHeaders -> Request
+accountLogin = mkJsonRequest accountLoginBase accountLoginValue
+
+
+validate :: Endpoints -> Request
+validate = (`extendPath` "/validate") . ep2Setup
+
+
+validateValue :: Value
+validateValue = Null
 
 
 validate2FA :: Endpoints -> Request
 validate2FA = (`extendPath` "/verify/trusteddevice/securitycode") . ep2Setup
 
 
-validate :: Endpoints -> Request
-validate = (`extendPath` "/validate") . ep2Setup
+validate2FAValue :: Text -> Value
+validate2FAValue code =
+  Object
+    ( singleton
+        "securityCode"
+        ( Object
+            (singleton "code" (String code))
+        )
+    )
 
 
 validateVerification :: Endpoints -> Request
@@ -400,3 +480,19 @@ extendPath req suffix = req {path = path req <> suffix}
 
 toGet :: Request -> Request
 toGet req = req {method = methodGet}
+
+
+maybeValue :: (a -> Value) -> Maybe a -> Value
+maybeValue = maybe Null
+
+
+asObject :: [(Key, Value)] -> Value
+asObject = Object . fromList
+
+
+mkJsonRequest :: (a -> Request) -> (b -> Value) -> a -> b -> Request
+mkJsonRequest mkBase mkBody baseSrc bodySrc =
+  let base = mkBase baseSrc
+      body = mkBody bodySrc
+      encodedBody = encode body
+   in base {requestBody = RequestBodyLBS encodedBody}
