@@ -78,6 +78,7 @@ import Network.HTTP.Types (
   Header,
   HeaderName,
   RequestHeaders,
+  Status (..),
   hContentType,
   hReferer,
   methodGet,
@@ -102,12 +103,25 @@ data Api = Api
 
 -- | Make a session request and obtain the raw byte results
 rawRequest :: Api -> Request -> IO (Response LBS.ByteString)
-rawRequest api req = do
+rawRequest = rawRequest' True
+
+
+-- | Make a session request and obtain the raw byte results
+rawRequest' :: Bool -> Api -> Request -> IO (Response LBS.ByteString)
+rawRequest' mayRetry api req = do
   let Api {apiManager = mgr, apiSession = s} = api
   resp <- httpLbs req mgr
   resp' <- updateCookieJarOf s resp req
   updateSavedHeadersOf s $ responseHeaders resp'
-  pure resp'
+  if mayRetry && needsRetry resp'
+    then rawRequest' False api req
+    else pure resp'
+
+
+needsRetry :: Response a -> Bool
+needsRetry resp =
+  let status = statusCode $ responseStatus resp
+   in status == 421 || status == 450 || status == 500
 
 
 {- | Make a session request to obtain a JSON payload
