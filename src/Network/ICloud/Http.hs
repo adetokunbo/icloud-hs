@@ -92,9 +92,18 @@ import Network.ICloud.Auth (
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 
 
+-- | Combines datatypes used whenever the http API is accessed
+data Api = Api
+  { apiManager :: !Manager
+  , apiSession :: !Session
+  , apiEndpoints :: !Endpoints
+  }
+
+
 -- | Make a session request and obtain the raw byte results
-rawRequest :: Manager -> Session -> Request -> IO (Response LBS.ByteString)
-rawRequest mgr s req = do
+rawRequest :: Api -> Request -> IO (Response LBS.ByteString)
+rawRequest api req = do
+  let Api {apiManager = mgr, apiSession = s} = api
   resp <- httpLbs req mgr
   resp' <- updateCookieJarOf s resp req
   updateSavedHeadersOf s $ responseHeaders resp'
@@ -113,13 +122,13 @@ if it parses as an ApiError, indicate that
 if the response is not JSON, use 'rawRequest' instead
 -}
 jsonSessionRequest ::
-  (FromJSON a) => Manager -> Session -> Request -> IO (Response (ApiResponse a))
-jsonSessionRequest mgr s req = do
-  raw <- rawRequest mgr s req
+  (FromJSON a) => Api -> Request -> IO (Response (ApiResponse a))
+jsonSessionRequest api req = do
   let isJsonType "application/json" = True
       isJsonType "text/json" = True
       isJsonType _other = False
-      theType = lookup hContentType $ responseHeaders raw
+  raw <- rawRequest api req
+  let theType = lookup hContentType $ responseHeaders raw
       isJson = maybe False isJsonType theType
   unless isJson $ fail $ "response was not JSON: " ++ show theType
   mapM asJson raw
@@ -247,9 +256,11 @@ updateSavedHeadersOf s headers = do
       encodeFile dataPath $ mkSavedHeaders headers
 
 
-authHeaders :: Text -> Endpoints -> SavedHeaders -> RequestHeaders
-authHeaders cid ep sd =
-  let epHeaders = [(hOrigin, ep2Home ep), (hReferer, ep2Home ep <> "/")]
+authHeaders :: Api -> RequestHeaders
+authHeaders api =
+  let Api {apiSession = session, apiEndpoints = ep} = api
+      Session {sessionClientId = cid, sessionSavedHdrs = sd} = session
+      epHeaders = [(hOrigin, ep2Home ep), (hReferer, ep2Home ep <> "/")]
       headerOf name x = (name, toS x)
       maybeHeaderOf name = fmap (headerOf name)
       cidHeader = [(hClientId, toS cid)]
