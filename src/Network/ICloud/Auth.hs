@@ -24,7 +24,7 @@ module Network.ICloud.Auth (
   Session (..),
   SavedHeaders (..),
   loadSession,
-  sessionInit,
+  runSrpAuth,
 
   -- * clientID generation
   newClientId,
@@ -51,7 +51,6 @@ import Data.Aeson (
   (.:),
  )
 import Data.Aeson.Casing (aesonPrefix, snakeCase)
-import Data.ByteString (ByteString)
 import Data.Char (isAlphaNum)
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -163,16 +162,15 @@ ignore impl
   [ ]   [ ]
   [ ]   [ ]
 -}
-sessionInit :: IO ()
-sessionInit = do
+loadSession :: IO Session
+loadSession = do
   sessionTopDir <- getUserConfigDir appPath
-  _session <- loadSession sessionTopDir >>= either fail pure
-  pure ()
+  loadSessionOr sessionTopDir >>= either fail pure
 
 
 runSrpAuth ::
-  (PrimeGroup -> ByteString -> IO (FromServer, b)) ->
-  (b -> FromClient -> Results -> IO a) ->
+  (PrimeGroup -> FromClient -> IO (FromServer, b)) ->
+  (b -> Results -> IO a) ->
   Session ->
   IO a
 runSrpAuth stepOne stepTwo session = do
@@ -180,8 +178,8 @@ runSrpAuth stepOne stepTwo session = do
       Session {sessionCreds = creds} = session
       Credentials {credAccountName = user, credPassword = password} = creds
   clientSide <- mkFromClient user password pg
-  (serverSide, extra) <- stepOne pg (fcPublicBytes clientSide)
-  stepTwo extra clientSide (calcResults clientSide serverSide)
+  (serverSide, extra) <- stepOne pg clientSide
+  stepTwo extra (calcResults clientSide serverSide)
 
 
 loadCredentials :: FilePath -> IO (Either String Credentials)
@@ -205,8 +203,8 @@ loadSession' (Right (sessionTopDir, sessionCreds)) = do
       pure $ Right Session {sessionClientId, sessionCreds, sessionTopDir, sessionSavedHdrs}
 
 
-loadSession :: FilePath -> IO (Either String Session)
-loadSession = loadCredentials' >=> loadSession'
+loadSessionOr :: FilePath -> IO (Either String Session)
+loadSessionOr = loadCredentials' >=> loadSession'
 
 
 loadSavedHeaders :: FilePath -> Credentials -> IO (Either String SavedHeaders)
