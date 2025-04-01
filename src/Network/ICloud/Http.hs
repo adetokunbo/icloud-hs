@@ -54,6 +54,7 @@ import Data.Aeson (
   encode,
   encodeFile,
   withObject,
+  withText,
   (.:),
  )
 import Data.Aeson.KeyMap (fromList, member, singleton)
@@ -61,14 +62,16 @@ import Data.Aeson.Types (Parser, Value (..), (.:?))
 import Data.Attoparsec.Cookie (readJar, writeNetscapeJar)
 import Data.Base64.Types (extractBase64)
 import Data.ByteString (ByteString)
-import Data.ByteString.Base64 (encodeBase64)
+import Data.ByteString.Base64 (decodeBase64Untyped, encodeBase64)
 import qualified Data.ByteString.Lazy as LBS
 import Data.CaseInsensitive (mk)
 import Data.Maybe (catMaybes)
 import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time (getCurrentTime)
+import Data.Word (Word8)
 import GHC.Generics (Generic)
 import Network.HTTP.Client (
   Manager,
@@ -464,7 +467,36 @@ xAppleKey :: ByteString
 xAppleKey = "d39ba9916b7251055b22c7f910e2ea796ee65e98b2ddecea8f5dde8d9d1a815d"
 
 
-signinInit :: (FromJSON a) => Api -> FromClient -> IO a
+data SigninInitReply = SigninInitReply
+  { sirTag :: !Text
+  , sirPublicBytes :: !ByteString
+  , sirIterations :: !Word8
+  , sirSalt :: !ByteString
+  }
+  deriving (Eq, Show)
+
+
+instance FromJSON SigninInitReply where
+  parseJSON = withObject "SigninInitReply" parseSigninInitReply
+
+
+parseSigninInitReply :: Object -> Parser SigninInitReply
+parseSigninInitReply o =
+  let tag = o .: "c"
+      iterations = o .: "iterations"
+      publicBytes = o .: "b" >>= parseBase64Bytes
+      salt = o .: "salt" >>= parseBase64Bytes
+      parseBase64Bytes s = case decodeBase64Untyped (encodeUtf8 s) of
+        Left err -> fail $ Text.unpack err
+        Right b -> pure b
+   in SigninInitReply
+        <$> tag
+        <*> publicBytes
+        <*> iterations
+        <*> salt
+
+
+signinInit :: Api -> FromClient -> IO SigninInitReply
 signinInit = invokeWithAuthHdrs signinInitReq
 
 
