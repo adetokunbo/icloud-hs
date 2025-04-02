@@ -1,0 +1,156 @@
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BinaryLiterals #-}
+{-# OPTIONS_HADDOCK prune not-home #-}
+
+{- |
+Module      : Network.ICloud.KDF
+Copyright   : (c) 2022 Tim Emiola
+Maintainer  : Tim Emiola <adetokunbo@emio.la>
+SPDX-License-Identifier: BSD3
+
+
+Copied then modified from an implementation in the package
+[ppad-pbkdf](https://git.ppad.tech/pbkdf/file/lib/Crypto/KDF/PBKDF.hs.html)
+
+Re-implemented here rather than making it direct dependency, because:
+    - 1 fewer dependency => less future dependency-related maintenance
+    - faster route for this package to stackage
+        - as of (2025/04/01, ppad-ppbkdf was not on stackage)
+-}
+module Network.ICloud.KDF (
+  -- * specify a pseudorandom function and derived key length
+  PseudoRandomParams,
+  mkParams,
+  PseudoRandomF,
+  BadKeyLength (..),
+
+  -- * perform PBKDF2 derivation
+  calcPBKDF2,
+
+  -- * re-export
+  ByteString,
+) where
+
+import Data.Bits (xor, (.&.), (.>>.))
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
+import Data.ByteString.Builder (byteString, toLazyByteString)
+import Data.ByteString.Builder.Extra (
+  safeStrategy,
+  smallChunkSize,
+  toLazyByteStringWith,
+ )
+import Data.Word (Word32, Word64)
+
+
+{- | A pseudorandom function for use in PBKDF2
+
+See
+[PBKDF-RFC/section5.2](https://datatracker.ietf.org/doc/html/rfc2898#section-5.2)
+-}
+type PseudoRandomF = ByteString -> ByteString -> ByteString
+
+
+-- | Indicates the derived key length is too long
+data BadKeyLength = TooLong
+  deriving (Eq, Show)
+
+
+{- | A 'PseudoRandomFunc' along with @dkLen@ and @hLen@'
+
+where @dkLen@ the length in octets of the derived key
+and @hLen@ is the length of the output of the 'PseudoRandomFunc'
+
+As per
+[PBKDF-RFC/section5.2](https://datatracker.ietf.org/doc/html/rfc2898#section-5.2)
+
+@dkLen@ must be at most 2^32 - 1 * @hLen@
+
+The constructor `mkParams` enforces this constraint
+-}
+newtype PseudoRandomParams = Params (PseudoRandomF, Word32, Word32)
+
+
+-- | Construct a 'PseudoRandomParams'
+mkParams :: PseudoRandomF -> Word32 -> Either BadKeyLength PseudoRandomParams
+mkParams f dkLen =
+  let !hLen = toNum $ BS.length $ f mempty mempty
+   in if dkLen > 0xffffffff * hLen
+        then Left TooLong
+        else Right $ Params (f, dkLen, hLen)
+
+
+blockInfoOf :: PseudoRandomParams -> (Word32, Int)
+blockInfoOf (Params (_f, !dkLen, hLen)) =
+  let numBlocks = ceiling (toNum dkLen / toNum hLen :: Double)
+      lastBlockSize = toNum $ dkLen - (numBlocks - 1) * hLen
+   in (numBlocks, lastBlockSize)
+
+
+{- | Derive a key from a secret using PBKDF2
+
+Implements the key derivation algorithm described in
+[PBKDF-RFC](https://datatracker.ietf.org/doc/html/rfc2898)
+
+Usage - this example uses the SHA256 hmac function as the pseudorandom function
+
+  >>> :set -XOverloadedStrings
+  >>> import qualified Crypto.Hash.SHA256 as SHA256
+  >>> Right pseudo = mkParams' SHA256.hmac 64
+  >>> calcPBKDF2 pseudo "passwd" "salt" 1000
+-}
+calcPBKDF2 ::
+  -- | a 'PseudoRandomParams'
+  PseudoRandomParams ->
+  -- | the password from which to derive a key
+  ByteString ->
+  -- | the salt used in key derivation
+  ByteString ->
+  -- | the iteration count
+  Word64 ->
+  ByteString
+calcPBKDF2 pseudoRandomParams password salt count =
+  let Params (!pseudoRandomF, !dkLen, !_notUsed) = pseudoRandomParams
+      (!numBlocks, !lastBlockSize) = blockInfoOf pseudoRandomParams
+      xorSum i =
+        let initial = pseudoRandomF password $ salt <> asBytes i
+            go j !current !_ignored | j == count = current
+            go j !current !previous =
+              let latest = pseudoRandomF password previous
+               in go (j + 1) (current `xorBytes` latest) latest
+         in go 1 initial initial
+      {-# INLINE xorSum #-}
+
+      smaller = safeStrategy 128 smallChunkSize
+      strictBS =
+        if dkLen <= 128
+          then BS.toStrict . toLazyByteStringWith smaller mempty
+          else BS.toStrict . toLazyByteString
+      {-# INLINE strictBS #-}
+
+      genBlocks i acc =
+        if i < numBlocks
+          then genBlocks (i + 1) (acc <> byteString (xorSum i))
+          else strictBS $ acc <> byteString (BS.take lastBlockSize $ xorSum i)
+   in genBlocks 1 mempty
+
+
+toNum :: (Integral a, Num b) => a -> b
+toNum = fromIntegral
+{-# INLINE toNum #-}
+
+
+asBytes :: Word32 -> ByteString
+asBytes x =
+  let !mask = 0b00000000000000000000000011111111
+      !word0 = toNum (x .>>. 24) .&. mask
+      !word1 = toNum (x .>>. 16) .&. mask
+      !word2 = toNum (x .>>. 08) .&. mask
+      !word3 = toNum x .&. mask
+   in BS.cons word0 $ BS.cons word1 $ BS.cons word2 $ BS.singleton word3
+{-# INLINE asBytes #-}
+
+
+xorBytes :: ByteString -> ByteString -> ByteString
+xorBytes = BS.packZipWith xor
+{-# INLINE xorBytes #-}
