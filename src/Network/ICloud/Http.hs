@@ -16,6 +16,10 @@ module Network.ICloud.Http (
   -- * data types
   ApiError (..),
   ApiResponse (..),
+  Endpoints (..),
+  Realm (..),
+  realmEndpoints,
+  signinInitBase,
 
   -- * functions
   accountLogin,
@@ -55,6 +59,7 @@ import Data.Aeson (
   encode,
   encodeFile,
   withObject,
+  withText,
   (.:),
  )
 import Data.Aeson.KeyMap (fromList, member)
@@ -62,6 +67,7 @@ import Data.Aeson.Types (Parser, Value (..), (.:?))
 import Data.Attoparsec.Cookie (readJar, writeNetscapeJar)
 import Data.Base64.Types (extractBase64)
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Base16 as Base16
 import Data.ByteString.Base64 (decodeBase64Untyped, encodeBase64)
 import qualified Data.ByteString.Lazy as LBS
 import Data.CaseInsensitive (mk)
@@ -502,8 +508,22 @@ xAppleKey :: ByteString
 xAppleKey = "d39ba9916b7251055b22c7f910e2ea796ee65e98b2ddecea8f5dde8d9d1a815d"
 
 
+-- | Models the known values of password protocol
+data PasswordProtocol = Old | New
+  deriving (Eq, Show)
+
+
+instance FromJSON PasswordProtocol where
+  parseJSON =
+    let fromText "s2k" = Right New
+        fromText "s2k_fo" = Right Old
+        fromText alt = Left $ "unknown PasswordProtocol: " ++ show alt
+     in withText "PasswordProtocol" $ either fail pure . fromText
+
+
 data SigninInitReply = SigninInitReply
   { sirTag :: !Text
+  , sirProtocol :: !PasswordProtocol
   , sirPublicBytes :: !ByteString
   , sirIterations :: !Word64
   , sirSalt :: !ByteString
@@ -519,6 +539,7 @@ parseSigninInitReply :: Object -> Parser SigninInitReply
 parseSigninInitReply o =
   let tag = o .: "c"
       iterations = o .: "iterations"
+      protocol = o .: "protocol"
       publicBytes = o .: "b" >>= parseBase64Bytes
       salt = o .: "salt" >>= parseBase64Bytes
       parseBase64Bytes s = case decodeBase64Untyped (encodeUtf8 s) of
@@ -526,6 +547,7 @@ parseSigninInitReply o =
         Right b -> pure b
    in SigninInitReply
         <$> tag
+        <*> protocol
         <*> publicBytes
         <*> iterations
         <*> salt
@@ -539,6 +561,7 @@ signinInit = invokeWithAuthHdrs signinInitReq
 data KeyDeriver = KeyDeriver
   { kdTag :: !Text
   , kdIterations :: !Word64
+  , kdProtocol :: !PasswordProtocol
   , kdWrappedF :: !PseudoRandomParams
   }
 
@@ -547,14 +570,24 @@ instance XCalculator KeyDeriver where
   calcX = calcXUsingKeyDeriver
 
 
+{--| Implements calcuation of X using PBKDF2 to derive a key from the password alone.
+
+Also handles support for both the latest and the legacy approach to serializing
+the hashed password as described
+[here](https://github.com/XcodesOrg/XcodesApp/pull/650)
+-}
 calcXUsingKeyDeriver :: KeyDeriver -> FromClient -> FromServer -> ByteString
 calcXUsingKeyDeriver kd fc fs =
-  let FromServer {fsSalt, fsKnownAlgorithm = alg} = fs
-      h = hashMany alg
-      KeyDeriver {kdIterations = count, kdWrappedF} = kd
-      hashed = hashText alg $ fcPassword fc
-      trulyHashed = calcPBKDF2 kdWrappedF hashed fsSalt count
-   in h [fsSalt, h [":", trulyHashed]]
+  let FromServer {fsSalt, fsKnownAlgorithm = hashAlgo} = fs
+      h = hashMany hashAlgo
+      KeyDeriver {kdIterations = count, kdWrappedF, kdProtocol} = kd
+
+      -- the old protocol requires base16 encoding the digest before key derivation
+      useProtocol Old = Base16.encode
+      useProtocol New = id
+      hashed = useProtocol kdProtocol $ hashText hashAlgo $ fcPassword fc
+      reallyHashed = calcPBKDF2 kdWrappedF hashed fsSalt count
+   in h [fsSalt, h [":", reallyHashed]]
 
 
 runSigninInit :: Api -> FromClient -> IO (FromServer, KeyDeriver)
@@ -572,6 +605,7 @@ runSigninInit api fc = do
           { kdTag = sirTag r
           , kdIterations = sirIterations r
           , kdWrappedF = apiWrappedPseudoRF api
+          , kdProtocol = sirProtocol r
           }
   pure (fromServer, keyDeriver)
 
@@ -610,7 +644,13 @@ runSigninComplete :: (FromJSON a) => Api -> KeyDeriver -> Results -> IO a
 runSigninComplete api@Api {apiSession = session} kd siResults =
   let siSavedHeaders = sessionSavedHdrs session
       siAccountName = credAccountName $ sessionCreds session
-      completion = SigninCompletion {siTag = kdTag kd, siAccountName, siResults, siSavedHeaders}
+      completion =
+        SigninCompletion
+          { siTag = kdTag kd
+          , siAccountName
+          , siResults
+          , siSavedHeaders
+          }
    in signinComplete api completion
 
 
