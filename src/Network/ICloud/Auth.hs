@@ -34,11 +34,9 @@ import Control.Monad ((>=>))
 import Crypto.SRP (
   FromClient (..),
   FromServer (..),
-  PrimeGroup (..),
   Results,
   XCalculator,
   calcResults,
-  mkFromClient,
  )
 import Data.Aeson (
   FromJSON (..),
@@ -171,16 +169,13 @@ loadSession = do
 
 runSrpAuth ::
   (XCalculator b) =>
-  (PrimeGroup -> FromClient -> IO (FromServer, b)) ->
+  IO FromClient ->
+  (FromClient -> IO (FromServer, b)) ->
   (b -> Results -> IO a) ->
-  Session ->
   IO a
-runSrpAuth stepOne stepTwo session = do
-  let pg = G2048
-      Session {sessionCreds = creds} = session
-      Credentials {credAccountName = user, credPassword = password} = creds
-  clientSide <- mkFromClient user password pg
-  (serverSide, extra) <- stepOne pg clientSide
+runSrpAuth mkClientSide stepOne stepTwo = do
+  clientSide <- mkClientSide
+  (serverSide, extra) <- stepOne clientSide
   stepTwo extra (calcResults extra clientSide serverSide)
 
 
