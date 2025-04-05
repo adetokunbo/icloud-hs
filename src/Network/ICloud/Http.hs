@@ -581,7 +581,11 @@ signinInitReq = mkJsonRequest signinInitBase signinInitValue
 
 
 signinInitBase :: Endpoints -> Request
-signinInitBase = (`extendPath` "/signin/init") . epAuth
+signinInitBase =
+  let
+    withQuery x = x {queryString = "?isRememberMeEnabled=true"}
+   in
+    withQuery . (`extendPath` "/signin/init") . epAuth
 
 
 signinInitValue :: FromClient -> Value
