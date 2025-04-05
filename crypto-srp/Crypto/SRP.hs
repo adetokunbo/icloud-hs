@@ -27,6 +27,9 @@ module Crypto.SRP (
   -- * re-exports
   PrimeGroup (..),
   KnownAlgorithm (..),
+  hashText,
+  hashMany,
+  hash,
 ) where
 
 import Crypto.SRP.Hashing (
