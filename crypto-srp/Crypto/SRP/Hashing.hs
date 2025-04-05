@@ -17,9 +17,7 @@ module Crypto.SRP.Hashing (
   hashText,
   calcK,
   calcClientX,
-  calcCombinedPubKeys,
   calcXorHashnHashg,
-  modExp,
 ) where
 
 import qualified Crypto.Hash.SHA1 as SHA1
@@ -32,7 +30,7 @@ import Crypto.SRP.PrimeGroup (
   padAs,
   paddedHexOfGenerator,
  )
-import Data.Bits (Bits (shiftR, testBit, xor))
+import Data.Bits (Bits (xor))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.Text (Text)
@@ -45,11 +43,6 @@ fromBytes :: ByteString -> Integer
 fromBytes = BS.foldl' (\acc b -> acc * 256 + fromIntegral b) 0
 
 
-modExp :: Integer -> Integer -> Integer -> Integer
-modExp _base 0 _m = 1
-modExp base expn m = t * modExp ((base * base) `mod` m) (shiftR expn 1) m `mod` m
-  where
-    t = if testBit expn 0 then base `mod` m else 1
 
 
 -- | Compute the multiplier 'k' as described in the SRP RFC
@@ -70,9 +63,6 @@ calcXorHashnHashg known pg =
    in hashedN `xor` hashedG
 
 
-calcCombinedPubKeys :: ByteString -> ByteString -> KnownAlgorithm -> PrimeGroup -> ByteString
-calcCombinedPubKeys pubClient pubServer known pg =
-  hashMany known [pubClient `padAs` pg, pubServer `padAs` pg]
 
 
 -- | Compute the hash 'x' with the client session calculation

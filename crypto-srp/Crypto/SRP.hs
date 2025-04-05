@@ -38,7 +38,6 @@ module Crypto.SRP (
 import Crypto.SRP.Hashing (
   KnownAlgorithm (..),
   calcClientX,
-  calcCombinedPubKeys,
   calcK,
   calcXorHashnHashg,
   hash,
@@ -48,6 +47,7 @@ import Crypto.SRP.Hashing (
 import Crypto.SRP.PrimeGroup (
   PrimeGroup (..),
   modExpPrime,
+  padAs,
   primeMod,
   pubOf,
  )
@@ -192,7 +192,7 @@ calcPremasterSecret selectX fc fs =
     FromServer {fsPublicBytes, fsPrimeGroup = pg, fsKnownAlgorithm = alg} = fs
     FromClient {fcPrivateNumber = private, fcPublicBytes = publicBytes} = fc
     x = fromBytes $ calcX selectX fc fs
-    u = fromBytes $ calcCombinedPubKeys publicBytes fsPublicBytes alg pg
+    u = fromBytes $ hashMany alg [publicBytes `padAs` pg, fsPublicBytes `padAs` pg]
     power = private + (u * x)
     x' = x `pubOf` pg
     bigB = fromBytes fsPublicBytes
