@@ -17,19 +17,11 @@ module Network.ICloud.Http (
   ApiError (..),
   ApiResponse (..),
 
-  -- * class definitions
-
-  -- * type aliases
-
-  -- * type family extensions
-
   -- * functions
-  signinInit,
-  signinComplete,
   accountLogin,
-  rawRequest,
-  jsonSessionRequest,
   mkSavedHeaders,
+  mkApi,
+  runApiSrpAuth,
 
   -- * HTTP header names
   hCounter,
@@ -38,13 +30,22 @@ module Network.ICloud.Http (
   hSessionToken,
   hTrustToken,
   hOrigin,
-
-  -- * module re-exports
 ) where
 
 import Control.Applicative (Alternative (..), (<|>))
 import Control.Monad (unless)
-import Crypto.SRP (FromClient (..), Results (..))
+import qualified Crypto.Hash.SHA256 as SHA256
+import Crypto.SRP (
+  FromClient (..),
+  FromServer (..),
+  KnownAlgorithm,
+  PrimeGroup,
+  Results (..),
+  XCalculator (..),
+  hashMany,
+  hashText,
+  mkFromClient,
+ )
 import Data.Aeson (
   FromJSON (..),
   Key,
@@ -54,10 +55,9 @@ import Data.Aeson (
   encode,
   encodeFile,
   withObject,
-  withText,
   (.:),
  )
-import Data.Aeson.KeyMap (fromList, member, singleton)
+import Data.Aeson.KeyMap (fromList, member)
 import Data.Aeson.Types (Parser, Value (..), (.:?))
 import Data.Attoparsec.Cookie (readJar, writeNetscapeJar)
 import Data.Base64.Types (extractBase64)
@@ -69,9 +69,9 @@ import Data.Maybe (catMaybes)
 import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time (getCurrentTime)
-import Data.Word (Word8)
+import Data.Word (Word64)
 import GHC.Generics (Generic)
 import Network.HTTP.Client (
   Manager,
@@ -83,6 +83,7 @@ import Network.HTTP.Client (
   httpLbs,
   updateCookieJar,
  )
+import Network.HTTP.Client.TLS (newTlsManager)
 import Network.HTTP.Types (
   Header,
   HeaderName,
@@ -94,11 +95,15 @@ import Network.HTTP.Types (
   methodPost,
  )
 import Network.ICloud.Auth (
+  Credentials (..),
   SavedHeaders (..),
   Session (..),
   cookiePath,
+  loadSession,
+  runSrpAuth,
   savedHeadersPath,
  )
+import Network.ICloud.KDF (PseudoRandomParams, calcPBKDF2, mkParamsIO)
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 
 
@@ -107,7 +112,37 @@ data Api = Api
   { apiManager :: !Manager
   , apiSession :: !Session
   , apiEndpoints :: !Endpoints
+  , apiHashAlgorithm :: !KnownAlgorithm
+  , apiWrappedPseudoRF :: !PseudoRandomParams
+  , apiGroup :: !PrimeGroup
   }
+
+
+mkApi :: PrimeGroup -> KnownAlgorithm -> Realm -> IO Api
+mkApi apiGroup apiHashAlgorithm realm = do
+  apiManager <- newTlsManager
+  apiSession <- loadSession
+  apiWrappedPseudoRF <- mkParamsIO SHA256.hmac 32
+  let apiEndpoints = realmEndpoints realm
+  pure
+    Api
+      { apiGroup
+      , apiEndpoints
+      , apiManager
+      , apiHashAlgorithm
+      , apiSession
+      , apiWrappedPseudoRF
+      }
+
+
+runApiSrpAuth :: (FromJSON a) => Api -> IO a
+runApiSrpAuth api@Api {apiSession} = do
+  let mkClientSide = mkFromClient user password $ apiGroup api
+      stepOne = runSigninInit api
+      stepTwo = runSigninComplete api
+      creds = sessionCreds apiSession
+      Credentials {credAccountName = user, credPassword = password} = creds
+  runSrpAuth mkClientSide stepOne stepTwo
 
 
 -- | Make a session request and obtain the raw byte results
@@ -470,7 +505,7 @@ xAppleKey = "d39ba9916b7251055b22c7f910e2ea796ee65e98b2ddecea8f5dde8d9d1a815d"
 data SigninInitReply = SigninInitReply
   { sirTag :: !Text
   , sirPublicBytes :: !ByteString
-  , sirIterations :: !Word8
+  , sirIterations :: !Word64
   , sirSalt :: !ByteString
   }
   deriving (Eq, Show)
@@ -500,6 +535,47 @@ signinInit :: Api -> FromClient -> IO SigninInitReply
 signinInit = invokeWithAuthHdrs signinInitReq
 
 
+-- | Data used during key derivation and verification
+data KeyDeriver = KeyDeriver
+  { kdTag :: !Text
+  , kdIterations :: !Word64
+  , kdWrappedF :: !PseudoRandomParams
+  }
+
+
+instance XCalculator KeyDeriver where
+  calcX = calcXUsingKeyDeriver
+
+
+calcXUsingKeyDeriver :: KeyDeriver -> FromClient -> FromServer -> ByteString
+calcXUsingKeyDeriver kd fc fs =
+  let FromServer {fsSalt, fsKnownAlgorithm = alg} = fs
+      h = hashMany alg
+      KeyDeriver {kdIterations = count, kdWrappedF} = kd
+      hashed = hashText alg $ fcPassword fc
+      trulyHashed = calcPBKDF2 kdWrappedF hashed fsSalt count
+   in h [fsSalt, h [":", trulyHashed]]
+
+
+runSigninInit :: Api -> FromClient -> IO (FromServer, KeyDeriver)
+runSigninInit api fc = do
+  r <- signinInit api fc
+  let fromServer =
+        FromServer
+          { fsPublicBytes = sirPublicBytes r
+          , fsSalt = sirSalt r
+          , fsPrimeGroup = apiGroup api
+          , fsKnownAlgorithm = apiHashAlgorithm api
+          }
+      keyDeriver =
+        KeyDeriver
+          { kdTag = sirTag r
+          , kdIterations = sirIterations r
+          , kdWrappedF = apiWrappedPseudoRF api
+          }
+  pure (fromServer, keyDeriver)
+
+
 signinInitReq :: Endpoints -> FromClient -> Request
 signinInitReq = mkJsonRequest signinInitBase signinInitValue
 
@@ -526,6 +602,14 @@ data SigninCompletion = SigninCompletion
   }
 
 
+runSigninComplete :: (FromJSON a) => Api -> KeyDeriver -> Results -> IO a
+runSigninComplete api@Api {apiSession = session} kd siResults =
+  let siSavedHeaders = sessionSavedHdrs session
+      siAccountName = credAccountName $ sessionCreds session
+      completion = SigninCompletion {siTag = kdTag kd, siAccountName, siResults, siSavedHeaders}
+   in signinComplete api completion
+
+
 signinComplete :: (FromJSON a) => Api -> SigninCompletion -> IO a
 signinComplete = invoke signinCompleteReq
 
@@ -541,13 +625,14 @@ signinCompleteBase = (`extendPath` "/signin/complete") . epAuth
 signinCompleteValue :: SigninCompletion -> Value
 signinCompleteValue si =
   let SigninCompletion {siResults = results} = si
-      m1 = extractBase64 $ encodeBase64 $ rClientProof results
-      m2 = extractBase64 $ encodeBase64 $ rServerProof results
+      toBase64 = extractBase64 . encodeBase64
+      clientProof = toBase64 $ rClientProof results
+      serverProof = toBase64 $ rServerProof results
       singleElem x = Array [String x]
       maybeArray = maybe (Array []) singleElem
    in asObject
-        [ ("m1", String m1)
-        , ("m2", String m2)
+        [ ("m1", String clientProof)
+        , ("m2", String serverProof)
         , ("trustTokens", maybeArray (shTrustToken (siSavedHeaders si)))
         , ("rememberMe", Bool True)
         , ("accountName", String (siAccountName si))
@@ -594,14 +679,7 @@ validate2FA = (`extendPath` "/verify/trusteddevice/securitycode") . epSetup
 
 
 validate2FAValue :: Text -> Value
-validate2FAValue code =
-  Object
-    ( singleton
-        "securityCode"
-        ( Object
-            (singleton "code" (String code))
-        )
-    )
+validate2FAValue code = Object [("securityCode", Object [("code", String code)])]
 
 
 validateVerification :: Endpoints -> Request
