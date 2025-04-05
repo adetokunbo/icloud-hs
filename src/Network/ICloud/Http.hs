@@ -109,7 +109,7 @@ import Network.ICloud.Auth (
   runSrpAuth,
   savedHeadersPath,
  )
-import Network.ICloud.KDF (PseudoRandomParams, calcPBKDF2, mkParamsIO)
+import Network.ICloud.KDF (FancyPseudoRandomF, calcPBKDF2, mkParamsIO)
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 
 
@@ -119,7 +119,7 @@ data Api = Api
   , apiSession :: !Session
   , apiEndpoints :: !Endpoints
   , apiHashAlgorithm :: !KnownAlgorithm
-  , apiWrappedPseudoRF :: !PseudoRandomParams
+  , apiWrappedPseudoRF :: !FancyPseudoRandomF
   , apiGroup :: !PrimeGroup
   }
 
@@ -562,7 +562,7 @@ data KeyDeriver = KeyDeriver
   { kdTag :: !Text
   , kdIterations :: !Word64
   , kdProtocol :: !PasswordProtocol
-  , kdWrappedF :: !PseudoRandomParams
+  , kdWrappedF :: !FancyPseudoRandomF
   }
 
 

@@ -19,7 +19,7 @@ Re-implemented here rather than making it direct dependency, because:
 -}
 module Network.ICloud.KDF (
   -- * specify a pseudorandom function and derived key length
-  PseudoRandomParams,
+  FancyPseudoRandomF,
   mkParams,
   mkParamsIO,
   PseudoRandomF,
@@ -73,25 +73,25 @@ As per
 
 The constructor `mkParams` enforces this constraint
 -}
-newtype PseudoRandomParams = Params (PseudoRandomF, Word32, Word32)
+newtype FancyPseudoRandomF = Fancy (PseudoRandomF, Word32, Word32)
 
 
--- | Construct a 'PseudoRandomParams'
-mkParams :: PseudoRandomF -> Word32 -> Either BadKeyLength PseudoRandomParams
+-- | Construct a 'FancyPseudoRandomF'
+mkParams :: PseudoRandomF -> Word32 -> Either BadKeyLength FancyPseudoRandomF
 mkParams f dkLen =
   let !hLen = toNum $ BS.length $ f mempty mempty
    in if dkLen > 0xffffffff * hLen
         then Left TooLong
-        else Right $ Params (f, dkLen, hLen)
+        else Right $ Fancy (f, dkLen, hLen)
 
 
 -- | Like 'mkParams', but fails by throwing 'BadKeyLength' in IO
-mkParamsIO :: PseudoRandomF -> Word32 -> IO PseudoRandomParams
+mkParamsIO :: PseudoRandomF -> Word32 -> IO FancyPseudoRandomF
 mkParamsIO f = either throwIO pure . mkParams f
 
 
-blockInfoOf :: PseudoRandomParams -> (Word32, Int)
-blockInfoOf (Params (_f, !dkLen, hLen)) =
+blockInfoOf :: FancyPseudoRandomF -> (Word32, Int)
+blockInfoOf (Fancy (_f, !dkLen, hLen)) =
   let numBlocks = ceiling (toNum dkLen / toNum hLen :: Double)
       lastBlockSize = toNum $ dkLen - (numBlocks - 1) * hLen
    in (numBlocks, lastBlockSize)
@@ -110,8 +110,8 @@ Usage - this example uses the SHA256 hmac function as the pseudorandom function
   >>> calcPBKDF2 pseudo "passwd" "salt" 1000
 -}
 calcPBKDF2 ::
-  -- | a 'PseudoRandomParams'
-  PseudoRandomParams ->
+  -- | a 'FancyPseudoRandomF'
+  FancyPseudoRandomF ->
   -- | the password from which to derive a key
   ByteString ->
   -- | the salt used in key derivation
@@ -119,9 +119,9 @@ calcPBKDF2 ::
   -- | the iteration count
   Word64 ->
   ByteString
-calcPBKDF2 pseudoRandomParams password salt count =
-  let Params (!pseudoRandomF, !dkLen, !_notUsed) = pseudoRandomParams
-      (!numBlocks, !lastBlockSize) = blockInfoOf pseudoRandomParams
+calcPBKDF2 fancy password salt count =
+  let Fancy (!pseudoRandomF, !dkLen, !_notUsed) = fancy
+      (!numBlocks, !lastBlockSize) = blockInfoOf fancy
       xorSum i =
         let initial = pseudoRandomF password $ salt <> asBytes i
             go j !current !_ignored | j == count = current
