@@ -36,6 +36,7 @@ import Crypto.SRP (
   FromServer (..),
   PrimeGroup (..),
   Results,
+  XCalculator,
   calcResults,
   mkFromClient,
  )
@@ -169,6 +170,7 @@ loadSession = do
 
 
 runSrpAuth ::
+  (XCalculator b) =>
   (PrimeGroup -> FromClient -> IO (FromServer, b)) ->
   (b -> Results -> IO a) ->
   Session ->
@@ -179,7 +181,7 @@ runSrpAuth stepOne stepTwo session = do
       Credentials {credAccountName = user, credPassword = password} = creds
   clientSide <- mkFromClient user password pg
   (serverSide, extra) <- stepOne pg clientSide
-  stepTwo extra (calcResults clientSide serverSide)
+  stepTwo extra (calcResults extra clientSide serverSide)
 
 
 loadCredentials :: FilePath -> IO (Either String Credentials)
