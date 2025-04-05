@@ -21,6 +21,7 @@ module Network.ICloud.KDF (
   -- * specify a pseudorandom function and derived key length
   PseudoRandomParams,
   mkParams,
+  mkParamsIO,
   PseudoRandomF,
   BadKeyLength (..),
 
@@ -31,6 +32,7 @@ module Network.ICloud.KDF (
   ByteString,
 ) where
 
+import Control.Exception (Exception, throwIO)
 import Data.Bits (xor, (.&.), (.>>.))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -56,6 +58,9 @@ data BadKeyLength = TooLong
   deriving (Eq, Show)
 
 
+instance Exception BadKeyLength
+
+
 {- | A 'PseudoRandomFunc' along with @dkLen@ and @hLen@'
 
 where @dkLen@ the length in octets of the derived key
@@ -78,6 +83,11 @@ mkParams f dkLen =
    in if dkLen > 0xffffffff * hLen
         then Left TooLong
         else Right $ Params (f, dkLen, hLen)
+
+
+-- | Like 'mkParams', but fails by throwing 'BadKeyLength' in IO
+mkParamsIO :: PseudoRandomF -> Word32 -> IO PseudoRandomParams
+mkParamsIO f = either throwIO pure . mkParams f
 
 
 blockInfoOf :: PseudoRandomParams -> (Word32, Int)
