@@ -36,7 +36,7 @@ import qualified Data.ByteString as BS
 import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Normalize (NormalizationMode (NFKC), normalize)
-import Data.Word (Word8)
+import Data.Word (Word32)
 
 
 fromBytes :: ByteString -> Integer
@@ -83,7 +83,7 @@ hashText known txt =
 
 -- | Provides an interface to the implemention an hash algorithm
 data Algorithm = Algorithm
-  { algDigestSize :: {-# UNPACK #-} !Word8
+  { algDigestSize :: {-# UNPACK #-} !Word32
   , algHash :: !(ByteString -> ByteString)
   , algHashMany :: !([ByteString] -> ByteString)
   }
@@ -100,6 +100,11 @@ hashMany = algHashMany . alg
 
 
 -- | Enumerates the specific hash algorithms that this SRP implementation supports
+-- | The size of digest computed by a 'KnownAlgorithm'
+digestSize :: KnownAlgorithm -> Word32
+digestSize = algDigestSize . alg
+
+
 data KnownAlgorithm
   = SHA1
   | SHA256

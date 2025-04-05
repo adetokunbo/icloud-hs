@@ -30,6 +30,7 @@ module Crypto.SRP (
   -- * re-exports
   PrimeGroup (..),
   KnownAlgorithm (..),
+  digestSize,
   hashText,
   hashMany,
   hash,
@@ -40,6 +41,7 @@ import Crypto.SRP.Hashing (
   calcClientX,
   calcK,
   calcXorHashnHashg,
+  digestSize,
   hash,
   hashMany,
   hashText,

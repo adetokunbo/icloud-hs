@@ -46,6 +46,7 @@ import Crypto.SRP (
   PrimeGroup,
   Results (..),
   XCalculator (..),
+  digestSize,
   hashMany,
   hashText,
   mkFromClient,
@@ -128,7 +129,7 @@ mkApi :: PrimeGroup -> KnownAlgorithm -> Realm -> IO Api
 mkApi apiGroup apiHashAlgorithm realm = do
   apiManager <- newTlsManager
   apiSession <- loadSession
-  apiWrappedPseudoRF <- wrapIO SHA256.hmac 32
+  apiWrappedPseudoRF <- wrapIO SHA256.hmac $ digestSize apiHashAlgorithm
   let apiEndpoints = realmEndpoints realm
   pure
     Api
