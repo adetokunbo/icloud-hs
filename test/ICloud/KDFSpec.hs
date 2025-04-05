@@ -27,7 +27,7 @@ import Data.ByteString.Base16 (decode)
 import Data.Foldable (toList)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Word (Word32, Word64, Word8)
-import Network.ICloud.KDF (PseudoRandomF, calcPBKDF2, mkParams)
+import Network.ICloud.KDF (PseudoRandomF, calcPBKDF2, wrap)
 import Paths_icloud_auth (getDataFileName)
 import Test.Hspec (Spec, context, describe, it, runIO, shouldBe)
 import Test.Hspec.Runner (SpecWith)
@@ -53,7 +53,7 @@ specWithFrom :: PseudoRandomF -> TestDescription -> SpecWith ()
 specWithFrom pseudo td = do
   let TestDescription {tdSalt, tdIterationCount = count, tdDerivedKey = key} = td
   it ("test " ++ show (tdId td) ++ " should succeed") $ do
-    let pseudo' = mkParams pseudo (tdDerivedLength td)
+    let pseudo' = wrap pseudo (tdDerivedLength td)
         calc x = calcPBKDF2 x (tdPassword td) tdSalt count
     calc <$> pseudo' `shouldBe` Right key
 

@@ -20,8 +20,8 @@ Re-implemented here rather than making it direct dependency, because:
 module Network.ICloud.KDF (
   -- * specify a pseudorandom function and derived key length
   FancyPseudoRandomF,
-  mkParams,
-  mkParamsIO,
+  wrap,
+  wrapIO,
   PseudoRandomF,
   BadKeyLength (..),
 
@@ -71,23 +71,23 @@ As per
 
 @dkLen@ must be at most 2^32 - 1 * @hLen@
 
-The constructor `mkParams` enforces this constraint
+The constructor `wrap` enforces this constraint
 -}
 newtype FancyPseudoRandomF = Fancy (PseudoRandomF, Word32, Word32)
 
 
 -- | Construct a 'FancyPseudoRandomF'
-mkParams :: PseudoRandomF -> Word32 -> Either BadKeyLength FancyPseudoRandomF
-mkParams f dkLen =
+wrap :: PseudoRandomF -> Word32 -> Either BadKeyLength FancyPseudoRandomF
+wrap f dkLen =
   let !hLen = toNum $ BS.length $ f mempty mempty
    in if dkLen > 0xffffffff * hLen
         then Left TooLong
         else Right $ Fancy (f, dkLen, hLen)
 
 
--- | Like 'mkParams', but fails by throwing 'BadKeyLength' in IO
-mkParamsIO :: PseudoRandomF -> Word32 -> IO FancyPseudoRandomF
-mkParamsIO f = either throwIO pure . mkParams f
+-- | Like 'wrap', but fails by throwing 'BadKeyLength' in IO
+wrapIO :: PseudoRandomF -> Word32 -> IO FancyPseudoRandomF
+wrapIO f = either throwIO pure . wrap f
 
 
 blockInfoOf :: FancyPseudoRandomF -> (Word32, Int)
@@ -106,7 +106,7 @@ Usage - this example uses the SHA256 hmac function as the pseudorandom function
 
   >>> :set -XOverloadedStrings
   >>> import qualified Crypto.Hash.SHA256 as SHA256
-  >>> Right pseudo = mkParams' SHA256.hmac 64
+  >>> Right pseudo = wrap' SHA256.hmac 64
   >>> calcPBKDF2 pseudo "passwd" "salt" 1000
 -}
 calcPBKDF2 ::

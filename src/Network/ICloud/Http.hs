@@ -109,7 +109,7 @@ import Network.ICloud.Auth (
   runSrpAuth,
   savedHeadersPath,
  )
-import Network.ICloud.KDF (FancyPseudoRandomF, calcPBKDF2, mkParamsIO)
+import Network.ICloud.KDF (FancyPseudoRandomF, calcPBKDF2, wrapIO)
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 
 
@@ -128,7 +128,7 @@ mkApi :: PrimeGroup -> KnownAlgorithm -> Realm -> IO Api
 mkApi apiGroup apiHashAlgorithm realm = do
   apiManager <- newTlsManager
   apiSession <- loadSession
-  apiWrappedPseudoRF <- mkParamsIO SHA256.hmac 32
+  apiWrappedPseudoRF <- wrapIO SHA256.hmac 32
   let apiEndpoints = realmEndpoints realm
   pure
     Api
