@@ -76,7 +76,6 @@ import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time (getCurrentTime)
 import Data.Word (Word64)
-import GHC.Generics (Generic)
 import Network.HTTP.Client (
   Manager,
   Request (..),
@@ -240,7 +239,7 @@ data ApiError
   { aeReason :: !Text
   , aeCode :: !(Maybe Text)
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show)
 
 
 instance FromJSON ApiError where
