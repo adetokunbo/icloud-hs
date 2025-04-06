@@ -124,7 +124,9 @@ mkFromClient fcUser fcPassword pg = do
 -- | Verify a server proof
 verifyServerProof :: (XCalculator a) => a -> ByteString -> FromClient -> FromServer -> Bool
 verifyServerProof selectX serverProof fc fs =
-  serverProof == rServerProof (calcResults selectX fc fs)
+  case calcResults selectX fc fs of
+    Nothing -> False
+    Just results -> serverProof == rServerProof results
 
 
 {- | Calculate the shared session key and proofs
@@ -147,18 +149,24 @@ verifyServerProof selectX serverProof fc fs =
 
   The 'XCalculator' argument models the choice existing in the calcuation of
   @x@, a hash depending on the user's password, on which @S@ in turn depends
+
+  the calculation will abort if server public valid is invalid; in this case, the function
+  returns Nothing
 -}
-calcResults :: (XCalculator a) => a -> FromClient -> FromServer -> Results
+calcResults :: (XCalculator a) => a -> FromClient -> FromServer -> Maybe Results
 calcResults selectX fc fs =
   let FromServer {fsPublicBytes, fsSalt, fsPrimeGroup = pg, fsKnownAlgorithm = alg} = fs
       FromClient {fcUser, fcPublicBytes = publicBytes} = fc
       bigS = calcPremasterSecret selectX fc fs
       xorNG = bytesOf $ calcXorHashnHashg alg pg
       hashedName = hashText alg fcUser
-      rKey = hash alg $ bytesOf bigS
-      rClientProof = hashMany alg [xorNG, hashedName, fsSalt, publicBytes, fsPublicBytes, rKey]
-      rServerProof = hashMany alg [publicBytes, rClientProof, rKey]
-   in Results {rKey, rClientProof, rServerProof}
+      mkResult s =
+        let rKey = hash alg $ bytesOf s
+
+            rClientProof = hashMany alg [xorNG, hashedName, fsSalt, publicBytes, fsPublicBytes, rKey]
+            rServerProof = hashMany alg [publicBytes, rClientProof, rKey]
+         in Results {rKey, rClientProof, rServerProof}
+   in mkResult <$> bigS
 
 
 {- | Enables choice in the calculation of @x@ by 'calcResults'.
@@ -203,8 +211,11 @@ The premaster secret is calculated by the client as follows:
     <premaster secret> = (B - (k * g^x)) ^ (a + (u * x)) % N
       == ((B - (k * g^x)) % N) ^ (a + (u * x)) % N
       == (((B % N) - ((k * g^x) % N)) % N) ^ (a + (u *x)) % N
+
+the calculation will abort if B % N is zero; in this case, the function returns
+Nothing
 -}
-calcPremasterSecret :: (XCalculator a) => a -> FromClient -> FromServer -> Integer
+calcPremasterSecret :: (XCalculator a) => a -> FromClient -> FromServer -> Maybe Integer
 calcPremasterSecret selectX fc fs =
   let
     FromServer {fsPublicBytes, fsPrimeGroup = pg, fsKnownAlgorithm = alg} = fs
@@ -214,10 +225,11 @@ calcPremasterSecret selectX fc fs =
     power = private + (u * x)
     x' = x `pubOf` pg
     bigB = fromBytes fsPublicBytes
+    shouldAbort = bigB `primeMod` pg == 0
     k = fromBytes $ calcK alg pg
     base = ((bigB `primeMod` pg) - ((k * x') `primeMod` pg)) `primeMod` pg
    in
-    modExpPrime base power pg
+    if shouldAbort then Nothing else Just $ modExpPrime base power pg
 
 
 -- | Obtain an @Integer@ from its @ByteString@ encoding

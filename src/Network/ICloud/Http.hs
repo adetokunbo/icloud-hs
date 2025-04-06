@@ -641,18 +641,19 @@ data SigninCompletion = SigninCompletion
   }
 
 
-runSigninComplete :: (FromJSON a) => Api -> KeyDeriver -> Results -> IO a
-runSigninComplete api@Api {apiSession = session} kd siResults =
+runSigninComplete :: (FromJSON a) => Api -> KeyDeriver -> Maybe Results -> IO a
+runSigninComplete api@Api {apiSession = session} kd mbResults =
   let siSavedHeaders = sessionSavedHdrs session
       siAccountName = credAccountName $ sessionCreds session
-      completion =
+      completion siResults =
         SigninCompletion
           { siTag = kdTag kd
           , siAccountName
           , siResults
           , siSavedHeaders
           }
-   in signinComplete api completion
+      onFail = fail "the server public value was invalid"
+   in maybe onFail (signinComplete api . completion) mbResults
 
 
 signinComplete :: (FromJSON a) => Api -> SigninCompletion -> IO a

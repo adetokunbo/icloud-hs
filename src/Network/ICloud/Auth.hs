@@ -175,7 +175,7 @@ runSrpAuth ::
   (XCalculator b) =>
   IO FromClient ->
   (FromClient -> IO (FromServer, b)) ->
-  (b -> Results -> IO a) ->
+  (b -> Maybe Results -> IO a) ->
   IO a
 runSrpAuth mkClientSide stepOne stepTwo = do
   clientSide <- mkClientSide
