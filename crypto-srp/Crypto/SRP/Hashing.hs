@@ -9,12 +9,16 @@ Maintainer: Tim Emiola <adetokunbo@emio.la>
 SPDX-License-Identifier: BSD3
 -}
 module Crypto.SRP.Hashing (
+  -- * Supported hash algorithms
   KnownAlgorithm (..),
-  Algorithm (..),
-  alg,
+
+  -- ** Use the @'KnownAlgorithm's@ for hashing
+  digestSize,
   hash,
   hashMany,
   hashText,
+
+  -- * SRP-specific hash calculations
   calcK,
   calcClientX,
   calcXorHashnHashg,
@@ -27,7 +31,6 @@ import qualified Crypto.Hash.SHA512 as SHA512
 import Crypto.SRP.PrimeGroup (
   PrimeGroup,
   asByteString,
-  padAs,
   paddedHexOfGenerator,
  )
 import Data.Bits (Bits (xor))
@@ -43,9 +46,11 @@ fromBytes :: ByteString -> Integer
 fromBytes = BS.foldl' (\acc b -> acc * 256 + fromIntegral b) 0
 
 
+{- | Compute the multiplier \'k\' as a step in the calculation of the premaster
+   secret
 
-
--- | Compute the multiplier 'k' as described in the SRP RFC
+See [premaster secret calculation](https://datatracker.ietf.org/doc/html/rfc5054#section-2.6)
+-}
 calcK :: KnownAlgorithm -> PrimeGroup -> ByteString
 calcK known pg =
   hashMany
@@ -55,7 +60,7 @@ calcK known pg =
     ]
 
 
--- | Compute the multiplier 'k' as described in the SRP RFC
+-- | Compute an XORed hash describing a @'PrimeGroup'@.
 calcXorHashnHashg :: KnownAlgorithm -> PrimeGroup -> Integer
 calcXorHashnHashg known pg =
   let hashedN = fromBytes $ hash known (asByteString pg)
@@ -63,9 +68,10 @@ calcXorHashnHashg known pg =
    in hashedN `xor` hashedG
 
 
+{- | Compute the hash \'x\' as a step in the calculation of the premaster secret
 
-
--- | Compute the hash 'x' with the client session calculation
+See [premaster secret calculation](https://datatracker.ietf.org/doc/html/rfc5054#section-2.6)
+-}
 calcClientX :: (Text, Text) -> ByteString -> KnownAlgorithm -> ByteString
 calcClientX (username, password) serverSalt known =
   let h = hashMany known
@@ -81,7 +87,7 @@ hashText known txt =
     hash known $ normalize' txt
 
 
--- | Provides an interface to the implemention an hash algorithm
+-- | Provides an interface to the implemention of a hash algorithm
 data Algorithm = Algorithm
   { algDigestSize :: {-# UNPACK #-} !Word32
   , algHash :: !(ByteString -> ByteString)
@@ -89,22 +95,22 @@ data Algorithm = Algorithm
   }
 
 
--- | Implement the hash function of a 'KnownAlgorithm'
+-- | Hash a @ByteString@ using the hash function of a 'KnownAlgorithm'
 hash :: KnownAlgorithm -> ByteString -> ByteString
 hash = algHash . alg
 
 
--- | Implement the hash function of a 'KnownAlgorithm'
+-- | Hash several @ByteStrings@ using the hash function of a 'KnownAlgorithm'
 hashMany :: KnownAlgorithm -> [ByteString] -> ByteString
 hashMany = algHashMany . alg
 
 
--- | Enumerates the specific hash algorithms that this SRP implementation supports
 -- | The size of digest computed by a 'KnownAlgorithm'
 digestSize :: KnownAlgorithm -> Word32
 digestSize = algDigestSize . alg
 
 
+-- | Enumerates specific hash algorithms supported by this package
 data KnownAlgorithm
   = SHA1
   | SHA256
@@ -113,7 +119,7 @@ data KnownAlgorithm
   deriving (Eq, Show)
 
 
--- | Provides an 'Algorithm' that contains the implementation for each 'KnownAlgorithm'
+-- Provides an 'Algorithm' that contains the implementation for each 'KnownAlgorithm'
 alg :: KnownAlgorithm -> Algorithm
 alg SHA1 = Algorithm 20 SHA1.hash (SHA1.finalize . SHA1.updates SHA1.init)
 alg SHA256 = Algorithm 32 SHA256.hash (SHA256.finalize . SHA256.updates SHA256.init)

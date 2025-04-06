@@ -6,6 +6,8 @@ Module      : Crypto.SRP
 Copyright   : (c) 2025 Tim Emiola
 Maintainer  : Tim Emiola <adetokunbo@emio.la>
 SPDX-License-Identifier: BSD3
+
+Provides datatypes and functions and typeclasses to support an SRP authentication sequence
 -}
 module Crypto.SRP (
   -- * client-side inputs
@@ -20,10 +22,12 @@ module Crypto.SRP (
 
   -- * shared key and proofs
   Results (..),
+
+  -- ** calculate and verify using @Results@
   calcResults,
   verifyServerProof,
 
-  -- * Integer <=> ByteString
+  -- * SRP Integer <=> ByteString interconversion
   bytesOf,
   fromBytes,
 
@@ -68,6 +72,7 @@ type Username = Text
 type Password = Text
 
 
+-- | The shared secret key and proofs resulting from an SRP sequence
 data Results = Results
   { rKey :: !ByteString
   , rClientProof :: !ByteString
@@ -76,6 +81,7 @@ data Results = Results
   deriving (Eq)
 
 
+-- | Data sent back to the client from the server after it starts the SRP sequence
 data FromServer = FromServer
   { fsPublicBytes :: !ByteString
   , fsSalt :: !ByteString
@@ -85,15 +91,20 @@ data FromServer = FromServer
   deriving (Eq)
 
 
+-- | Data needed at the client to begin an SRP sequence
 data FromClient = FromClient
   { fcUser :: !Username
+  -- ^ identifies the user
   , fcPassword :: !Password
+  -- ^ the clear text password
   , fcPrivateNumber :: !Integer
+  -- ^ a randomly generated session secret
   , fcPublicBytes :: !ByteString
+  -- ^ a securely hashed version of the session secret
   }
 
 
-{- | Build a 'FromClient', generating the public and private epheremal values
+{- | Build a @FromClient@, generating the public and private epheremal values
 required for the client-side of the authentication process
 -}
 mkFromClient :: Username -> Password -> PrimeGroup -> IO FromClient
@@ -110,6 +121,7 @@ mkFromClient fcUser fcPassword pg = do
       }
 
 
+-- | Verify a server proof
 verifyServerProof :: (XCalculator a) => a -> ByteString -> FromClient -> FromServer -> Bool
 verifyServerProof selectX serverProof fc fs =
   serverProof == rServerProof (calcResults selectX fc fs)
@@ -151,15 +163,19 @@ calcResults selectX fc fs =
 
 {- | Enables choice in the calculation of @x@ by 'calcResults'.
 
-  One step in calculating S the calculation of @x@, which is a hash that depends
-  on the user password. While it must depend on the password, the SRP RFC
-  specifies a hash cacluation that includes both the user identity and the
-  password. There are implementations of SRP that don't include user name; and
-  use only the password is used, usually involving a KDF (key derivation
-  function) to further protect it
+  One step in calculating @S@, the shared secret is the calculation of @x@,
+  which is a hash that depends on the user password.
+
+  @x@ must depend on the password, and the SRP RFC specifies a hash cacluation
+  that includes both the user identity and the password.
+
+  However, it is not strictly necessary of @x@ to depend on the user identity,
+  and there are SRP server deployments that don't include the user name in @x@;
+  instead only the password is used, using a KDF (key derivation function) to
+  further protect it
 -}
 class XCalculator a where
-  -- |  Calculates @x@, a hash depending on the user password
+  -- |  Calculates @x@, a hash that must depend on the user password
   calcX :: a -> FromClient -> FromServer -> ByteString
 
 
@@ -175,7 +191,7 @@ instance XCalculator () where
     calcClientX (fcUser fc, fcPassword fc) (fsSalt fs) (fsKnownAlgorithm fs)
 
 
-{- |
+{-
 The premaster secret is calculated by the client as follows:
     I, P = <read from user>
     N, g, s, B = <read from server>

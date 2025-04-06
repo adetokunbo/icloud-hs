@@ -104,20 +104,15 @@ pow pg expn =
    in toInteger g ^ expn
 
 
+{- | Pad a 'ByteString' so it's the same length as the serialized byte form of
+the PrimeGroup
+-}
 padAs :: ByteString -> PrimeGroup -> ByteString
 padAs bs pg =
   let
     padLength = hexLength pg - BS.length bs
    in
     BS.replicate padLength 0 <> bs
-
-
-modExp :: Integer -> Integer -> Integer -> Integer
-modExp _base 0 _m = 1
-modExp base expn m = t * modExp baseSquared (shiftR expn 1) m `mod` m
-  where
-    !baseSquared = (base * base) `mod` m
-    !t = if testBit expn 0 then base `mod` m else 1
 
 
 {- | Generate the public version of a private ephemeral key
@@ -129,5 +124,19 @@ pubOf :: Integer -> PrimeGroup -> Integer
 pubOf priv pg = modExpPrime (fromIntegral (generatorFor pg)) priv pg
 
 
+{- | Perform exponetiation modulus the large number in a 'PrimeGroup'
+
+Example
+
+  > modExpPrime base power G2048
+-}
 modExpPrime :: Integer -> Integer -> PrimeGroup -> Integer
 modExpPrime base power pg = modExp base power (safePrimeFor pg)
+
+
+modExp :: Integer -> Integer -> Integer -> Integer
+modExp _base 0 _m = 1
+modExp base expn m = t * modExp baseSquared (shiftR expn 1) m `mod` m
+  where
+    !baseSquared = (base * base) `mod` m
+    !t = if testBit expn 0 then base `mod` m else 1

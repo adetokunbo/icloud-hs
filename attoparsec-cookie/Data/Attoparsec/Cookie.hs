@@ -1,27 +1,27 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-{- | Attoparsec 'Parser' for a Netscape/Mozilla cookie jar
+{- | 'Parser' for a Netscape/Mozilla cookie jar
 
-Provides parsing functions and a 'Builder' that allows an incomplete roundtrip
+Provides parsing functions and @'Builder's@ that allows an incomplete roundtrip
 with the parser.
 
-The roundtrip is incomplete because some of the fields in 'Cookie' are not saved
+The roundtrip is incomplete because some of the fields in @Cookie@ are not saved
 in the Netscape/Mozilla cookie jar, as described by `cookieBuilder`.
 -}
 module Data.Attoparsec.Cookie (
-  -- * read and write Cookie Jar files
+  -- * read/write Cookie Jar files
   writeJar,
   writeJar',
   writeNetscapeJar,
   readJar,
 
-  -- * parsing
+  -- * parse the Cookie Jar file format
   cookieJarParser,
   cookieParser,
   parseCookieJar,
 
-  -- * building
+  -- * Use 'Builder' to reprint Cookie Jars
   netscapeJarBuilder,
   jarBuilder,
   jarBuilder',
@@ -124,7 +124,7 @@ notEndOfLine :: Char -> Bool
 notEndOfLine = not . isEndOfLine . fromIntegral . ord
 
 
--- | Like 'buildCookieJar' but outputs the Netscape header before the cookie lines
+-- | Like 'jarBuilder' but outputs the Netscape header before the cookie lines
 netscapeJarBuilder :: CookieJar -> Builder
 netscapeJarBuilder = jarBuilder' netscapeHeader
 
@@ -138,7 +138,7 @@ jarBuilder :: CookieJar -> Builder
 jarBuilder = foldMap cookieBuilder . destroyCookieJar
 
 
--- | Like 'buildCookieJar' but outputs a header before the cookie lines
+-- | Like 'jarBuilder' but outputs a header before the cookie lines
 jarBuilder' :: Builder -> CookieJar -> Builder
 jarBuilder' header = (header <>) . jarBuilder
 

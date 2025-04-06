@@ -18,11 +18,8 @@ module Network.ICloud.Http (
   ApiResponse (..),
   Endpoints (..),
   Realm (..),
-  realmEndpoints,
-  signinInitBase,
 
   -- * functions
-  accountLogin,
   mkSavedHeaders,
   mkApi,
   runApiSrpAuth,
@@ -125,6 +122,7 @@ data Api = Api
   }
 
 
+-- | Constructor of @Api@
 mkApi :: PrimeGroup -> KnownAlgorithm -> Realm -> IO Api
 mkApi apiGroup apiHashAlgorithm realm = do
   apiManager <- newTlsManager
@@ -142,6 +140,7 @@ mkApi apiGroup apiHashAlgorithm realm = do
       }
 
 
+-- | Implements the SRP authentication sequence using Http class to ICloud endpoints
 runApiSrpAuth :: (FromJSON a) => Api -> IO a
 runApiSrpAuth api@Api {apiSession} = do
   let mkClientSide = mkFromClient user password $ apiGroup api
@@ -226,7 +225,7 @@ showStatusOf resp =
    in showResponse' theCode theStatus
 
 
-{--| Represents an API response that may succeed or fail with 'ApiError' -}
+-- | Represents an API response that may succeed or fail with @ApiError@
 data ApiResponse a = Failed !ApiError | Succeeded !a
   deriving (Eq, Show)
 
@@ -235,7 +234,7 @@ instance (FromJSON a) => FromJSON (ApiResponse a) where
   parseJSON v = (Failed <$> parseJSON v) <|> (Succeeded <$> parseJSON v)
 
 
-{--| Represents an API response that reports a failure. -}
+-- | Represents an API response that reports a failure.
 data ApiError
   = ApiError
   { aeReason :: !Text
@@ -248,8 +247,8 @@ instance FromJSON ApiError where
   parseJSON = withObject "ApiError" parseApiError
 
 
-{- |
-In python this was:
+{-
+In python, this looks like:
 
    if isinstance(data, dict):
        reason = data.get("errorMessage")
@@ -405,6 +404,7 @@ invokeWithAuthHdrs mkReq api x =
    in jsonSessionRequest api req' >>= failIfError
 
 
+-- | Compute the @SavedHeaders@ from some response headers
 mkSavedHeaders :: [Header] -> SavedHeaders
 mkSavedHeaders hs =
   SavedHeaders
@@ -427,7 +427,7 @@ updateSavedHeaders hs sd =
     }
 
 
--- | The known "realms" with different 'Endpoints'.
+-- | The known "realms" that have with different API endpoints.
 data Realm = China | Usual
   deriving (Eq, Show)
 

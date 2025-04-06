@@ -9,13 +9,14 @@ Copyright   : (c) 2025 Tim Emiola
 Maintainer  : Tim Emiola <adetokunbo@emio.la>
 SPDX-License-Identifier: BSD3
 
-Provides functions and/or data types that support Top Sample goals
+Provides functions and/or data types that sync authentical credentials with the
+filesystem
 -}
 module Network.ICloud.Auth (
   -- * Credentials
   Credentials (..),
 
-  -- * paths dependent on @Credentials@
+  -- ** compute paths that depend on @Credentials@
   clientIdPath,
   savedHeadersPath,
   cookiePath,
@@ -62,40 +63,54 @@ import System.Environment.XDG.BaseDir (getUserConfigDir)
 import System.FilePath ((</>))
 
 
--- | don't derive Show to avoid the risk of logging a password
+-- | Persistent data that identifies a user and their authentication state.
 data Session = Session
   { sessionCreds :: !Credentials
   , sessionTopDir :: !FilePath
   , sessionClientId :: !Text
   , sessionSavedHdrs :: !SavedHeaders
   }
-  deriving (Eq)
+  deriving
+    ( -- | don't derive Show to avoid the risk of logging a password
+      Eq
+    )
 
 
+-- | Generates a new client ID.
 newClientId :: IO Text
 newClientId = ("auth-" <>) . toText <$> nextRandom
 
 
+{- | Determine the path of file containing the HTTP response headers to be
+preserved to maintain a user's authentication state
+-}
 savedHeadersPath :: FilePath -> Credentials -> FilePath
 savedHeadersPath topDir creds = topDir </> Text.unpack (sessionBase creds)
 
 
+-- | Determine the Cookie Jar file for user with the given credentials
 cookiePath :: FilePath -> Credentials -> FilePath
 cookiePath topDir creds = topDir </> Text.unpack (cookieBase creds)
 
 
+{- | Determine the path of file containing the client ID for user with the given
+credentials
+-}
 clientIdPath :: FilePath -> Credentials -> FilePath
 clientIdPath topDir creds = topDir </> Text.unpack (clientIdBase creds)
 
 
--- | don't derive Show to avoid the risk of logging a password
+-- | The name and password of a user
 data Credentials = Credentials
   { credAccountName :: !Text
   -- ^ the account name is the user's AppleId, usually an email address
   , credPassword :: !Text
   -- ^ the password used to logon to ICloud
   }
-  deriving (Eq)
+  deriving
+    ( -- | don't derive Show to avoid the risk of logging a password
+      Eq
+    )
 
 
 instance FromJSON Credentials where
@@ -148,25 +163,14 @@ emptySavedHeaders :: SavedHeaders
 emptySavedHeaders = SavedHeaders Nothing Nothing Nothing Nothing Nothing
 
 
-{- |  init
-ignore impl
-  [x]   [ ] when password not given: get from keyring
-  [x]   [ ] make user dict from username and password
-  [ ]   [x] when clientId not saved on filesystem: generate using UUID and save
-  [x]   [ ] store bool args 'with_family' and 'verify'
-  [ ]   [x] store auth, home, and setup endpoints
-  [x]   [ ] setup the password filter
-  [ ]   [x] ensure the cookie directory exists
-  [x]   [ ] update 'session' Origin and Referer header
-  [ ]   [ ]
-  [ ]   [ ]
--}
+-- | Loads a @Session@ from state on the filesystem
 loadSession :: IO Session
 loadSession = do
   sessionTopDir <- getUserConfigDir appPath
   loadSessionOr sessionTopDir >>= either fail pure
 
 
+-- | Implements the SRP authentiction sequence
 runSrpAuth ::
   (XCalculator b) =>
   IO FromClient ->
