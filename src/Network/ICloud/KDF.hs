@@ -61,10 +61,10 @@ data BadKeyLength = TooLong
 instance Exception BadKeyLength
 
 
-{- | A 'PseudoRandomFunc' along with @dkLen@ and @hLen@'
+{- | A 'PseudoRandomF' along with @dkLen@ and @hLen@'
 
 where @dkLen@ the length in octets of the derived key
-and @hLen@ is the length of the output of the 'PseudoRandomFunc'
+and @hLen@ is the length of the output of the 'PseudoRandomF'
 
 As per
 [PBKDF-RFC/section5.2](https://datatracker.ietf.org/doc/html/rfc2898#section-5.2)
