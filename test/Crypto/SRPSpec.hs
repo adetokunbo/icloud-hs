@@ -1,31 +1,32 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Crypto.SRPSpec (
-  spec,
-) where
+module Crypto.SRPSpec
+  ( spec
+  )
+where
 
 import Crypto.SRP (bytesOf, fromBytes)
-import Crypto.SRP.Constants (
-  fromHexBS,
-  n1024Bits,
-  n1536Bits,
-  n2048Bits,
-  n3072Bits,
-  n4096Bits,
-  n6144Bits,
-  n8192Bits,
- )
+import Crypto.SRP.Constants
+  ( fromHexBS
+  , n1024Bits
+  , n1536Bits
+  , n2048Bits
+  , n3072Bits
+  , n4096Bits
+  , n6144Bits
+  , n8192Bits
+  )
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.Char (ord)
 import Data.Word (Word8)
 import Fmt (build, fmt, hexF, (+|), (|+))
 import Test.Hspec (Spec, context, describe, it)
-import Test.QuickCheck (
-  Property,
-  chooseInteger,
-  forAll,
- )
+import Test.QuickCheck
+  ( Property
+  , chooseInteger
+  , forAll
+  )
 
 
 spec :: Spec

@@ -8,19 +8,20 @@ Copyright : (c) 2025 Tim Emiola
 Maintainer: Tim Emiola <adetokunbo@emio.la>
 SPDX-License-Identifier: BSD3
 -}
-module Crypto.SRP.Constants (
-  -- * Hex ByteStrings of SRP primes
-  n1024Bits,
-  n1536Bits,
-  n2048Bits,
-  n3072Bits,
-  n4096Bits,
-  n6144Bits,
-  n8192Bits,
+module Crypto.SRP.Constants
+  ( -- * Hex ByteStrings of SRP primes
+    n1024Bits
+  , n1536Bits
+  , n2048Bits
+  , n3072Bits
+  , n4096Bits
+  , n6144Bits
+  , n8192Bits
 
-  -- * Convert a hex Bytestring to the corresponding Integer
-  fromHexBS,
-) where
+    -- * Convert a hex Bytestring to the corresponding Integer
+  , fromHexBS
+  )
+where
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS

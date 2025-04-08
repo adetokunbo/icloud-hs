@@ -17,31 +17,32 @@ Re-implemented here rather than making it direct dependency, because:
     - faster route for this package to stackage
         - as of (2025/04/01, ppad-ppbkdf was not on stackage)
 -}
-module Network.ICloud.KDF (
-  -- * specify a pseudorandom function and derived key length
-  FancyPseudoRandomF,
-  wrap,
-  wrapIO,
-  PseudoRandomF,
-  BadKeyLength (..),
+module Network.ICloud.KDF
+  ( -- * specify a pseudorandom function and derived key length
+    FancyPseudoRandomF
+  , wrap
+  , wrapIO
+  , PseudoRandomF
+  , BadKeyLength (..)
 
-  -- * perform PBKDF2 derivation
-  calcPBKDF2,
+    -- * perform PBKDF2 derivation
+  , calcPBKDF2
 
-  -- * re-export
-  ByteString,
-) where
+    -- * re-export
+  , ByteString
+  )
+where
 
 import Control.Exception (Exception, throwIO)
 import Data.Bits (xor, (.&.), (.>>.))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder (byteString, toLazyByteString)
-import Data.ByteString.Builder.Extra (
-  safeStrategy,
-  smallChunkSize,
-  toLazyByteStringWith,
- )
+import Data.ByteString.Builder.Extra
+  ( safeStrategy
+  , smallChunkSize
+  , toLazyByteStringWith
+  )
 import Data.Word (Word32, Word64)
 
 
@@ -109,16 +110,16 @@ Usage - this example uses the SHA256 hmac function as the pseudorandom function
   >>> Right pseudo = wrap' SHA256.hmac 64
   >>> calcPBKDF2 pseudo "passwd" "salt" 1000
 -}
-calcPBKDF2 ::
-  -- | a 'FancyPseudoRandomF'
-  FancyPseudoRandomF ->
-  -- | the password from which to derive a key
-  ByteString ->
-  -- | the salt used in key derivation
-  ByteString ->
-  -- | the iteration count
-  Word64 ->
-  ByteString
+calcPBKDF2
+  :: FancyPseudoRandomF
+  -- ^ a 'FancyPseudoRandomF'
+  -> ByteString
+  -- ^ the password from which to derive a key
+  -> ByteString
+  -- ^ the salt used in key derivation
+  -> Word64
+  -- ^ the iteration count
+  -> ByteString
 calcPBKDF2 fancy password salt count =
   let Fancy (!pseudoRandomF, !dkLen, !_notUsed) = fancy
       (!numBlocks, !lastBlockSize) = blockInfoOf fancy

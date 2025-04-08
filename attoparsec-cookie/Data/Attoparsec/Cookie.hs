@@ -9,40 +9,41 @@ with the parser.
 The roundtrip is incomplete because some of the fields in @Cookie@ are not saved
 in the Netscape/Mozilla cookie jar, as described by `cookieBuilder`.
 -}
-module Data.Attoparsec.Cookie (
-  -- * read/write Cookie Jar files
-  writeJar,
-  writeJar',
-  writeNetscapeJar,
-  readJar,
+module Data.Attoparsec.Cookie
+  ( -- * read/write Cookie Jar files
+    writeJar
+  , writeJar'
+  , writeNetscapeJar
+  , readJar
 
-  -- * parse the Cookie Jar file format
-  cookieJarParser,
-  cookieParser,
-  parseCookieJar,
+    -- * parse the Cookie Jar file format
+  , cookieJarParser
+  , cookieParser
+  , parseCookieJar
 
-  -- * Use 'Builder' to reprint Cookie Jars
-  netscapeJarBuilder,
-  jarBuilder,
-  jarBuilder',
-  cookieBuilder,
-) where
+    -- * Use 'Builder' to reprint Cookie Jars
+  , netscapeJarBuilder
+  , jarBuilder
+  , jarBuilder'
+  , cookieBuilder
+  )
+where
 
 import Control.Applicative ((<|>))
 import Control.Monad (void)
-import Data.Attoparsec.ByteString.Char8 (
-  Parser,
-  char,
-  decimal,
-  endOfLine,
-  isEndOfLine,
-  many',
-  parseOnly,
-  skipSpace,
-  skipWhile,
-  takeWhile1,
-  try,
- )
+import Data.Attoparsec.ByteString.Char8
+  ( Parser
+  , char
+  , decimal
+  , endOfLine
+  , isEndOfLine
+  , many'
+  , parseOnly
+  , skipSpace
+  , skipWhile
+  , takeWhile1
+  , try
+  )
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import Data.ByteString.Builder (Builder, byteString, char7, integerDec, toLazyByteString)

@@ -12,15 +12,15 @@ module ICloud.KDFSpec (spec) where
 import qualified Crypto.Hash.SHA1 as SHA1
 import qualified Crypto.Hash.SHA256 as SHA256
 import qualified Crypto.Hash.SHA512 as SHA512
-import Data.Aeson (
-  FromJSON (..),
-  Object,
-  Value,
-  eitherDecodeFileStrict,
-  withArray,
-  withObject,
-  (.:),
- )
+import Data.Aeson
+  ( FromJSON (..)
+  , Object
+  , Value
+  , eitherDecodeFileStrict
+  , withArray
+  , withObject
+  , (.:)
+  )
 import Data.Aeson.Types (Parser)
 import Data.ByteString (ByteString)
 import Data.ByteString.Base16 (decode)
@@ -51,7 +51,7 @@ specFrom shaName pseudo = do
 
 specWithFrom :: PseudoRandomF -> TestDescription -> SpecWith ()
 specWithFrom pseudo td = do
-  let TestDescription {tdSalt, tdIterationCount = count, tdDerivedKey = key} = td
+  let TestDescription{tdSalt, tdIterationCount = count, tdDerivedKey = key} = td
   it ("test " ++ show (tdId td) ++ " should succeed") $ do
     let pseudo' = wrap pseudo (tdDerivedLength td)
         calc x = calcPBKDF2 x (tdPassword td) tdSalt count

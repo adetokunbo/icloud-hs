@@ -7,31 +7,32 @@ Copyright : (c) 2025 Tim Emiola
 Maintainer: Tim Emiola <adetokunbo@emio.la>
 SPDX-License-Identifier: BSD3
 -}
-module Crypto.SRP.PrimeGroup (
-  -- * the PrimeGroups
-  PrimeGroup (..),
-  generatorFor,
-  safePrimeFor,
-  asByteString,
-  hexLength,
-  paddedHexOfGenerator,
-  pubOf,
-  padAs,
-  pow,
-  primeMod,
-  modExpPrime,
-) where
+module Crypto.SRP.PrimeGroup
+  ( -- * the PrimeGroups
+    PrimeGroup (..)
+  , generatorFor
+  , safePrimeFor
+  , asByteString
+  , hexLength
+  , paddedHexOfGenerator
+  , pubOf
+  , padAs
+  , pow
+  , primeMod
+  , modExpPrime
+  )
+where
 
-import Crypto.SRP.Constants (
-  fromHexBS,
-  n1024Bits,
-  n1536Bits,
-  n2048Bits,
-  n3072Bits,
-  n4096Bits,
-  n6144Bits,
-  n8192Bits,
- )
+import Crypto.SRP.Constants
+  ( fromHexBS
+  , n1024Bits
+  , n1536Bits
+  , n2048Bits
+  , n3072Bits
+  , n4096Bits
+  , n6144Bits
+  , n8192Bits
+  )
 import Data.Bits (Bits (shiftR, testBit))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -137,6 +138,6 @@ modExpPrime base power pg = modExp base power (safePrimeFor pg)
 modExp :: Integer -> Integer -> Integer -> Integer
 modExp _base 0 _m = 1
 modExp base expn m = t * modExp baseSquared (shiftR expn 1) m `mod` m
-  where
-    !baseSquared = (base * base) `mod` m
-    !t = if testBit expn 0 then base `mod` m else 1
+ where
+  !baseSquared = (base * base) `mod` m
+  !t = if testBit expn 0 then base `mod` m else 1

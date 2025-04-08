@@ -1,6 +1,7 @@
-module ICloud.HttpSpec (
-  spec,
-) where
+module ICloud.HttpSpec
+  ( spec
+  )
+where
 
 import Data.Aeson (Value (..), decode, encode, object)
 import Data.Aeson.Key (fromText)
@@ -12,26 +13,26 @@ import Data.Text (Text)
 import qualified ICloud.Examples as Examples
 import Network.HTTP.Types (HeaderName)
 import Network.ICloud.Auth (SavedHeaders (..))
-import Network.ICloud.Http (
-  ApiError (..),
-  hCounter,
-  hCountry,
-  hSessionId,
-  hSessionToken,
-  hTrustToken,
-  mkSavedHeaders,
- )
+import Network.ICloud.Http
+  ( ApiError (..)
+  , hCounter
+  , hCountry
+  , hSessionId
+  , hSessionToken
+  , hTrustToken
+  , mkSavedHeaders
+  )
 import Test.Hspec (Spec, context, describe, it)
-import Test.QuickCheck (
-  Gen,
-  Property,
-  elements,
-  forAll,
-  forAllBlind,
-  frequency,
-  sublistOf,
-  vectorOf,
- )
+import Test.QuickCheck
+  ( Gen
+  , Property
+  , elements
+  , forAll
+  , forAllBlind
+  , frequency
+  , sublistOf
+  , vectorOf
+  )
 
 
 spec :: Spec

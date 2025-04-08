@@ -8,31 +8,32 @@ Copyright : (c) 2025 Tim Emiola
 Maintainer: Tim Emiola <adetokunbo@emio.la>
 SPDX-License-Identifier: BSD3
 -}
-module Crypto.SRP.Hashing (
-  -- * Supported hash algorithms
-  KnownAlgorithm (..),
+module Crypto.SRP.Hashing
+  ( -- * Supported hash algorithms
+    KnownAlgorithm (..)
 
-  -- ** Use the @'KnownAlgorithm's@ for hashing
-  digestSize,
-  hash,
-  hashMany,
-  hashText,
+    -- ** Use the @'KnownAlgorithm's@ for hashing
+  , digestSize
+  , hash
+  , hashMany
+  , hashText
 
-  -- * SRP-specific hash calculations
-  calcK,
-  calcClientX,
-  calcXorHashnHashg,
-) where
+    -- * SRP-specific hash calculations
+  , calcK
+  , calcClientX
+  , calcXorHashnHashg
+  )
+where
 
 import qualified Crypto.Hash.SHA1 as SHA1
 import qualified Crypto.Hash.SHA256 as SHA256
 import qualified Crypto.Hash.SHA384 as SHA384
 import qualified Crypto.Hash.SHA512 as SHA512
-import Crypto.SRP.PrimeGroup (
-  PrimeGroup,
-  asByteString,
-  paddedHexOfGenerator,
- )
+import Crypto.SRP.PrimeGroup
+  ( PrimeGroup
+  , asByteString
+  , paddedHexOfGenerator
+  )
 import Data.Bits (Bits (xor))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS

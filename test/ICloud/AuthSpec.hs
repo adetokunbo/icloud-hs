@@ -8,12 +8,12 @@ SPDX-License-Identifier: BSD3
 -}
 module ICloud.AuthSpec (spec) where
 
-import Network.ICloud.Auth (
-  Credentials (..),
-  clientIdPath,
-  cookiePath,
-  savedHeadersPath,
- )
+import Network.ICloud.Auth
+  ( Credentials (..)
+  , clientIdPath
+  , cookiePath
+  , savedHeadersPath
+  )
 import Test.Hspec (Spec, context, describe, it, shouldBe)
 
 

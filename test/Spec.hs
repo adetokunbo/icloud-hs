@@ -6,12 +6,12 @@ import qualified Crypto.SRPSpec as SRP
 import qualified ICloud.AuthSpec as Auth
 import qualified ICloud.HttpSpec as Http
 import qualified ICloud.KDFSpec as KDF
-import System.IO (
-  BufferMode (..),
-  hSetBuffering,
-  stderr,
-  stdout,
- )
+import System.IO
+  ( BufferMode (..)
+  , hSetBuffering
+  , stderr
+  , stdout
+  )
 import Test.Hspec
 
 

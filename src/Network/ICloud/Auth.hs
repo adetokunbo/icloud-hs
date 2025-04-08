@@ -12,44 +12,45 @@ SPDX-License-Identifier: BSD3
 Provides functions and/or data types that sync authentical credentials with the
 filesystem
 -}
-module Network.ICloud.Auth (
-  -- * Credentials
-  Credentials (..),
+module Network.ICloud.Auth
+  ( -- * Credentials
+    Credentials (..)
 
-  -- ** compute paths that depend on @Credentials@
-  clientIdPath,
-  savedHeadersPath,
-  cookiePath,
+    -- ** compute paths that depend on @Credentials@
+  , clientIdPath
+  , savedHeadersPath
+  , cookiePath
 
-  -- * Session
-  Session (..),
-  SavedHeaders (..),
-  loadSession,
-  runSrpAuth,
+    -- * Session
+  , Session (..)
+  , SavedHeaders (..)
+  , loadSession
+  , runSrpAuth
 
-  -- * clientID generation
-  newClientId,
-) where
+    -- * clientID generation
+  , newClientId
+  )
+where
 
 import Control.Monad ((>=>))
-import Crypto.SRP (
-  FromClient (..),
-  FromServer (..),
-  Results,
-  XCalculator,
-  calcResults,
- )
-import Data.Aeson (
-  FromJSON (..),
-  Options (..),
-  ToJSON (..),
-  eitherDecodeFileStrict,
-  genericParseJSON,
-  genericToEncoding,
-  genericToJSON,
-  withObject,
-  (.:),
- )
+import Crypto.SRP
+  ( FromClient (..)
+  , FromServer (..)
+  , Results
+  , XCalculator
+  , calcResults
+  )
+import Data.Aeson
+  ( FromJSON (..)
+  , Options (..)
+  , ToJSON (..)
+  , eitherDecodeFileStrict
+  , genericParseJSON
+  , genericToEncoding
+  , genericToJSON
+  , withObject
+  , (.:)
+  )
 import Data.Aeson.Casing (aesonPrefix, snakeCase)
 import Data.Char (isAlphaNum)
 import Data.Text (Text)
@@ -71,8 +72,8 @@ data Session = Session
   , sessionSavedHdrs :: !SavedHeaders
   }
   deriving
-    ( -- | don't derive Show to avoid the risk of logging a password
-      Eq
+    ( Eq
+      -- ^ don't derive Show to avoid the risk of logging a password
     )
 
 
@@ -108,8 +109,8 @@ data Credentials = Credentials
   -- ^ the password used to logon to ICloud
   }
   deriving
-    ( -- | don't derive Show to avoid the risk of logging a password
-      Eq
+    ( Eq
+      -- ^ don't derive Show to avoid the risk of logging a password
     )
 
 
@@ -171,12 +172,12 @@ loadSession = do
 
 
 -- | Implements the SRP authentiction sequence
-runSrpAuth ::
-  (XCalculator b) =>
-  IO FromClient ->
-  (FromClient -> IO (FromServer, b)) ->
-  (b -> Maybe Results -> IO a) ->
-  IO a
+runSrpAuth
+  :: (XCalculator b)
+  => IO FromClient
+  -> (FromClient -> IO (FromServer, b))
+  -> (b -> Maybe Results -> IO a)
+  -> IO a
 runSrpAuth mkClientSide stepOne stepTwo = do
   clientSide <- mkClientSide
   (serverSide, extra) <- stepOne clientSide
@@ -201,7 +202,7 @@ loadSession' (Right (sessionTopDir, sessionCreds)) = do
   case orSavedHeaders of
     Left err -> pure (Left err)
     Right sessionSavedHdrs ->
-      pure $ Right Session {sessionClientId, sessionCreds, sessionTopDir, sessionSavedHdrs}
+      pure $ Right Session{sessionClientId, sessionCreds, sessionTopDir, sessionSavedHdrs}
 
 
 loadSessionOr :: FilePath -> IO (Either String Session)

@@ -9,54 +9,55 @@ SPDX-License-Identifier: BSD3
 
 Provides datatypes and functions and typeclasses to support an SRP authentication sequence
 -}
-module Crypto.SRP (
-  -- * client-side inputs
-  FromClient (..),
-  mkFromClient,
+module Crypto.SRP
+  ( -- * client-side inputs
+    FromClient (..)
+  , mkFromClient
 
-  -- * server-side inputs
-  FromServer (..),
+    -- * server-side inputs
+  , FromServer (..)
 
-  -- ** choose how to calculate @\'x\''@
-  XCalculator (..),
+    -- ** choose how to calculate @\'x\''@
+  , XCalculator (..)
 
-  -- * shared key and proofs
-  Results (..),
+    -- * shared key and proofs
+  , Results (..)
 
-  -- ** calculate and verify using @Results@
-  calcResults,
-  verifyServerProof,
+    -- ** calculate and verify using @Results@
+  , calcResults
+  , verifyServerProof
 
-  -- * SRP Integer <=> ByteString interconversion
-  bytesOf,
-  fromBytes,
+    -- * SRP Integer <=> ByteString interconversion
+  , bytesOf
+  , fromBytes
 
-  -- * re-exports
-  PrimeGroup (..),
-  KnownAlgorithm (..),
-  digestSize,
-  hashText,
-  hashMany,
-  hash,
-) where
+    -- * re-exports
+  , PrimeGroup (..)
+  , KnownAlgorithm (..)
+  , digestSize
+  , hashText
+  , hashMany
+  , hash
+  )
+where
 
-import Crypto.SRP.Hashing (
-  KnownAlgorithm (..),
-  calcClientX,
-  calcK,
-  calcXorHashnHashg,
-  digestSize,
-  hash,
-  hashMany,
-  hashText,
- )
-import Crypto.SRP.PrimeGroup (
-  PrimeGroup (..),
-  modExpPrime,
-  padAs,
-  primeMod,
-  pubOf,
- )
+import Crypto.SRP.Hashing
+  ( KnownAlgorithm (..)
+  , calcClientX
+  , calcK
+  , calcXorHashnHashg
+  , digestSize
+  , hash
+  , hashMany
+  , hashText
+  )
+import Crypto.SRP.PrimeGroup
+  ( PrimeGroup (..)
+  , modExpPrime
+  , padAs
+  , primeMod
+  , pubOf
+  )
 import Crypto.SRP.Random (genNSecureBytes)
 import Data.Bits (Bits (..))
 import Data.ByteString (ByteString)
@@ -155,8 +156,8 @@ verifyServerProof selectX serverProof fc fs =
 -}
 calcResults :: (XCalculator a) => a -> FromClient -> FromServer -> Maybe Results
 calcResults selectX fc fs =
-  let FromServer {fsPublicBytes, fsSalt, fsPrimeGroup = pg, fsKnownAlgorithm = alg} = fs
-      FromClient {fcUser, fcPublicBytes = publicBytes} = fc
+  let FromServer{fsPublicBytes, fsSalt, fsPrimeGroup = pg, fsKnownAlgorithm = alg} = fs
+      FromClient{fcUser, fcPublicBytes = publicBytes} = fc
       bigS = calcPremasterSecret selectX fc fs
       xorNG = bytesOf $ calcXorHashnHashg alg pg
       hashedName = hashText alg fcUser
@@ -165,7 +166,7 @@ calcResults selectX fc fs =
 
             rClientProof = hashMany alg [xorNG, hashedName, fsSalt, publicBytes, fsPublicBytes, rKey]
             rServerProof = hashMany alg [publicBytes, rClientProof, rKey]
-         in Results {rKey, rClientProof, rServerProof}
+         in Results{rKey, rClientProof, rServerProof}
    in mkResult <$> bigS
 
 
@@ -218,8 +219,8 @@ Nothing
 calcPremasterSecret :: (XCalculator a) => a -> FromClient -> FromServer -> Maybe Integer
 calcPremasterSecret selectX fc fs =
   let
-    FromServer {fsPublicBytes, fsPrimeGroup = pg, fsKnownAlgorithm = alg} = fs
-    FromClient {fcPrivateNumber = private, fcPublicBytes = publicBytes} = fc
+    FromServer{fsPublicBytes, fsPrimeGroup = pg, fsKnownAlgorithm = alg} = fs
+    FromClient{fcPrivateNumber = private, fcPublicBytes = publicBytes} = fc
     x = fromBytes $ calcX selectX fc fs
     u = fromBytes $ hashMany alg [publicBytes `padAs` pg, fsPublicBytes `padAs` pg]
     power = private + (u * x)
@@ -242,6 +243,6 @@ bytesOf :: Integer -> BS.ByteString
 bytesOf n
   | n == 0 = BS.pack [0]
   | otherwise = BS.pack $ reverse (bytes (abs n))
-  where
-    bytes 0 = []
-    bytes x = fromIntegral (x .&. 0xFF) : bytes (shiftR x 8)
+ where
+  bytes 0 = []
+  bytes x = fromIntegral (x .&. 0xFF) : bytes (shiftR x 8)

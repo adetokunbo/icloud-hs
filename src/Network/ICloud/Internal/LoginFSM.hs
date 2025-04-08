@@ -22,13 +22,6 @@ import Data.Kind (Type)
 import Network.ICloud.Auth (Credentials, SavedHeaders)
 
 
-{- |
-Module      : Network.ICloud.Internal.LoginFSM
-Copyright   : (c) 2022 Tim Emiola
-Maintainer  : Tim Emiola <adetokunbo@emio.la>
-SPDX-License-Identifier: BSD3
--}
-
 -- | Represents different outcomes of the login process.
 data AtEnd
   = Normal Credentials
@@ -56,21 +49,21 @@ class LoginEvent m where
 
 
 -- | The canonical login process using events from 'LoginEvent'.
-loginProcess ::
-  ( LoginEvent m
-  , Monad m
-  ) =>
-  m (BeforeEnd (State m))
+loginProcess
+  :: ( LoginEvent m
+     , Monad m
+     )
+  => m (BeforeEnd (State m))
 loginProcess =
   initial >>= ratifyCreds >>= \case
     NoCreds e -> pure $ EndedAfterCredentials e
     GotCreds x -> onCredsLoaded x
 
 
-onCredsLoaded ::
-  (Monad m, LoginEvent m) =>
-  State m RatifyArtifactDir ->
-  m (BeforeEnd (State m))
+onCredsLoaded
+  :: (Monad m, LoginEvent m)
+  => State m RatifyArtifactDir
+  -> m (BeforeEnd (State m))
 onCredsLoaded s =
   ratifyArtifactDir s >>= \case
     DirPresent x -> onArtifactDirPresent x
@@ -80,10 +73,10 @@ onCredsLoaded s =
         DirMade x -> onArtifactDirPresent x
 
 
-onArtifactDirPresent ::
-  (Monad m, LoginEvent m) =>
-  State m LoadLastSession ->
-  m (BeforeEnd (State m))
+onArtifactDirPresent
+  :: (Monad m, LoginEvent m)
+  => State m LoadLastSession
+  -> m (BeforeEnd (State m))
 onArtifactDirPresent s =
   loadSession s >>= \case
     NeedsClientId x -> mkClientId x <&> EndedReady

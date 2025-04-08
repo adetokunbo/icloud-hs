@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
@@ -12,54 +11,55 @@ Copyright   : (c) 2025 Tim Emiola
 Maintainer  : Tim Emiola <adetokunbo@emio.la>
 SPDX-License-Identifier: BSD3
 -}
-module Network.ICloud.Http (
-  -- * data types
-  ApiError (..),
-  ApiResponse (..),
-  Endpoints (..),
-  Realm (..),
+module Network.ICloud.Http
+  ( -- * data types
+    ApiError (..)
+  , ApiResponse (..)
+  , Endpoints (..)
+  , Realm (..)
 
-  -- * functions
-  mkSavedHeaders,
-  mkApi,
-  runApiSrpAuth,
+    -- * functions
+  , mkSavedHeaders
+  , mkApi
+  , runApiSrpAuth
 
-  -- * HTTP header names
-  hCounter,
-  hCountry,
-  hSessionId,
-  hSessionToken,
-  hTrustToken,
-  hOrigin,
-) where
+    -- * HTTP header names
+  , hCounter
+  , hCountry
+  , hSessionId
+  , hSessionToken
+  , hTrustToken
+  , hOrigin
+  )
+where
 
 import Control.Applicative (Alternative (..), (<|>))
 import Control.Monad (unless)
 import qualified Crypto.Hash.SHA256 as SHA256
-import Crypto.SRP (
-  FromClient (..),
-  FromServer (..),
-  KnownAlgorithm,
-  PrimeGroup,
-  Results (..),
-  XCalculator (..),
-  digestSize,
-  hashMany,
-  hashText,
-  mkFromClient,
- )
-import Data.Aeson (
-  FromJSON (..),
-  Key,
-  Object,
-  eitherDecode,
-  eitherDecodeFileStrict,
-  encode,
-  encodeFile,
-  withObject,
-  withText,
-  (.:),
- )
+import Crypto.SRP
+  ( FromClient (..)
+  , FromServer (..)
+  , KnownAlgorithm
+  , PrimeGroup
+  , Results (..)
+  , XCalculator (..)
+  , digestSize
+  , hashMany
+  , hashText
+  , mkFromClient
+  )
+import Data.Aeson
+  ( FromJSON (..)
+  , Key
+  , Object
+  , eitherDecode
+  , eitherDecodeFileStrict
+  , encode
+  , encodeFile
+  , withObject
+  , withText
+  , (.:)
+  )
 import Data.Aeson.KeyMap (fromList, member)
 import Data.Aeson.Types (Parser, Value (..), (.:?))
 import Data.Attoparsec.Cookie (readJar, writeNetscapeJar)
@@ -76,36 +76,36 @@ import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time (getCurrentTime)
 import Data.Word (Word64)
-import Network.HTTP.Client (
-  Manager,
-  Request (..),
-  RequestBody (..),
-  Response (..),
-  createCookieJar,
-  defaultRequest,
-  httpLbs,
-  updateCookieJar,
- )
+import Network.HTTP.Client
+  ( Manager
+  , Request (..)
+  , RequestBody (..)
+  , Response (..)
+  , createCookieJar
+  , defaultRequest
+  , httpLbs
+  , updateCookieJar
+  )
 import Network.HTTP.Client.TLS (newTlsManager)
-import Network.HTTP.Types (
-  Header,
-  HeaderName,
-  RequestHeaders,
-  Status (..),
-  hContentType,
-  hReferer,
-  methodGet,
-  methodPost,
- )
-import Network.ICloud.Auth (
-  Credentials (..),
-  SavedHeaders (..),
-  Session (..),
-  cookiePath,
-  loadSession,
-  runSrpAuth,
-  savedHeadersPath,
- )
+import Network.HTTP.Types
+  ( Header
+  , HeaderName
+  , RequestHeaders
+  , Status (..)
+  , hContentType
+  , hReferer
+  , methodGet
+  , methodPost
+  )
+import Network.ICloud.Auth
+  ( Credentials (..)
+  , SavedHeaders (..)
+  , Session (..)
+  , cookiePath
+  , loadSession
+  , runSrpAuth
+  , savedHeadersPath
+  )
 import Network.ICloud.KDF (FancyPseudoRandomF, calcPBKDF2, wrapIO)
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 
@@ -139,14 +139,14 @@ mkApi apiGroup apiHashAlgorithm realm = do
       }
 
 
--- | Implements the SRP authentication sequence using Http class to ICloud endpoints
+-- | Implements the SRP authentication sequence using Http calls to ICloud endpoints
 runApiSrpAuth :: (FromJSON a) => Api -> IO a
-runApiSrpAuth api@Api {apiSession} = do
+runApiSrpAuth api@Api{apiSession} = do
   let mkClientSide = mkFromClient user password $ apiGroup api
       stepOne = runSigninInit api
       stepTwo = runSigninComplete api
       creds = sessionCreds apiSession
-      Credentials {credAccountName = user, credPassword = password} = creds
+      Credentials{credAccountName = user, credPassword = password} = creds
   runSrpAuth mkClientSide stepOne stepTwo
 
 
@@ -158,7 +158,7 @@ rawRequest = rawRequest' True
 -- | Make a session request and obtain the raw byte results
 rawRequest' :: Bool -> Api -> Request -> IO (Response LBS.ByteString)
 rawRequest' mayRetry api req = do
-  let Api {apiManager = mgr, apiSession = s} = api
+  let Api{apiManager = mgr, apiSession = s} = api
   resp <- httpLbs req mgr
   resp' <- updateCookieJarOf s resp req
   updateSavedHeadersOf s $ responseHeaders resp'
@@ -184,8 +184,8 @@ if it parses as an ApiError, indicate that
 
 if the response is not JSON, use 'rawRequest' instead
 -}
-jsonSessionRequest ::
-  (FromJSON a) => Api -> Request -> IO (Response (ApiResponse a))
+jsonSessionRequest
+  :: (FromJSON a) => Api -> Request -> IO (Response (ApiResponse a))
 jsonSessionRequest api req = do
   let isJsonType "application/json" = True
       isJsonType "text/json" = True
@@ -339,8 +339,8 @@ updateSavedHeadersOf s headers = do
 
 authHeaders :: Api -> RequestHeaders
 authHeaders api =
-  let Api {apiSession = session, apiEndpoints = ep} = api
-      Session {sessionClientId = cid, sessionSavedHdrs = sd} = session
+  let Api{apiSession = session, apiEndpoints = ep} = api
+      Session{sessionClientId = cid, sessionSavedHdrs = sd} = session
       epHeaders = [(hOrigin, epHome ep), (hReferer, epHome ep <> "/")]
       headerOf name x = (name, toS x)
       maybeHeaderOf name = fmap (headerOf name)
@@ -354,11 +354,11 @@ authHeaders api =
 
 
 extendPath :: Request -> ByteString -> Request
-extendPath req suffix = req {path = path req <> suffix}
+extendPath req suffix = req{path = path req <> suffix}
 
 
 toGet :: Request -> Request
-toGet req = req {method = methodGet}
+toGet req = req{method = methodGet}
 
 
 maybeValue :: (a -> Value) -> Maybe a -> Value
@@ -374,32 +374,32 @@ mkJsonRequest mkBase mkBody baseSrc bodySrc =
   let base = mkBase baseSrc
       body = mkBody bodySrc
       encodedBody = encode body
-   in base {requestBody = RequestBodyLBS encodedBody}
+   in base{requestBody = RequestBodyLBS encodedBody}
 
 
-invoke ::
-  (FromJSON a) =>
-  (Endpoints -> b -> Request) ->
-  Api ->
-  b ->
-  IO a
+invoke
+  :: (FromJSON a)
+  => (Endpoints -> b -> Request)
+  -> Api
+  -> b
+  -> IO a
 invoke mkReq api x =
-  let Api {apiEndpoints} = api
+  let Api{apiEndpoints} = api
       req = mkReq apiEndpoints x
    in jsonSessionRequest api req >>= failIfError
 
 
-invokeWithAuthHdrs ::
-  (FromJSON a) =>
-  (Endpoints -> b -> Request) ->
-  Api ->
-  b ->
-  IO a
+invokeWithAuthHdrs
+  :: (FromJSON a)
+  => (Endpoints -> b -> Request)
+  -> Api
+  -> b
+  -> IO a
 invokeWithAuthHdrs mkReq api x =
-  let Api {apiEndpoints} = api
+  let Api{apiEndpoints} = api
       req = mkReq apiEndpoints x
       requestHeaders = authHeaders api
-      req' = req {requestHeaders}
+      req' = req{requestHeaders}
    in jsonSessionRequest api req' >>= failIfError
 
 
@@ -458,20 +458,20 @@ chinaEndpoints =
   Endpoints
     { epHome = "https://www.icloud.com.cn"
     , epAuth = authReq
-    , epSetup = setupReq {host = "setup.icloud.com.cn"}
+    , epSetup = setupReq{host = "setup.icloud.com.cn"}
     }
 
 
 apiRequest :: Request
-apiRequest = defaultRequest {secure = True, method = methodPost}
+apiRequest = defaultRequest{secure = True, method = methodPost}
 
 
 authReq :: Request
-authReq = apiRequest {host = "idmsa.apple.com", path = "/appleauth/auth"}
+authReq = apiRequest{host = "idmsa.apple.com", path = "/appleauth/auth"}
 
 
 setupReq :: Request
-setupReq = apiRequest {host = "setup.icloud.com", path = "/setup/ws/1"}
+setupReq = apiRequest{host = "setup.icloud.com", path = "/setup/ws/1"}
 
 
 -- | Header names used in auth and server HTTP requests
@@ -481,8 +481,8 @@ hCountry
   , hTrustToken
   , hCounter
   , hOrigin
-  , hClientId ::
-    HeaderName
+  , hClientId
+    :: HeaderName
 hCountry = mk "X-Apple-ID-Account-Country"
 hSessionId = mk "X-Apple-ID-Session-Id"
 hSessionToken = mk "X-Apple-Session-Token"
@@ -578,9 +578,9 @@ the hashed password as described
 -}
 calcXUsingKeyDeriver :: KeyDeriver -> FromClient -> FromServer -> ByteString
 calcXUsingKeyDeriver kd fc fs =
-  let FromServer {fsSalt, fsKnownAlgorithm = hashAlgo} = fs
+  let FromServer{fsSalt, fsKnownAlgorithm = hashAlgo} = fs
       h = hashMany hashAlgo
-      KeyDeriver {kdIterations = count, kdWrappedF, kdProtocol} = kd
+      KeyDeriver{kdIterations = count, kdWrappedF, kdProtocol} = kd
 
       -- the old protocol requires base16 encoding the digest before key derivation
       useProtocol Old = Base16.encode
@@ -617,7 +617,7 @@ signinInitReq = mkJsonRequest signinInitBase signinInitValue
 signinInitBase :: Endpoints -> Request
 signinInitBase =
   let
-    withQuery x = x {queryString = "?isRememberMeEnabled=true"}
+    withQuery x = x{queryString = "?isRememberMeEnabled=true"}
    in
     withQuery . (`extendPath` "/signin/init") . epAuth
 
@@ -641,7 +641,7 @@ data SigninCompletion = SigninCompletion
 
 
 runSigninComplete :: (FromJSON a) => Api -> KeyDeriver -> Maybe Results -> IO a
-runSigninComplete api@Api {apiSession = session} kd mbResults =
+runSigninComplete api@Api{apiSession = session} kd mbResults =
   let siSavedHeaders = sessionSavedHdrs session
       siAccountName = credAccountName $ sessionCreds session
       completion siResults =
@@ -669,7 +669,7 @@ signinCompleteBase = (`extendPath` "/signin/complete") . epAuth
 
 signinCompleteValue :: SigninCompletion -> Value
 signinCompleteValue si =
-  let SigninCompletion {siResults = results} = si
+  let SigninCompletion{siResults = results} = si
       toBase64 = extractBase64 . encodeBase64
       clientProof = toBase64 $ rClientProof results
       serverProof = toBase64 $ rServerProof results

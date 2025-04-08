@@ -1,11 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module ICloud.Examples (
-  byteStrings,
-  wordz,
-  errorKeys,
-  codeKeys,
-) where
+module ICloud.Examples
+  ( byteStrings
+  , wordz
+  , errorKeys
+  , codeKeys
+  )
+where
 
 import Data.ByteString (ByteString)
 import Data.String.Conv (toS)
