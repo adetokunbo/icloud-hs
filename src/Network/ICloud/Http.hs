@@ -97,7 +97,8 @@ import Network.HTTP.Types
   , methodGet
   , methodPost
   )
-import Network.ICloud.Auth
+import Network.ICloud.KDF (FancyPseudoRandomF, calcPBKDF2, wrapIO)
+import Network.ICloud.Session
   ( Credentials (..)
   , SavedHeaders (..)
   , Session (..)
@@ -106,7 +107,6 @@ import Network.ICloud.Auth
   , runSrpAuth
   , savedHeadersPath
   )
-import Network.ICloud.KDF (FancyPseudoRandomF, calcPBKDF2, wrapIO)
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 
 

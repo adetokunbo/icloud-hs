@@ -4,15 +4,14 @@
 {-# LANGUAGE TupleSections #-}
 
 {- |
-Module      : etwork.ICloud.Auth
+Module      : Network.ICloud.Session
 Copyright   : (c) 2025 Tim Emiola
 Maintainer  : Tim Emiola <adetokunbo@emio.la>
 SPDX-License-Identifier: BSD3
 
-Provides functions and/or data types that sync authentical credentials with the
-filesystem
+Contains data types and combinators for persisting authentication data.
 -}
-module Network.ICloud.Auth
+module Network.ICloud.Session
   ( -- * Credentials
     Credentials (..)
 

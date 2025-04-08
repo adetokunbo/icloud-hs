@@ -12,7 +12,6 @@ import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified ICloud.Examples as Examples
 import Network.HTTP.Types (HeaderName)
-import Network.ICloud.Auth (SavedHeaders (..))
 import Network.ICloud.Http
   ( ApiError (..)
   , hCounter
@@ -22,6 +21,7 @@ import Network.ICloud.Http
   , hTrustToken
   , mkSavedHeaders
   )
+import Network.ICloud.Session (SavedHeaders (..))
 import Test.Hspec (Spec, context, describe, it)
 import Test.QuickCheck
   ( Gen

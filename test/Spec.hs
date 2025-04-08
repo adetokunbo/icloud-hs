@@ -3,9 +3,9 @@
 module Main where
 
 import qualified Crypto.SRPSpec as SRP
-import qualified ICloud.AuthSpec as Auth
 import qualified ICloud.HttpSpec as Http
 import qualified ICloud.KDFSpec as KDF
+import qualified ICloud.SessionSpec as Session
 import System.IO
   ( BufferMode (..)
   , hSetBuffering
@@ -20,7 +20,7 @@ main = do
   hSetBuffering stdout NoBuffering
   hSetBuffering stderr NoBuffering
   hspec $ do
-    Auth.spec
+    Session.spec
     Http.spec
     KDF.spec
     SRP.spec

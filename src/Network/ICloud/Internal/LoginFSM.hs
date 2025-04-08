@@ -19,7 +19,7 @@ module Network.ICloud.Internal.LoginFSM where
 
 import Data.Functor ((<&>))
 import Data.Kind (Type)
-import Network.ICloud.Auth (Credentials, SavedHeaders)
+import Network.ICloud.Session (Credentials, SavedHeaders)
 
 
 -- | Represents different outcomes of the login process.

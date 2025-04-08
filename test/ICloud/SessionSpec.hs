@@ -1,14 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 {- |
-Module      : ICloud.AuthSpec
+Module      : ICloud.SessionSpec
 Copyright   : (c) 2023 Tim Emiola
 Maintainer  : Tim Emiola <adetokunbo@emio.la>
 SPDX-License-Identifier: BSD3
 -}
-module ICloud.AuthSpec (spec) where
+module ICloud.SessionSpec (spec) where
 
-import Network.ICloud.Auth
+import Network.ICloud.Session
   ( Credentials (..)
   , clientIdPath
   , cookiePath
@@ -23,7 +23,7 @@ spec = do
 
 
 sessionSpec :: Spec
-sessionSpec = describe "module Network.ICloud.Auth" $ do
+sessionSpec = describe "module Network.ICloud.Session" $ do
   context "using a simple example" $ do
     let topDir = "/tmp/icloud_authspec"
     context "cookiePath" $ do

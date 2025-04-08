@@ -21,10 +21,10 @@ source-repository head
   location: https://github.com/adetokunbo/icloud-auth.git
 
 library
-  exposed-modules:  Network.ICloud.Auth
-                    Network.ICloud.Http
+  exposed-modules:  Network.ICloud.Http
                     Network.ICloud.Internal.LoginFSM
                     Network.ICloud.KDF
+                    Network.ICloud.Session
   other-modules:    Data.Attoparsec.Cookie
                     Crypto.SRP
                     Crypto.SRP.Constants
@@ -67,10 +67,10 @@ test-suite test
   main-is:          Spec.hs
   hs-source-dirs:   test crypto-srp
   autogen-modules:  Paths_icloud_auth
-  other-modules:    ICloud.AuthSpec
+  other-modules:    ICloud.Examples
                     ICloud.HttpSpec
                     ICloud.KDFSpec
-                    ICloud.Examples
+                    ICloud.SessionSpec
                     Crypto.SRPSpec
                     Crypto.SRP
                     Crypto.SRP.Constants
