@@ -1,6 +1,6 @@
 # icloud-auth - unofficial auth for iCloud services
 
-[![GitHub CI](https://github.com/adetokunbo/icloud-auth/actions/workflows/ci.yml/badge.svg)](https://github.com/adetokunbo/icloud-auth/actions)
+[![GitHub CI](https://github.com/adetokunbo/icloud-auth/actions/workflows/cabal.yml/badge.svg)](https://github.com/adetokunbo/icloud-auth/actions)
 [![Stackage Nightly](http://stackage.org/package/icloud-auth/badge/nightly)](http://stackage.org/nightly/package/icloud-auth)
 [![Hackage][hackage-badge]][hackage]
 [![Hackage Dependencies][hackage-deps-badge]][hackage-deps]
