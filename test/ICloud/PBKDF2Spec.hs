@@ -2,12 +2,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 {- |
-Module      : ICloud.KDFSpec
+Module      : ICloud.PBKDF2Spec
 Copyright   : (c) 2023 Tim Emiola
 Maintainer  : Tim Emiola <adetokunbo@emio.la>
 SPDX-License-Identifier: BSD3
 -}
-module ICloud.KDFSpec (spec) where
+module ICloud.PBKDF2Spec (spec) where
 
 import qualified Crypto.Hash.SHA1 as SHA1
 import qualified Crypto.Hash.SHA256 as SHA256
@@ -27,15 +27,15 @@ import Data.ByteString.Base16 (decode)
 import Data.Foldable (toList)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Word (Word32, Word64, Word8)
-import Network.ICloud.KDF (PseudoRandomF, calcPBKDF2, wrap)
+import Network.ICloud.PBKDF2 (PseudoRandomF, deriveKey, wrap)
 import Paths_icloud_auth (getDataFileName)
 import Test.Hspec (Spec, context, describe, it, runIO, shouldBe)
 import Test.Hspec.Runner (SpecWith)
 
 
 spec :: Spec
-spec = describe "module Network.ICloud.KDF" $ do
-  describe "calcPBKDF2" $ do
+spec = describe "module Network.ICloud.PBKDF2" $ do
+  describe "deriveKey" $ do
     context "when using the wycheProof test cases" $ do
       specFrom "sha1" SHA1.hmac
       specFrom "sha256" SHA256.hmac
@@ -54,7 +54,7 @@ specWithFrom pseudo td = do
   let TestDescription{tdSalt, tdIterationCount = count, tdDerivedKey = key} = td
   it ("test " ++ show (tdId td) ++ " should succeed") $ do
     let pseudo' = wrap pseudo (tdDerivedLength td)
-        calc x = calcPBKDF2 x (tdPassword td) tdSalt count
+        calc x = deriveKey x (tdPassword td) tdSalt count
     calc <$> pseudo' `shouldBe` Right key
 
 

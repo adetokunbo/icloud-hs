@@ -97,7 +97,7 @@ import Network.HTTP.Types
   , methodGet
   , methodPost
   )
-import Network.ICloud.KDF (FancyPseudoRandomF, calcPBKDF2, wrapIO)
+import Network.ICloud.PBKDF2 (FancyPseudoRandomF, deriveKey, wrapIO)
 import Network.ICloud.Session
   ( Credentials (..)
   , SavedHeaders (..)
@@ -586,7 +586,7 @@ calcXUsingKeyDeriver kd fc fs =
       useProtocol Old = Base16.encode
       useProtocol New = id
       hashed = useProtocol kdProtocol $ hashText hashAlgo $ fcPassword fc
-      reallyHashed = calcPBKDF2 kdWrappedF hashed fsSalt count
+      reallyHashed = deriveKey kdWrappedF hashed fsSalt count
    in h [fsSalt, h [":", reallyHashed]]
 
 

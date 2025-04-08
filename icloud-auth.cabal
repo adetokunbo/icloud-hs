@@ -23,7 +23,7 @@ source-repository head
 library
   exposed-modules:  Network.ICloud.Http
                     Network.ICloud.Internal.LoginFSM
-                    Network.ICloud.KDF
+                    Network.ICloud.PBKDF2
                     Network.ICloud.Session
   other-modules:    Data.Attoparsec.Cookie
                     Crypto.SRP
@@ -69,7 +69,7 @@ test-suite test
   autogen-modules:  Paths_icloud_auth
   other-modules:    ICloud.Examples
                     ICloud.HttpSpec
-                    ICloud.KDFSpec
+                    ICloud.PBKDF2Spec
                     ICloud.SessionSpec
                     Crypto.SRPSpec
                     Crypto.SRP

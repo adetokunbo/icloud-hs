@@ -3,8 +3,8 @@
 {-# OPTIONS_HADDOCK prune not-home #-}
 
 {- |
-Module      : Network.ICloud.KDF
-Copyright   : (c) 2022 Tim Emiola
+Module      : Network.ICloud.PBKDF2
+Copyright   : (c) 2025 Tim Emiola
 Maintainer  : Tim Emiola <adetokunbo@emio.la>
 SPDX-License-Identifier: BSD3
 
@@ -17,7 +17,7 @@ Re-implemented here rather than making it direct dependency, because:
     - faster route for this package to stackage
         - as of (2025/04/01, ppad-ppbkdf was not on stackage)
 -}
-module Network.ICloud.KDF
+module Network.ICloud.PBKDF2
   ( -- * specify a pseudorandom function and derived key length
     FancyPseudoRandomF
   , wrap
@@ -26,7 +26,7 @@ module Network.ICloud.KDF
   , BadKeyLength (..)
 
     -- * perform PBKDF2 derivation
-  , calcPBKDF2
+  , deriveKey
 
     -- * re-export
   , ByteString
@@ -62,9 +62,9 @@ data BadKeyLength = TooLong
 instance Exception BadKeyLength
 
 
-{- | A 'PseudoRandomF' along with @dkLen@ and @hLen@'
+{- | A 'PseudoRandomF' wrapped up with @dkLen@ and @hLen@'
 
-where @dkLen@ the length in octets of the derived key
+where @dkLen@ the required length in octets of the derived key
 and @hLen@ is the length of the output of the 'PseudoRandomF'
 
 As per
@@ -108,9 +108,9 @@ Usage - this example uses the SHA256 hmac function as the pseudorandom function
   >>> :set -XOverloadedStrings
   >>> import qualified Crypto.Hash.SHA256 as SHA256
   >>> Right pseudo = wrap' SHA256.hmac 64
-  >>> calcPBKDF2 pseudo "passwd" "salt" 1000
+  >>> deriveKey pseudo "passwd" "salt" 1000
 -}
-calcPBKDF2
+deriveKey
   :: FancyPseudoRandomF
   -- ^ a 'FancyPseudoRandomF'
   -> ByteString
@@ -120,7 +120,7 @@ calcPBKDF2
   -> Word64
   -- ^ the iteration count
   -> ByteString
-calcPBKDF2 fancy password salt count =
+deriveKey fancy password salt count =
   let Fancy (!pseudoRandomF, !dkLen, !_notUsed) = fancy
       (!numBlocks, !lastBlockSize) = blockInfoOf fancy
       xorSum i =
