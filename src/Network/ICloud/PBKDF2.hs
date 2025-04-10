@@ -8,7 +8,6 @@ Copyright   : (c) 2025 Tim Emiola
 Maintainer  : Tim Emiola <adetokunbo@emio.la>
 SPDX-License-Identifier: BSD3
 
-
 Copied then modified from an implementation in the package
 [ppad-pbkdf](https://git.ppad.tech/pbkdf/file/lib/Crypto/KDF/PBKDF.hs.html)
 
@@ -107,8 +106,8 @@ Usage - this example uses the SHA256 hmac function as the pseudorandom function
 
   >>> :set -XOverloadedStrings
   >>> import qualified Crypto.Hash.SHA256 as SHA256
-  >>> Right pseudo = wrap' SHA256.hmac 64
-  >>> deriveKey pseudo "passwd" "salt" 1000
+  >>> pseudoF <- wrapIO SHA256.hmac 64
+  >>> deriveKey pseudoF "passwd" "salt" 1000
 -}
 deriveKey
   :: FancyPseudoRandomF
