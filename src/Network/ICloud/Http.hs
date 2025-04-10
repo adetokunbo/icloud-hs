@@ -39,8 +39,8 @@ import qualified Crypto.Hash.SHA256 as SHA256
 import Crypto.SRP
   ( FromClient (..)
   , FromServer (..)
-  , KnownAlgorithm
-  , PrimeGroup
+  , KnownAlgorithm (SHA256)
+  , PrimeGroup (G2048)
   , Results (..)
   , XCalculator (..)
   , digestSize
@@ -120,15 +120,16 @@ data Api = Api
 
 
 -- | Constructor of @Api@
-mkApi :: PrimeGroup -> KnownAlgorithm -> Realm -> IO Api
-mkApi apiGroup apiHashAlgorithm realm = do
+mkApi :: Realm -> IO Api
+mkApi realm = do
+  let apiHashAlgorithm = SHA256
+      apiEndpoints = realmEndpoints realm
   apiManager <- newTlsManager
   apiSession <- loadSession
   apiWrappedPseudoRF <- wrapIO SHA256.hmac $ digestSize apiHashAlgorithm
-  let apiEndpoints = realmEndpoints realm
   pure
     Api
-      { apiGroup
+      { apiGroup = G2048
       , apiEndpoints
       , apiManager
       , apiHashAlgorithm
