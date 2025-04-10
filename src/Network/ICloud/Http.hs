@@ -19,7 +19,7 @@ module Network.ICloud.Http
   , Realm (..)
 
     -- * functions
-  , mkSavedHeaders
+  , updateSavedHeaders
   , mkApi
   , runApiSrpAuth
 
@@ -53,9 +53,7 @@ import Data.Aeson
   , Key
   , Object
   , eitherDecode
-  , eitherDecodeFileStrict
   , encode
-  , encodeFile
   , withObject
   , withText
   , (.:)
@@ -105,7 +103,7 @@ import Network.ICloud.Session
   , cookiePath
   , loadSession
   , runSrpAuth
-  , savedHeadersPath
+  , updateSessionSavedHeaders
   )
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 
@@ -161,7 +159,7 @@ rawRequest' mayRetry api req = do
   let Api{apiManager = mgr, apiSession = s} = api
   resp <- httpLbs req mgr
   resp' <- updateCookieJarOf s resp req
-  updateSavedHeadersOf s $ responseHeaders resp'
+  updateSessionSavedHeaders s $ updateSavedHeaders $ responseHeaders resp'
   if mayRetry && needsRetry resp'
     then rawRequest' False api req
     else pure resp'
@@ -307,36 +305,6 @@ updateCookieJarOf s resp req = do
       pure resp_
 
 
-{- |
-if the sessionData file exists
-then
-  load it.
-  update the session data from the headers
-  save the updated data
-else
-  ensure its parent directory exists
-  create the session data from the headers
-  save it
-
-currently unhandled:
-  cannot create directory
-  cannot write due to permissions
-  files exists, but data cannot be parsed
--}
-updateSavedHeadersOf :: Session -> [Header] -> IO ()
-updateSavedHeadersOf s headers = do
-  let dataPath = savedHeadersPath (sessionTopDir s) (sessionCreds s)
-  pathExists <- doesFileExist dataPath
-  if pathExists
-    then do
-      eitherDecodeFileStrict dataPath >>= \case
-        Left e -> fail $ show e
-        Right old -> encodeFile dataPath $ updateSavedHeaders headers old
-    else do
-      createDirectoryIfMissing True $ sessionTopDir s
-      encodeFile dataPath $ mkSavedHeaders headers
-
-
 authHeaders :: Api -> RequestHeaders
 authHeaders api =
   let Api{apiSession = session, apiEndpoints = ep} = api
@@ -403,18 +371,7 @@ invokeWithAuthHdrs mkReq api x =
    in jsonSessionRequest api req' >>= failIfError
 
 
--- | Compute the @SavedHeaders@ from some response headers
-mkSavedHeaders :: [Header] -> SavedHeaders
-mkSavedHeaders hs =
-  SavedHeaders
-    { shCountry = toS <$> lookup hCountry hs
-    , shSessionId = toS <$> lookup hSessionId hs
-    , shSessionToken = toS <$> lookup hSessionToken hs
-    , shTrustToken = toS <$> lookup hTrustToken hs
-    , shCounter = toS <$> lookup hCounter hs
-    }
-
-
+-- | Update the @SavedHeaders@ using some response headers
 updateSavedHeaders :: [Header] -> SavedHeaders -> SavedHeaders
 updateSavedHeaders hs sd =
   sd

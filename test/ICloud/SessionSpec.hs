@@ -10,6 +10,7 @@ SPDX-License-Identifier: BSD3
 -}
 module ICloud.SessionSpec (spec) where
 
+import Control.Monad (when)
 import Data.Aeson (encodeFile)
 import Data.String (IsString (..))
 import Data.Text (Text)
@@ -25,6 +26,7 @@ import Network.ICloud.Session
   , credentialsPath
   , loadSession
   , savedHeadersPath
+  , updateSessionSavedHeaders
   , (</>)
   )
 import System.Directory (createDirectory)
@@ -84,6 +86,7 @@ sessionSpec = describe "module Network.ICloud.Session" $ do
         let want = "/tmp/icloud_authspec/myaccountid-applecom.client-id.txt"
         clientIdPath topDir exampleCred `shouldBe` want
   loadSessionSpec
+  updateSessionSavedHeadersSpec
 
 
 loadSessionSpec :: Spec
@@ -100,6 +103,14 @@ loadSessionSpec = describe "loadSession" $ around useTmp $ do
   context "with an invalid saved headers file" $ do
     it "should fail to load" $ \appRoot ->
       failsOnBadSavedHeaders appRoot `shouldThrow` anyIOException
+
+
+updateSessionSavedHeadersSpec :: Spec
+updateSessionSavedHeadersSpec = describe "updateSessionSavedHeaders" $ around useTmp $ do
+  context "when some SaveHeaders are already saved" $ do
+    it "should update to the new headers" $ prop_updatesSavedHeaders True
+  context "when No SaveHeaders have been saved" $ do
+    it "should update to the new headers" $ prop_updatesSavedHeaders True
 
 
 useTmp :: (FilePath -> IO a) -> IO a
@@ -163,6 +174,22 @@ prop_readsStoredSavedHeaders appRoot = monadicIO $ do
     encodeFile (savedHeadersPath appRoot creds) savedHdrs
     loadSession
   assert $ savedHdrs == sessionSavedHdrs session
+
+
+prop_updatesSavedHeaders :: Bool -> FilePath -> Property
+prop_updatesSavedHeaders storeInitial appRoot = monadicIO $ do
+  preCreds <- pick genPreCredentials
+  savedHdrs <- pick genSaveHeaders
+  newHdrs <- pick genSaveHeaders
+  let creds = asCreds preCreds
+  session <- run $ do
+    encodeFile (credentialsPath appRoot) creds
+    when storeInitial $
+      encodeFile (savedHeadersPath appRoot creds) savedHdrs
+    s <- loadSession
+    updateSessionSavedHeaders s (const newHdrs)
+    loadSession
+  assert $ newHdrs == sessionSavedHdrs session
 
 
 exampleCred :: Credentials

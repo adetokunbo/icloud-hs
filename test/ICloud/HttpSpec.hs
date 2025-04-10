@@ -19,9 +19,9 @@ import Network.ICloud.Http
   , hSessionId
   , hSessionToken
   , hTrustToken
-  , mkSavedHeaders
+  , updateSavedHeaders
   )
-import Network.ICloud.Session (SavedHeaders (..))
+import Network.ICloud.Session (SavedHeaders (..), pristine)
 import Test.Hspec (Spec, context, describe, it)
 import Test.QuickCheck
   ( Gen
@@ -37,19 +37,19 @@ import Test.QuickCheck
 
 spec :: Spec
 spec = describe "module Network.ICloud.Http" $ do
-  httpSpec
-  sessionDataSpec
+  apiErrorpec
+  updateSavedHeadersSpec
 
 
-sessionDataSpec :: Spec
-sessionDataSpec = describe "mkSavedHeaders" $ do
+updateSavedHeadersSpec :: Spec
+updateSavedHeadersSpec = describe "updateSavedHeaders" $ do
   context "using generated headers" $ do
-    it "should generated the expected value" prop_mkSavedHeaders
+    it "should generated the expected value" prop_updateSavedHeaders
 
 
-httpSpec :: Spec
-httpSpec = describe "ApiError" $ do
-  context "when parsing from JSON" $ do
+apiErrorpec :: Spec
+apiErrorpec = describe "ApiError" $ do
+  context "parsing it from JSON" $ do
     it "should succeed" prop_parseJSONApiError
 
 
@@ -98,9 +98,9 @@ genKeyValue keyGen = do
   pure (key, value)
 
 
-prop_mkSavedHeaders :: Property
-prop_mkSavedHeaders = forAllBlind genHdrsAndExpectedSavedHeaders $ \(hdrs, f) ->
-  f $ mkSavedHeaders hdrs
+prop_updateSavedHeaders :: Property
+prop_updateSavedHeaders = forAllBlind genHdrsAndExpectedSavedHeaders $ \(hdrs, f) ->
+  f $ updateSavedHeaders hdrs pristine
 
 
 genHdrsAndExpectedSavedHeaders :: Gen ([(HeaderName, ByteString)], SavedHeaders -> Bool)

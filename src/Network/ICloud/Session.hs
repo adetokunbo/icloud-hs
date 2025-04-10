@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
@@ -27,6 +28,8 @@ module Network.ICloud.Session
   , loadSession
   , runSrpAuth
   , newClientId
+  , updateSessionSavedHeaders
+  , pristine
 
     -- * path components
   , appBase
@@ -48,6 +51,7 @@ import Data.Aeson
   , Options (..)
   , ToJSON (..)
   , eitherDecodeFileStrict
+  , encodeFile
   , genericParseJSON
   , genericToEncoding
   , genericToJSON
@@ -63,7 +67,7 @@ import qualified Data.Text.IO as Text
 import Data.UUID (toText)
 import Data.UUID.V4 (nextRandom)
 import GHC.Generics (Generic)
-import System.Directory (doesFileExist)
+import System.Directory (createDirectoryIfMissing, doesFileExist)
 import System.Environment.XDG.BaseDir (getUserConfigDir)
 import System.FilePath ((</>))
 
@@ -179,8 +183,44 @@ instance ToJSON SavedHeaders where
   toEncoding = genericToEncoding simpleOptions
 
 
-emptySavedHeaders :: SavedHeaders
-emptySavedHeaders = SavedHeaders Nothing Nothing Nothing Nothing Nothing
+-- | A @SavedHeaders@ with nothing set
+pristine :: SavedHeaders
+pristine = SavedHeaders Nothing Nothing Nothing Nothing Nothing
+
+
+{- | Update the stored saved headers
+
+if the sessionData file exists
+then
+  load it.
+  update the session data from the headers
+  save the updated data
+else
+  ensure its parent directory exists
+  create the session data from the headers
+  save it
+
+not handled (thrown as IOException):
+  cannot create directory
+  cannot write due to permissions
+  file exists, but data cannot be parsed
+-}
+updateSessionSavedHeaders
+  :: Session
+  -> (SavedHeaders -> SavedHeaders)
+  -- ^ a function that modifies the session's saved headers
+  -> IO ()
+updateSessionSavedHeaders s modSavedHeaders = do
+  let dataPath = savedHeadersPath (sessionTopDir s) (sessionCreds s)
+  pathExists <- doesFileExist dataPath
+  if pathExists
+    then do
+      eitherDecodeFileStrict dataPath >>= \case
+        Left e -> fail $ show e
+        Right old -> encodeFile dataPath $ modSavedHeaders old
+    else do
+      createDirectoryIfMissing True $ sessionTopDir s
+      encodeFile dataPath $ modSavedHeaders pristine
 
 
 -- | Loads a @Session@ from state on the filesystem
@@ -231,7 +271,7 @@ loadSavedHeaders topDir creds = do
   let dataPath = savedHeadersPath topDir creds
   pathExists <- doesFileExist dataPath
   if not pathExists
-    then pure $ Right emptySavedHeaders
+    then pure $ Right pristine
     else eitherDecodeFileStrict dataPath
 
 
