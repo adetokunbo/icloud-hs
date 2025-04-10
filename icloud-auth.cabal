@@ -88,11 +88,13 @@ test-suite test
     , cryptohash-sha1      >=0.11 && <0.12
     , cryptohash-sha256    >=0.11 && <0.12
     , cryptohash-sha512    >=0.11 && <0.12
+    , directory            >=1.3.6  && <1.5
     , entropy              >=0.3.7 && <0.5
     , fmt
     , hspec                >=2.1 && < 3.0
     , http-types
-    , QuickCheck
+    , QuickCheck           >= 2.13 && < 2.16
+    , temporary            >= 1.2 && < 1.4
     , icloud-auth
     , string-conv
     , text

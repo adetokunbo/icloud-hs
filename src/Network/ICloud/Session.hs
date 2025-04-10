@@ -15,19 +15,22 @@ module Network.ICloud.Session
   ( -- * Credentials
     Credentials (..)
 
-    -- ** compute paths that depend on @Credentials@
-  , clientIdPath
-  , savedHeadersPath
+    -- ** paths related to @Credentials@
   , cookiePath
+  , clientIdPath
+  , credentialsPath
+  , savedHeadersPath
 
     -- * Session
   , Session (..)
   , SavedHeaders (..)
   , loadSession
   , runSrpAuth
-
-    -- * clientID generation
   , newClientId
+
+    -- * path components
+  , appBase
+  , (</>)
   )
 where
 
@@ -41,12 +44,14 @@ import Crypto.SRP
   )
 import Data.Aeson
   ( FromJSON (..)
+  , KeyValue (..)
   , Options (..)
   , ToJSON (..)
   , eitherDecodeFileStrict
   , genericParseJSON
   , genericToEncoding
   , genericToJSON
+  , object
   , withObject
   , (.:)
   )
@@ -100,6 +105,13 @@ clientIdPath :: FilePath -> Credentials -> FilePath
 clientIdPath topDir creds = topDir </> Text.unpack (clientIdBase creds)
 
 
+{- | Determine the path of file containing the credentials in the configuration
+   directory
+-}
+credentialsPath :: FilePath -> FilePath
+credentialsPath topDir = topDir </> "credentials.json"
+
+
 -- | The name and password of a user
 data Credentials = Credentials
   { credAccountName :: !Text
@@ -118,6 +130,14 @@ instance FromJSON Credentials where
     let accountName = o .: "accountName"
         password = o .: "password"
      in Credentials <$> accountName <*> password
+
+
+instance ToJSON Credentials where
+  toJSON c =
+    object
+      [ "password" .= credPassword c
+      , "accountName" .= credAccountName c
+      ]
 
 
 sprucedName :: Credentials -> Text
@@ -166,7 +186,7 @@ emptySavedHeaders = SavedHeaders Nothing Nothing Nothing Nothing Nothing
 -- | Loads a @Session@ from state on the filesystem
 loadSession :: IO Session
 loadSession = do
-  sessionTopDir <- getUserConfigDir appPath
+  sessionTopDir <- getUserConfigDir appBase
   loadSessionOr sessionTopDir >>= either fail pure
 
 
@@ -184,9 +204,7 @@ runSrpAuth mkClientSide stepOne stepTwo = do
 
 
 loadCredentials :: FilePath -> IO (Either String Credentials)
-loadCredentials topDir = do
-  let credsPath = topDir </> "credentials.json"
-  eitherDecodeFileStrict credsPath
+loadCredentials = eitherDecodeFileStrict . credentialsPath
 
 
 loadCredentials' :: FilePath -> IO (Either String (FilePath, Credentials))
@@ -233,5 +251,5 @@ simpleOptions :: Options
 simpleOptions = aesonPrefix snakeCase
 
 
-appPath :: FilePath
-appPath = "hs-config-auth"
+appBase :: FilePath
+appBase = "hs-icloud-auth"
