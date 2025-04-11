@@ -188,7 +188,6 @@ prop_updatesSavedHeaders storeInitial appRoot = monadicIO $ do
       encodeFile (savedHeadersPath appRoot creds) savedHdrs
     s <- loadSession
     updateSessionSavedHeaders s (const newHdrs)
-    loadSession
   assert $ newHdrs == sessionSavedHdrs session
 
 

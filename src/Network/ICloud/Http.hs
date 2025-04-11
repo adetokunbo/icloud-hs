@@ -160,7 +160,8 @@ rawRequest' mayRetry api req = do
   let Api{apiManager = mgr, apiSession = s} = api
   resp <- httpLbs req mgr
   resp' <- updateCookieJarOf s resp req
-  updateSessionSavedHeaders s $ updateSavedHeaders $ responseHeaders resp'
+  -- TODO: update the Api with the updated session
+  _ignored <- updateSessionSavedHeaders s $ updateSavedHeaders $ responseHeaders resp'
   if mayRetry && needsRetry resp'
     then rawRequest' False api req
     else pure resp'

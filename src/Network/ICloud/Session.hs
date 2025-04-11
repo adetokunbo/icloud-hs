@@ -209,18 +209,20 @@ updateSessionSavedHeaders
   :: Session
   -> (SavedHeaders -> SavedHeaders)
   -- ^ a function that modifies the session's saved headers
-  -> IO ()
+  -> IO Session
 updateSessionSavedHeaders s modSavedHeaders = do
   let dataPath = savedHeadersPath (sessionTopDir s) (sessionCreds s)
+      updateAndSave x = do
+        let new = modSavedHeaders x
+        encodeFile dataPath new
+        pure $ s{sessionSavedHdrs = new}
   pathExists <- doesFileExist dataPath
   if pathExists
     then do
-      eitherDecodeFileStrict dataPath >>= \case
-        Left e -> fail $ show e
-        Right old -> encodeFile dataPath $ modSavedHeaders old
+      eitherDecodeFileStrict dataPath >>= either (fail . show) updateAndSave
     else do
       createDirectoryIfMissing True $ sessionTopDir s
-      encodeFile dataPath $ modSavedHeaders pristine
+      updateAndSave pristine
 
 
 -- | Loads a @Session@ from state on the filesystem
