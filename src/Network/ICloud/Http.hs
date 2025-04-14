@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
@@ -52,12 +53,18 @@ import Data.Aeson
   ( FromJSON (..)
   , Key
   , Object
+  , Options (..)
+  , ToJSON (..)
   , eitherDecode
   , encode
+  , genericParseJSON
+  , genericToEncoding
+  , genericToJSON
   , withObject
   , withText
   , (.:)
   )
+import Data.Aeson.Casing (aesonPrefix, snakeCase)
 import Data.Aeson.KeyMap (fromList, member)
 import Data.Aeson.Types (Parser, Value (..), (.:?))
 import Data.Attoparsec.Cookie (readJar, writeNetscapeJar)
@@ -74,6 +81,7 @@ import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time (getCurrentTime)
 import Data.Word (Word64)
+import GHC.Generics (Generic)
 import Network.HTTP.Client
   ( Manager
   , Request (..)
@@ -661,6 +669,22 @@ signinCompleteValue si =
         ]
 
 
+data ValidateReply = ValidateReply
+  { vrIsExtendedLogin :: !Bool
+  , vrHsaChallengeRequired :: !Bool
+  }
+  deriving (Eq, Show, Generic)
+
+
+instance FromJSON ValidateReply where
+  parseJSON = genericParseJSON simpleOptions
+
+
+instance ToJSON ValidateReply where
+  toJSON = genericToJSON simpleOptions
+  toEncoding = genericToEncoding simpleOptions
+
+
 twoSvTrust :: Endpoints -> Request
 twoSvTrust = (`extendPath` "/2sv/trust") . toGet . epAuth
 
@@ -713,3 +737,7 @@ sendVerification = (`extendPath` "/sendVerificationCode") . epSetup
 
 listDevices :: Endpoints -> Request
 listDevices = (`extendPath` "/listDevices") . toGet . epSetup
+
+
+simpleOptions :: Options
+simpleOptions = aesonPrefix snakeCase
