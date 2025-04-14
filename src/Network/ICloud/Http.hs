@@ -357,8 +357,13 @@ asObject = Object . fromList
 
 mkJsonRequest :: (a -> Request) -> (b -> Value) -> a -> b -> Request
 mkJsonRequest mkBase mkBody baseSrc bodySrc =
+  let body = mkBody bodySrc
+   in mkJsonRequest' mkBase body baseSrc
+
+
+mkJsonRequest' :: (a -> Request) -> Value -> a -> Request
+mkJsonRequest' mkBase body baseSrc =
   let base = mkBase baseSrc
-      body = mkBody bodySrc
       encodedBody = encode body
    in base{requestBody = RequestBodyLBS encodedBody}
 
