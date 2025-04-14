@@ -193,9 +193,9 @@ if it parses as an ApiError, indicate that
 
 if the response is not JSON, use 'rawRequest' instead
 -}
-jsonSessionRequest
+callApi
   :: (FromJSON a) => Api -> Request -> IO (Response (ApiResponse a))
-jsonSessionRequest api req = do
+callApi api req = do
   let isJsonType "application/json" = True
       isJsonType "text/json" = True
       isJsonType _other = False
@@ -369,10 +369,18 @@ invoke
   -> Api
   -> b
   -> IO a
-invoke mkReq api x =
-  let Api{apiEndpoints} = api
-      req = mkReq apiEndpoints x
-   in jsonSessionRequest api req >>= failIfError
+invoke = invoke' id
+
+
+invoke'
+  :: (FromJSON a)
+  => (Request -> Request)
+  -> (Endpoints -> b -> Request)
+  -> Api
+  -> b
+  -> IO a
+invoke' modReq mkReq api@Api{apiEndpoints} x =
+  callApi api (modReq $ mkReq apiEndpoints x) >>= failIfError
 
 
 invokeWithAuthHdrs
@@ -381,12 +389,7 @@ invokeWithAuthHdrs
   -> Api
   -> b
   -> IO a
-invokeWithAuthHdrs mkReq api x =
-  let Api{apiEndpoints} = api
-      req = mkReq apiEndpoints x
-      requestHeaders = authHeaders api
-      req' = req{requestHeaders}
-   in jsonSessionRequest api req' >>= failIfError
+invokeWithAuthHdrs mkReq api = invoke' (withHeaders (authHeaders api)) mkReq api
 
 
 -- | Update the @SavedHeaders@ using some response headers
@@ -736,6 +739,10 @@ sendVerification = (`extendPath` "/sendVerificationCode") . epSetup
 
 listDevices :: Endpoints -> Request
 listDevices = (`extendPath` "/listDevices") . toGet . epSetup
+
+
+withHeaders :: RequestHeaders -> Request -> Request
+withHeaders requestHeaders req = req{requestHeaders}
 
 
 simpleOptions :: Options
