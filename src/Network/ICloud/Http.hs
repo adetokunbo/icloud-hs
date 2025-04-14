@@ -320,7 +320,6 @@ authHeaders :: Api -> RequestHeaders
 authHeaders api =
   let Api{apiSession = session, apiEndpoints = ep} = api
       Session{sessionClientId = cid, sessionSavedHdrs = sd} = session
-      epHeaders = [(hOrigin, epHome ep), (hReferer, epHome ep <> "/")]
       headerOf name x = (name, toS x)
       maybeHeaderOf name = fmap (headerOf name)
       cidHeader = [(hClientId, toS cid)]
@@ -329,7 +328,7 @@ authHeaders api =
           [ maybeHeaderOf hCounter $ shCounter sd
           , maybeHeaderOf hSessionId $ shSessionId sd
           ]
-   in staticHeaders <> epHeaders <> sdHeaders <> cidHeader
+   in staticHeaders <> endpointHeaders ep <> sdHeaders <> cidHeader
 
 
 endpointHeaders :: Endpoints -> RequestHeaders
