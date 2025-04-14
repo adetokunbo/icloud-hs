@@ -676,6 +676,18 @@ signinCompleteValue si =
         ]
 
 
+validate :: Api -> IO ValidateReply
+validate api@Api{apiEndpoints} = callApi api (validateReq apiEndpoints) >>= failIfError
+
+
+validateReq :: Endpoints -> Request
+validateReq = mkJsonRequest' validateBase Null
+
+
+validateBase :: Endpoints -> Request
+validateBase ep = withHeaders (commonHeaders ep) $ (`extendPath` "/validate") $ epSetup ep
+
+
 data ValidateReply = ValidateReply
   { vrIsExtendedLogin :: !Bool
   , vrHsaChallengeRequired :: !Bool
@@ -716,14 +728,6 @@ accountLoginValue hs =
     , ("trustToken", maybeValue String (shTrustToken hs))
     , ("extended_login", Bool True)
     ]
-
-
-validate :: Endpoints -> Request
-validate = (`extendPath` "/validate") . epSetup
-
-
-validateValue :: Value
-validateValue = Null
 
 
 validate2FA :: Endpoints -> Request
