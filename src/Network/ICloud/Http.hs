@@ -90,6 +90,7 @@ import Network.HTTP.Client
   , createCookieJar
   , defaultRequest
   , httpLbs
+  , insertCookiesIntoRequest
   , updateCookieJar
   )
 import Network.HTTP.Client.TLS (newTlsManager)
@@ -114,7 +115,7 @@ import Network.ICloud.Session
   , runSrpAuth
   , updateSessionSavedHeaders
   )
-import System.Directory (createDirectoryIfMissing, doesFileExist)
+import System.Directory (doesFileExist)
 
 
 -- | Combines datatypes used whenever the http API is accessed
@@ -167,13 +168,13 @@ rawRequest = rawRequest' True
 rawRequest' :: Bool -> Api -> Request -> IO (Response LBS.ByteString)
 rawRequest' mayRetry api req = do
   let Api{apiManager = mgr, apiSession = s} = api
-  resp <- httpLbs req mgr
-  resp' <- updateCookieJarOf s resp req
+      jarPath = cookiePath (sessionTopDir s) (sessionCreds s)
+  resp <- usingJarCookies jarPath req $ flip httpLbs mgr
   -- TODO: update the Api with the updated session
-  _ignored <- updateSessionSavedHeaders s $ updateSavedHeaders $ responseHeaders resp'
-  if mayRetry && needsRetry resp'
+  _ignored <- updateSessionSavedHeaders s $ updateSavedHeaders $ responseHeaders resp
+  if mayRetry && needsRetry resp
     then rawRequest' False api req
-    else pure resp'
+    else pure resp
 
 
 needsRetry :: Response a -> Bool
@@ -296,9 +297,8 @@ currently unhandled:
   cannot write due to permissions
   files exists, but data cannot be parsed
 -}
-updateCookieJarOf :: Session -> Response a -> Request -> IO (Response a)
-updateCookieJarOf s resp req = do
-  let dataPath = cookiePath (sessionTopDir s) (sessionCreds s)
+updateCookieJarOf' :: FilePath -> Response a -> Request -> IO (Response a)
+updateCookieJarOf' dataPath resp req = do
   pathExists <- doesFileExist dataPath
   now <- getCurrentTime
   if pathExists
@@ -310,10 +310,31 @@ updateCookieJarOf s resp req = do
           writeNetscapeJar dataPath updated
           pure resp_
     else do
-      createDirectoryIfMissing True $ sessionTopDir s
       let (updated, resp_) = updateCookieJar resp req now $ createCookieJar []
       writeNetscapeJar dataPath updated
       pure resp_
+
+
+addCookiesFromJar :: FilePath -> Request -> IO Request
+addCookiesFromJar dataPath req = do
+  pathExists <- doesFileExist dataPath
+  if not pathExists
+    then pure req
+    else do
+      now <- getCurrentTime
+      readJar dataPath >>= \case
+        Left e -> fail $ show e
+        Right jar -> do
+          let (req', jar') = insertCookiesIntoRequest req jar now
+          writeNetscapeJar dataPath jar'
+          pure req'
+
+
+usingJarCookies :: FilePath -> Request -> (Request -> IO (Response b)) -> IO (Response b)
+usingJarCookies cookieJarPath req doReq = do
+  req' <- addCookiesFromJar cookieJarPath req
+  resp <- doReq req'
+  updateCookieJarOf' cookieJarPath resp req'
 
 
 authHeaders :: Api -> RequestHeaders
