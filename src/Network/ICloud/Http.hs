@@ -92,6 +92,7 @@ import Network.HTTP.Types
   , Status (..)
   , hContentType
   , hReferer
+  , hUserAgent
   , methodGet
   , methodPost
   )
@@ -323,6 +324,14 @@ authHeaders api =
    in staticHeaders <> epHeaders <> sdHeaders <> cidHeader
 
 
+endpointHeaders :: Endpoints -> RequestHeaders
+endpointHeaders ep = [(hOrigin, epHome ep), (hReferer, epHome ep <> "/")]
+
+
+commonHeaders :: Endpoints -> RequestHeaders
+commonHeaders ep = userAgent : endpointHeaders ep
+
+
 extendPath :: Request -> ByteString -> Request
 extendPath req suffix = req{path = path req <> suffix}
 
@@ -465,6 +474,14 @@ staticHeaders =
 
 xAppleKey :: ByteString
 xAppleKey = "d39ba9916b7251055b22c7f910e2ea796ee65e98b2ddecea8f5dde8d9d1a815d"
+
+
+browserAgent :: ByteString
+browserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"
+
+
+userAgent :: Header
+userAgent = (hUserAgent, browserAgent)
 
 
 -- | Models the known values of password protocol
