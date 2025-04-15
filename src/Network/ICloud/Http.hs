@@ -420,18 +420,19 @@ invoke
   -> Api
   -> b
   -> IO a
-invoke = invoke' id
+invoke = invoke' id failIfError
 
 
 invoke'
   :: (FromJSON a)
   => (Request -> Request)
+  -> (Response (ApiResponse a) -> IO a)
   -> (Endpoints -> b -> Request)
   -> Api
   -> b
   -> IO a
-invoke' modReq mkReq api@Api{apiEndpoints} x =
-  callApi api (modReq $ mkReq apiEndpoints x) >>= failIfError
+invoke' modReq handleResponse mkReq api@Api{apiEndpoints} x =
+  callApi api (modReq $ mkReq apiEndpoints x) >>= handleResponse
 
 
 invokeWithAuthHdrs
@@ -442,7 +443,7 @@ invokeWithAuthHdrs
   -> IO a
 invokeWithAuthHdrs mkReq api other = do
   savedHdrs <- loadSavedHeaders (apiSession api)
-  invoke' (withHeaders (authHeaders api savedHdrs)) mkReq api other
+  invoke' (withHeaders (authHeaders api savedHdrs)) failIfError mkReq api other
 
 
 -- | Update the @SavedHeaders@ using some response headers
