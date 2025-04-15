@@ -22,7 +22,7 @@ module Network.ICloud.Http
     -- * functions
   , updateSavedHeaders
   , mkApi
-  , runApiSrpAuth
+  , login
 
     -- * HTTP header names
   , hCounter
@@ -113,6 +113,7 @@ import Network.ICloud.Session
   , cookiePath
   , loadSavedHeaders
   , loadSession
+  , pristine
   , runSrpAuth
   , updateSessionSavedHeaders
   )
@@ -149,14 +150,38 @@ mkApi realm = do
       }
 
 
--- | Implements the SRP authentication sequence using Http calls to ICloud endpoints
-runApiSrpAuth :: (FromJSON a) => Api -> IO a
+-- | Logs into ICloud
+login :: Api -> IO ()
+login api = do
+  active <- hasActiveSession api
+  unless active $ do
+    _completionReply <- runApiSrpAuth api
+    _ <- accountLogin api
+    pure ()
+
+
+{- | Check if there is an active session
+
+if @SavedHeaders@ are pristine skip and return false otherwise call
+validate and return True if no errors occur
+-}
+hasActiveSession :: Api -> IO Bool
+hasActiveSession api =
+  let checkActive True = pure False
+      checkActive False = validate api >> pure True
+   in (== pristine) <$> loadSavedHeaders (apiSession api) >>= checkActive
+
+
+-- | Implements the SRP authentication sequence using the ICloud API
+runApiSrpAuth :: Api -> IO Value
 runApiSrpAuth api@Api{apiSession} = do
-  let mkClientSide = mkFromClient user password $ apiGroup api
+  let Credentials
+        { credAccountName = user
+        , credPassword = password
+        } = sessionCreds apiSession
+      mkClientSide = mkFromClient user password $ apiGroup api
       stepOne = runSigninInit api
       stepTwo = runSigninComplete api
-      creds = sessionCreds apiSession
-      Credentials{credAccountName = user, credPassword = password} = creds
   runSrpAuth mkClientSide stepOne stepTwo
 
 
@@ -654,7 +679,7 @@ data SigninCompletion = SigninCompletion
   }
 
 
-runSigninComplete :: (FromJSON a) => Api -> KeyDeriver -> Maybe Results -> IO a
+runSigninComplete :: Api -> KeyDeriver -> Maybe Results -> IO Value
 runSigninComplete api@Api{apiSession = session} kd mbResults = do
   siSavedHeaders <- loadSavedHeaders session
   let siAccountName = credAccountName $ sessionCreds session
@@ -731,7 +756,7 @@ twoSvTrust :: Endpoints -> Request
 twoSvTrust = (`extendPath` "/2sv/trust") . toGet . epAuth
 
 
-accountLogin :: Api -> IO Value
+accountLogin :: Api -> IO ValidateReply
 accountLogin api = do
   savedHdrs <- loadSavedHeaders $ apiSession api
   invoke accountLoginReq api savedHdrs
