@@ -742,7 +742,7 @@ accountLoginReq = mkJsonRequest accountLoginBase accountLoginValue
 
 
 accountLoginBase :: Endpoints -> Request
-accountLoginBase = (`extendPath` "/signin/accountLoginBase") . epSetup
+accountLoginBase = (`extendPath` "/accountLogin") . epSetup
 
 
 accountLoginValue :: SavedHeaders -> Value
