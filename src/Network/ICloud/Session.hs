@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
@@ -212,22 +211,18 @@ updateSessionSavedHeaders
   -> IO ()
 updateSessionSavedHeaders s modSavedHeaders = do
   let dataPath = savedHeadersPath (sessionTopDir s) (sessionCreds s)
-      updateAndSave x = do
-        let new = modSavedHeaders x
-        encodeFile dataPath new
-  pathExists <- doesFileExist dataPath
-  if pathExists
-    then do
-      eitherDecodeFileStrict dataPath >>= either (fail . show) updateAndSave
-    else do
-      createDirectoryIfMissing True $ sessionTopDir s
-      updateAndSave pristine
+      updateAndSave = encodeFile dataPath . modSavedHeaders
+      loadLast False = pure pristine
+      loadLast True = eitherDecodeFileStrict dataPath >>= either (fail . show) pure
+
+  doesFileExist dataPath >>= loadLast >>= updateAndSave
 
 
 -- | Loads a @Session@ from state on the filesystem
 loadSession :: IO Session
 loadSession = do
   sessionTopDir <- getUserConfigDir appBase
+  createDirectoryIfMissing True sessionTopDir
   loadSessionOr sessionTopDir >>= either fail pure
 
 

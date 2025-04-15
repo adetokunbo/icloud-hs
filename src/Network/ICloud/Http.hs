@@ -167,9 +167,9 @@ validate and return True if no errors occur
 -}
 hasActiveSession :: Api -> IO Bool
 hasActiveSession api =
-  let checkActive True = pure False
-      checkActive False = validate api >> pure True
-   in (== pristine) <$> loadSavedHeaders (apiSession api) >>= checkActive
+  let checkActive sh | sh == pristine = pure False
+      checkActive _sh = validate api >> pure True
+   in loadSavedHeaders (apiSession api) >>= checkActive
 
 
 -- | Implements the SRP authentication sequence using the ICloud API
@@ -707,20 +707,18 @@ signinCompleteBase = (`extendPath` "/signin/complete") . epAuth
 
 
 signinCompleteValue :: SigninCompletion -> Value
-signinCompleteValue si =
-  let SigninCompletion{siResults = results} = si
+signinCompleteValue sc =
+  let Results{rClientProof, rServerProof} = siResults sc
       toBase64 = extractBase64 . encodeBase64
-      clientProof = toBase64 $ rClientProof results
-      serverProof = toBase64 $ rServerProof results
       singleElem x = Array [String x]
       maybeArray = maybe (Array []) singleElem
    in asObject
-        [ ("m1", String clientProof)
-        , ("m2", String serverProof)
-        , ("trustTokens", maybeArray (shTrustToken (siSavedHeaders si)))
+        [ ("m1", String (toBase64 rClientProof))
+        , ("m2", String (toBase64 rServerProof))
+        , ("trustTokens", maybeArray (shTrustToken (siSavedHeaders sc)))
         , ("rememberMe", Bool True)
-        , ("accountName", String (siAccountName si))
-        , ("c", String (siTag si))
+        , ("accountName", String (siAccountName sc))
+        , ("c", String (siTag sc))
         ]
 
 
