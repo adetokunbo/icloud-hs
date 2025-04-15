@@ -111,6 +111,7 @@ import Network.ICloud.Session
   , SavedHeaders (..)
   , Session (..)
   , cookiePath
+  , loadSavedHeaders
   , loadSession
   , runSrpAuth
   , updateSessionSavedHeaders
@@ -170,8 +171,7 @@ rawRequest' mayRetry api req = do
   let Api{apiManager = mgr, apiSession = s} = api
       jarPath = cookiePath (sessionTopDir s) (sessionCreds s)
   resp <- usingJarCookies jarPath req $ flip httpLbs mgr
-  -- TODO: update the Api with the updated session
-  _ignored <- updateSessionSavedHeaders s $ updateSavedHeaders $ responseHeaders resp
+  updateSessionSavedHeaders s $ updateSavedHeaders $ responseHeaders resp
   if mayRetry && needsRetry resp
     then rawRequest' False api req
     else pure resp
@@ -337,17 +337,17 @@ usingJarCookies cookieJarPath req doReq = do
   updateCookieJarOf' cookieJarPath resp req'
 
 
-authHeaders :: Api -> RequestHeaders
-authHeaders api =
+authHeaders :: Api -> SavedHeaders -> RequestHeaders
+authHeaders api savedHdrs =
   let Api{apiSession = session, apiEndpoints = ep} = api
-      Session{sessionClientId = cid, sessionSavedHdrs = sd} = session
+      Session{sessionClientId = cid} = session
       headerOf name x = (name, toS x)
       maybeHeaderOf name = fmap (headerOf name)
       cidHeader = [(hClientId, toS cid)]
       sdHeaders =
         catMaybes
-          [ maybeHeaderOf hCounter $ shCounter sd
-          , maybeHeaderOf hSessionId $ shSessionId sd
+          [ maybeHeaderOf hCounter $ shCounter savedHdrs
+          , maybeHeaderOf hSessionId $ shSessionId savedHdrs
           ]
    in staticHeaders <> endpointHeaders ep <> sdHeaders <> cidHeader
 
@@ -415,7 +415,9 @@ invokeWithAuthHdrs
   -> Api
   -> b
   -> IO a
-invokeWithAuthHdrs mkReq api = invoke' (withHeaders (authHeaders api)) mkReq api
+invokeWithAuthHdrs mkReq api other = do
+  savedHdrs <- loadSavedHeaders (apiSession api)
+  invoke' (withHeaders (authHeaders api savedHdrs)) mkReq api other
 
 
 -- | Update the @SavedHeaders@ using some response headers
@@ -653,9 +655,9 @@ data SigninCompletion = SigninCompletion
 
 
 runSigninComplete :: (FromJSON a) => Api -> KeyDeriver -> Maybe Results -> IO a
-runSigninComplete api@Api{apiSession = session} kd mbResults =
-  let siSavedHeaders = sessionSavedHdrs session
-      siAccountName = credAccountName $ sessionCreds session
+runSigninComplete api@Api{apiSession = session} kd mbResults = do
+  siSavedHeaders <- loadSavedHeaders session
+  let siAccountName = credAccountName $ sessionCreds session
       completion siResults =
         SigninCompletion
           { siTag = kdTag kd
@@ -664,7 +666,7 @@ runSigninComplete api@Api{apiSession = session} kd mbResults =
           , siSavedHeaders
           }
       onFail = fail "the server public value was invalid"
-   in maybe onFail (signinComplete api . completion) mbResults
+  maybe onFail (signinComplete api . completion) mbResults
 
 
 signinComplete :: (FromJSON a) => Api -> SigninCompletion -> IO a
@@ -730,7 +732,9 @@ twoSvTrust = (`extendPath` "/2sv/trust") . toGet . epAuth
 
 
 accountLogin :: Api -> IO Value
-accountLogin api = invoke accountLoginReq api (sessionSavedHdrs $ apiSession api)
+accountLogin api = do
+  savedHdrs <- loadSavedHeaders $ apiSession api
+  invoke accountLoginReq api savedHdrs
 
 
 accountLoginReq :: Endpoints -> SavedHeaders -> Request

@@ -26,6 +26,7 @@ module Network.ICloud.Session
   , Session (..)
   , SavedHeaders (..)
   , loadSession
+  , loadSavedHeaders
   , runSrpAuth
   , newClientId
   , updateSessionSavedHeaders
@@ -77,7 +78,6 @@ data Session = Session
   { sessionCreds :: !Credentials
   , sessionTopDir :: !FilePath
   , sessionClientId :: !Text
-  , sessionSavedHdrs :: !SavedHeaders
   }
   deriving
     ( Eq
@@ -209,13 +209,12 @@ updateSessionSavedHeaders
   :: Session
   -> (SavedHeaders -> SavedHeaders)
   -- ^ a function that modifies the session's saved headers
-  -> IO Session
+  -> IO ()
 updateSessionSavedHeaders s modSavedHeaders = do
   let dataPath = savedHeadersPath (sessionTopDir s) (sessionCreds s)
       updateAndSave x = do
         let new = modSavedHeaders x
         encodeFile dataPath new
-        pure $ s{sessionSavedHdrs = new}
   pathExists <- doesFileExist dataPath
   if pathExists
     then do
@@ -257,19 +256,21 @@ loadSession' :: Either String (FilePath, Credentials) -> IO (Either String Sessi
 loadSession' (Left err) = pure $ Left err
 loadSession' (Right (sessionTopDir, sessionCreds)) = do
   sessionClientId <- loadClientId sessionTopDir sessionCreds
-  orSavedHeaders <- loadSavedHeaders sessionTopDir sessionCreds
-  case orSavedHeaders of
-    Left err -> pure (Left err)
-    Right sessionSavedHdrs ->
-      pure $ Right Session{sessionClientId, sessionCreds, sessionTopDir, sessionSavedHdrs}
+  pure $ Right Session{sessionClientId, sessionCreds, sessionTopDir}
 
 
 loadSessionOr :: FilePath -> IO (Either String Session)
 loadSessionOr = loadCredentials' >=> loadSession'
 
 
-loadSavedHeaders :: FilePath -> Credentials -> IO (Either String SavedHeaders)
-loadSavedHeaders topDir creds = do
+-- | Load the @SavedHeaders@ for this session
+loadSavedHeaders :: Session -> IO SavedHeaders
+loadSavedHeaders Session{sessionTopDir, sessionCreds} =
+  loadSavedHeaders' sessionTopDir sessionCreds >>= either fail pure
+
+
+loadSavedHeaders' :: FilePath -> Credentials -> IO (Either String SavedHeaders)
+loadSavedHeaders' topDir creds = do
   let dataPath = savedHeadersPath topDir creds
   pathExists <- doesFileExist dataPath
   if not pathExists

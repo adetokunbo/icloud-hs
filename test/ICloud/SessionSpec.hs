@@ -24,6 +24,7 @@ import Network.ICloud.Session
   , clientIdPath
   , cookiePath
   , credentialsPath
+  , loadSavedHeaders
   , loadSession
   , savedHeadersPath
   , updateSessionSavedHeaders
@@ -86,6 +87,7 @@ sessionSpec = describe "module Network.ICloud.Session" $ do
         let want = "/tmp/icloud_authspec/myaccountid-applecom.client-id.txt"
         clientIdPath topDir exampleCred `shouldBe` want
   loadSessionSpec
+  loadSavedHeadersSpec
   updateSessionSavedHeadersSpec
 
 
@@ -100,6 +102,10 @@ loadSessionSpec = describe "loadSession" $ around useTmp $ do
     it "should load the saved clientId" prop_readsStoredCliendId
   context "with a saved headers file" $ do
     it "should load the saved headers" prop_readsStoredSavedHeaders
+
+
+loadSavedHeadersSpec :: Spec
+loadSavedHeadersSpec = describe "loadSavedHeaders" $ around useTmp $ do
   context "with an invalid saved headers file" $ do
     it "should fail to load" $ \appRoot ->
       failsOnBadSavedHeaders appRoot `shouldThrow` anyIOException
@@ -127,11 +133,12 @@ failsOnBadCredentials appRoot = do
   loadSession
 
 
-failsOnBadSavedHeaders :: FilePath -> IO Session
+failsOnBadSavedHeaders :: FilePath -> IO SavedHeaders
 failsOnBadSavedHeaders appRoot = do
   encodeFile (credentialsPath appRoot) exampleCred
   setupInvalid (savedHeadersPath appRoot exampleCred)
-  loadSession
+  s <- loadSession
+  loadSavedHeaders s
 
 
 asConfigHome :: (FilePath -> IO a) -> FilePath -> IO a
@@ -169,11 +176,12 @@ prop_readsStoredSavedHeaders appRoot = monadicIO $ do
   preCreds <- pick genPreCredentials
   savedHdrs <- pick genSaveHeaders
   let creds = asCreds preCreds
-  session <- run $ do
+  savedHdrs' <- run $ do
     encodeFile (credentialsPath appRoot) creds
     encodeFile (savedHeadersPath appRoot creds) savedHdrs
-    loadSession
-  assert $ savedHdrs == sessionSavedHdrs session
+    s <- loadSession
+    loadSavedHeaders s
+  assert $ savedHdrs == savedHdrs'
 
 
 prop_updatesSavedHeaders :: Bool -> FilePath -> Property
@@ -182,13 +190,14 @@ prop_updatesSavedHeaders storeInitial appRoot = monadicIO $ do
   savedHdrs <- pick genSaveHeaders
   newHdrs <- pick genSaveHeaders
   let creds = asCreds preCreds
-  session <- run $ do
+  loadedHdrs <- run $ do
     encodeFile (credentialsPath appRoot) creds
     when storeInitial $
       encodeFile (savedHeadersPath appRoot creds) savedHdrs
     s <- loadSession
     updateSessionSavedHeaders s (const newHdrs)
-  assert $ newHdrs == sessionSavedHdrs session
+    loadSavedHeaders s
+  assert $ newHdrs == loadedHdrs
 
 
 exampleCred :: Credentials
