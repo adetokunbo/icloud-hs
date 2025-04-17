@@ -25,6 +25,7 @@ library
                     Network.ICloud.Internal.LoginFSM
                     Network.ICloud.PBKDF2
                     Network.ICloud.Session
+                    Network.ICloud.Trust
   other-modules:    Data.Attoparsec.Cookie
                     Crypto.SRP
                     Crypto.SRP.Constants
@@ -71,6 +72,7 @@ test-suite test
                     ICloud.HttpSpec
                     ICloud.PBKDF2Spec
                     ICloud.SessionSpec
+                    ICloud.TrustSpec
                     Crypto.SRPSpec
                     Crypto.SRP
                     Crypto.SRP.Constants
