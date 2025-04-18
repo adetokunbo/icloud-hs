@@ -99,6 +99,7 @@ import Network.HTTP.Types
   , HeaderName
   , RequestHeaders
   , Status (..)
+  , hAccept
   , hContentType
   , hReferer
   , hUserAgent
@@ -377,6 +378,18 @@ authHeaders api savedHdrs =
    in staticHeaders <> endpointHeaders ep <> sdHeaders <> cidHeader
 
 
+requiredHeaders :: SavedHeaders -> RequestHeaders
+requiredHeaders savedHdrs =
+  let headerOf name x = (name, toS x)
+      maybeHeaderOf name = fmap (headerOf name)
+      sdHeaders =
+        catMaybes
+          [ maybeHeaderOf hCounter $ shCounter savedHdrs
+          , maybeHeaderOf hSessionId $ shSessionId savedHdrs
+          ]
+   in acceptJson : widgetKey : sdHeaders
+
+
 endpointHeaders :: Endpoints -> RequestHeaders
 endpointHeaders ep = [(hOrigin, epHome ep), (hReferer, epHome ep <> "/")]
 
@@ -532,7 +545,7 @@ staticHeaders =
   , ("X-Apple-OAuth-Require-Grant-Code", "true")
   , ("X-Apple-OAuth-Response-Mode", "web_message")
   , ("X-Apple-OAuth-Response-Type", "code")
-  , ("X-Apple-Widget-Key", xAppleKey)
+  , widgetKey
   ]
 
 
@@ -546,6 +559,14 @@ browserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.
 
 userAgent :: Header
 userAgent = (hUserAgent, browserAgent)
+
+
+widgetKey :: Header
+widgetKey = ("X-Apple-Widget-Key", xAppleKey)
+
+
+acceptJson :: Header
+acceptJson = (hAccept, "application/json")
 
 
 -- | Models the known values of password protocol
