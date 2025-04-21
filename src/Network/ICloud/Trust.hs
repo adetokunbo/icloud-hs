@@ -57,6 +57,7 @@ instance ToJSON CodeStatus where
 data TrustedPhone = TrustedPhone
   { tpnId :: !Word8
   , tpnNumberWithDialCode :: !Text
+  , tpnPushMode :: !(Maybe Text)
   }
   deriving (Eq, Show, Generic)
 
@@ -117,6 +118,7 @@ trustedListOptions =
 data TrustData = TrustData
   { tdList :: !TrustedList
   , tdSecurityCode :: !CodeStatus
+  , tdNoTrustedDevices :: !Bool
   }
   deriving (Eq, Show)
 
@@ -125,17 +127,21 @@ toJSONTrustData :: TrustData -> Value
 toJSONTrustData td =
   let asPairs (Object o) = toList o
       asPairs _other = []
-      fromSecurityCode = ["securityCode" .= tdSecurityCode td]
+      fromOthers =
+        [ "securityCode" .= tdSecurityCode td
+        , "noTrustedDevices" .= tdNoTrustedDevices td
+        ]
       fromTrustedList = asPairs $ toJSON $ tdList td
-   in object $ fromSecurityCode <> fromTrustedList
+   in object $ fromOthers <> fromTrustedList
 
 
 parseJSONTrustData :: Value -> Parser TrustData
 parseJSONTrustData = withObject "TrustData" $ \o ->
   let securityCode = o .: "securityCode"
+      tdNoTrustedDevices = o .: "noTrustedDevices"
       isListKey key _ignored = key == "trustedPhoneNumbers" || key == "trustedDevices"
       theList = parseJSON (Object $ filterWithKey isListKey o)
-   in TrustData <$> theList <*> securityCode
+   in TrustData <$> theList <*> securityCode <*> tdNoTrustedDevices
 
 
 instance ToJSON TrustData where

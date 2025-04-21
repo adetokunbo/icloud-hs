@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 {- |
@@ -14,7 +13,16 @@ import Data.Aeson (decode, encode)
 import Data.Text (Text)
 import qualified ICloud.Examples as Examples
 import Network.ICloud.Trust
-import Test.Hspec (Spec, anyIOException, around, context, describe, it, shouldBe, shouldThrow)
+import Test.Hspec
+  ( Spec
+  , anyIOException
+  , around
+  , context
+  , describe
+  , it
+  , shouldBe
+  , shouldThrow
+  )
 import Test.QuickCheck
   ( Arbitrary (arbitrary)
   , Gen
@@ -49,7 +57,7 @@ genCodeStatus =
 
 
 genTrustedPhone :: Gen TrustedPhone
-genTrustedPhone = TrustedPhone <$> arbitrary <*> genExWord
+genTrustedPhone = TrustedPhone <$> arbitrary <*> genExWord <*> genExWordMaybe
 
 
 genTrustedDevice :: Gen TrustedDevice
@@ -65,8 +73,12 @@ genTrustedList =
 
 
 genTrustData :: Gen TrustData
-genTrustData = TrustData <$> genTrustedList <*> genCodeStatus
+genTrustData = TrustData <$> genTrustedList <*> genCodeStatus <*> arbitrary
 
 
 genExWord :: Gen Text
 genExWord = elements Examples.wordz
+
+
+genExWordMaybe :: Gen (Maybe Text)
+genExWordMaybe = frequency [(1, pure Nothing), (1, Just <$> genExWord)]
