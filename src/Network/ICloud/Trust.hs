@@ -12,6 +12,7 @@ module Network.ICloud.Trust
 
     -- * functions
   , selectPhone
+  , selectDevice
   )
 where
 
@@ -42,12 +43,26 @@ import SimplePrompt (promptNonEmpty)
 import Text.Read (readMaybe)
 
 
+putDeviceChoice :: (Int, TrustedDevice) -> IO ()
+putDeviceChoice (i, td) | tdModelName td == "" = Text.putStrLn $ "" +| i |+ ") " +| tdName td |+ "\tSMS\t" +| tdId td |+ ""
+putDeviceChoice (i, td) = Text.putStrLn $ "" +| i |+ ") " +| tdName td |+ "\t" +| tdModelName td |+ "\t" +| tdId td |+ ""
+
+
+selectDevice :: [TrustedDevice] -> IO TrustedDevice
+selectDevice xs = do
+  when (null xs) $ fail "sorry, expected to pick a trusted device, none to choose from"
+  Text.putStrLn "Please select a trusted device to send a code to"
+  mapM_ putDeviceChoice $ zip ([1 ..] :: [Int]) xs
+  idx <- pleaseChooseN 1 (length xs)
+  pure (xs !! (idx - 1))
+
+
 selectPhone :: [TrustedPhone] -> IO TrustedPhone
 selectPhone xs = do
-  let putChoice (i, x) = Text.putStrLn $ "" +| i |+ ") " +| tpnNumberWithDialCode x |+ ""
+  let putPhoneChoice (i, x) = Text.putStrLn $ "" +| i |+ ") " +| tpnNumberWithDialCode x |+ ""
   when (null xs) $ fail "sorry, expected to pick a trusted phone number, none to choose from"
   Text.putStrLn "Please select a trusted phone number to send a code to"
-  mapM_ putChoice $ zip ([1 ..] :: [Int]) xs
+  mapM_ putPhoneChoice $ zip ([1 ..] :: [Int]) xs
   idx <- pleaseChooseN 1 (length xs)
   pure (xs !! (idx - 1))
 

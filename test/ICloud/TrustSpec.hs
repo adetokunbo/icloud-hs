@@ -17,13 +17,9 @@ import Network.ICloud.Trust
 import System.IO.Silently (silence)
 import Test.Hspec
   ( Spec
-  , anyIOException
-  , around
   , context
   , describe
   , it
-  , shouldBe
-  , shouldThrow
   )
 import Test.Main (withStdin)
 import Test.QuickCheck
@@ -47,11 +43,18 @@ spec = describe "module Network.ICloud.Trust" $ do
       it "should succeed" prop_jsonRoundtripTrustData
 
   describe "selectPhone" $ do
-    context "the selected input" $ do
+    context "when the selected input" $ do
       context "is a number within the range" $ do
-        it "should succeed" prop_selectsPhoneWithNonMaxIndex
+        it "should succeed" (prop_selectsWithNonMaxIndex selectPhone genTrustedPhone)
       context "is the maximum number" $ do
-        it "should succeed" prop_selectsPhoneWithMaxIndex
+        it "should succeed" (prop_selectsWithMaxIndex selectPhone genTrustedPhone)
+
+  describe "selectDevice" $ do
+    context "when the selected input" $ do
+      context "is a number within the range" $ do
+        it "should succeed" (prop_selectsWithNonMaxIndex selectDevice genTrustedDevice)
+      context "is the maximum number" $ do
+        it "should succeed" (prop_selectsWithMaxIndex selectDevice genTrustedDevice)
 
 
 prop_jsonRoundtripTrustData :: Property
@@ -85,38 +88,33 @@ genTrustedList =
     ]
 
 
-prop_selectsPhoneWithNonMaxIndex :: Property
-prop_selectsPhoneWithNonMaxIndex = monadicIO $ do
-  pick genTrustedPhonesWithNonMaxIndex >>= run . tryToSelectPhone >>= assert
-
-
-prop_selectsPhoneWithMaxIndex :: Property
-prop_selectsPhoneWithMaxIndex = monadicIO $ do
-  let useMax (phone, phones) = (length phones, phone, phones)
-  pick (fmap useMax genTrustedPhonesWithMaxIndex) >>= run . tryToSelectPhone >>= assert
-
-
-tryToSelectPhone :: (Int, TrustedPhone, [TrustedPhone]) -> IO Bool
-tryToSelectPhone (idx, want, phones) = do
+useIOSelector :: (Eq a) => ([a] -> IO a) -> (Int, a, [a]) -> IO Bool
+useIOSelector selector (idx, want, xs) = do
   withStdin (toS $ show idx) $ do
-    selected <- silence $ selectPhone phones
+    selected <- silence $ selector xs
     pure $ selected == want
 
 
-genTrustedPhonesWithNonMaxIndex :: Gen (Int, TrustedPhone, [TrustedPhone])
-genTrustedPhonesWithNonMaxIndex = do
-  low <- chooseInt (1, 5)
-  high <- chooseInt (low, 10)
-  phones <- vectorOf high genTrustedPhone
-  pure (low, phones !! (low - 1), phones)
+prop_selectsWithNonMaxIndex :: (Eq a, Show a) => ([a] -> IO a) -> Gen a -> Property
+prop_selectsWithNonMaxIndex selector generator = monadicIO $ do
+  pick (genWithNonMaxIndex generator) >>= run . useIOSelector selector >>= assert
 
 
-genTrustedPhonesWithMaxIndex :: Gen (TrustedPhone, [TrustedPhone])
-genTrustedPhonesWithMaxIndex = do
+prop_selectsWithMaxIndex :: (Eq a, Show a) => ([a] -> IO a) -> Gen a -> Property
+prop_selectsWithMaxIndex selector generator = monadicIO $ do
+  let useMax (_ignoredIndex, _ignoredSelection, xs) =
+        let num = length xs
+         in (num, xs !! (num - 1), xs)
+      withNonMax = genWithNonMaxIndex generator
+  pick (fmap useMax withNonMax) >>= run . useIOSelector selector >>= assert
+
+
+genWithNonMaxIndex :: Gen a -> Gen (Int, a, [a])
+genWithNonMaxIndex sourceGen = do
   low <- chooseInt (1, 5)
   high <- chooseInt (low, 10)
-  phones <- vectorOf high genTrustedPhone
-  pure (phones !! (high - 1), phones)
+  xs <- vectorOf high sourceGen
+  pure (low, xs !! (low - 1), xs)
 
 
 genTrustData :: Gen TrustData
