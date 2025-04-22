@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Network.ICloud.Trust
@@ -8,9 +9,13 @@ module Network.ICloud.Trust
   , TrustedDevice (..)
   , TrustedList (..)
   , TrustData (..)
+
+    -- * functions
+  , selectPhone
   )
 where
 
+import Control.Monad (when)
 import Data.Aeson
   ( FromJSON (..)
   , KeyValue (..)
@@ -29,8 +34,32 @@ import Data.Aeson.Casing (aesonPrefix, camelCase)
 import Data.Aeson.KeyMap (filterWithKey, toList)
 import Data.Aeson.Types (Parser)
 import Data.Text (Text)
+import qualified Data.Text.IO as Text
 import Data.Word (Word8)
+import Fmt ((+|), (|+))
 import GHC.Generics (Generic)
+import SimplePrompt (promptNonEmpty)
+import Text.Read (readMaybe)
+
+
+selectPhone :: [TrustedPhone] -> IO TrustedPhone
+selectPhone xs = do
+  let putChoice (i, x) = Text.putStrLn $ "" +| i |+ ") " +| tpnNumberWithDialCode x |+ ""
+  when (null xs) $ fail "sorry, expected to pick a trusted phone number, none to choose from"
+  Text.putStrLn "Please select a trusted phone number to send a code to"
+  mapM_ putChoice $ zip ([1 ..] :: [Int]) xs
+  idx <- pleaseChooseN 1 (length xs)
+  pure (xs !! (idx - 1))
+
+
+pleaseChooseN :: Int -> Int -> IO Int
+pleaseChooseN low high = do
+  let readN = readMaybe <$> promptNonEmpty "> "
+  Text.putStrLn $ "Please choose from [" +| low |+ " - " +| high |+ "]"
+  readN >>= \case
+    Nothing -> pleaseChooseN low high
+    Just x | x < low || x > high -> pleaseChooseN low high
+    Just x -> pure x
 
 
 -- | Information describing the status of the security code verifiction
