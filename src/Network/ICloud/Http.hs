@@ -14,9 +14,7 @@ SPDX-License-Identifier: BSD3
 -}
 module Network.ICloud.Http
   ( -- * data types
-    ApiError (..)
-  , ApiResponse (..)
-  , Endpoints (..)
+    Endpoints (..)
   , Realm (..)
 
     -- * functions
@@ -65,8 +63,8 @@ import Data.Aeson
   , (.:)
   )
 import Data.Aeson.Casing (aesonPrefix, snakeCase)
-import Data.Aeson.KeyMap (fromList, member)
-import Data.Aeson.Types (Parser, Value (..), (.:?))
+import Data.Aeson.KeyMap (fromList)
+import Data.Aeson.Types (Parser, Value (..))
 import Data.Attoparsec.Cookie (readJar, writeNetscapeJar)
 import Data.Base64.Types (extractBase64)
 import Data.ByteString (ByteString)
@@ -107,6 +105,7 @@ import Network.HTTP.Types
   , methodPost
   , methodPut
   )
+import Network.ICloud.Http.Errors (ApiResponse, extractOrFail)
 import Network.ICloud.PBKDF2 (FancyPseudoRandomF, deriveKey, wrapIO)
 import Network.ICloud.Session
   ( Credentials (..)
@@ -251,11 +250,8 @@ asJson resp = case eitherDecode resp of
 
 
 failIfError :: Response (ApiResponse a) -> IO a
-failIfError resp = do
-  if
-    | statusCode (responseStatus resp) >= 400 -> fail $ showStatusOf resp
-    | Failed x <- responseBody resp -> fail $ Text.unpack $ aeReason x
-    | Succeeded x <- responseBody resp -> pure x
+failIfError r | statusCode (responseStatus r) >= 400 = fail $ showStatusOf r
+failIfError r = extractOrFail $ responseBody r
 
 
 showStatusOf :: Response a -> String
@@ -266,53 +262,6 @@ showStatusOf resp =
       theStatus = responseStatus resp
       theCode = statusCode theStatus
    in showResponse' theCode theStatus
-
-
--- | Represents an API response that may succeed or fail with @ApiError@
-data ApiResponse a = Failed !ApiError | Succeeded !a
-  deriving (Eq, Show)
-
-
-instance (FromJSON a) => FromJSON (ApiResponse a) where
-  parseJSON v = (Failed <$> parseJSON v) <|> (Succeeded <$> parseJSON v)
-
-
--- | Represents an API response that reports a failure.
-data ApiError
-  = ApiError
-  { aeReason :: !Text
-  , aeCode :: !(Maybe Text)
-  }
-  deriving (Eq, Show)
-
-
-instance FromJSON ApiError where
-  parseJSON = withObject "ApiError" parseApiError
-
-
-{-
-In python, this looks like:
-
-   if isinstance(data, dict):
-       reason = data.get("errorMessage")
-       reason = reason or data.get("reason")
-       reason = reason or data.get("errorReason")
-       if not reason and isinstance(data.get("error"), str):
-           reason = data.get("error")
-       if not reason and data.get("error"):
-           reason = "Unknown reason"
-
-       code = data.get("errorCode")
-       if not code and data.get("serverErrorCode"):
-           code = data.get("serverErrorCode")
--}
-parseApiError :: Object -> Parser ApiError
-parseApiError o =
-  let reason = o .: "errorMessage" <|> o .: "reason" <|> o .: "errorReason" <|> orError
-      hasError = member "error" o
-      orError = o .: "error" <|> (if hasError then pure "unknown error" else empty)
-      code = o .: "errorCode" <|> o .:? "serverErrorCode"
-   in ApiError <$> reason <*> code
 
 
 {- |
@@ -766,8 +715,7 @@ handleSigninComplete api resp = do
     | code == 412 -> fail "need to login to Apple and acknowledge the privacy agreement"
     | code == 409 -> runTwoX api
     | code >= 400 -> fail $ showStatusOf resp
-    | Failed x <- body -> fail $ Text.unpack $ aeReason x
-    | Succeeded x <- body -> pure x
+    | otherwise -> extractOrFail body
 
 
 -- sends a request to determine the option
