@@ -22,6 +22,7 @@ source-repository head
 
 library
   exposed-modules:  Network.ICloud.Http
+                    Network.ICloud.Http.Errors
                     Network.ICloud.Internal.LoginFSM
                     Network.ICloud.PBKDF2
                     Network.ICloud.Session
