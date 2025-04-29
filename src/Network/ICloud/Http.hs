@@ -74,7 +74,7 @@ import qualified Data.ByteString.Base16 as Base16
 import Data.ByteString.Base64 (decodeBase64Untyped, encodeBase64)
 import qualified Data.ByteString.Lazy as LBS
 import Data.CaseInsensitive (mk)
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, fromMaybe)
 import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -105,6 +105,7 @@ import Network.HTTP.Types
   , hUserAgent
   , methodGet
   , methodPost
+  , methodPut
   )
 import Network.ICloud.PBKDF2 (FancyPseudoRandomF, deriveKey, wrapIO)
 import Network.ICloud.Session
@@ -117,6 +118,13 @@ import Network.ICloud.Session
   , pristine
   , runSrpAuth
   , updateSessionSavedHeaders
+  )
+import Network.ICloud.Trust
+  ( TrustData
+  , TrustedDevice (..)
+  , TrustedPhone (..)
+  , pleaseReadCode
+  , withSelectedPhoneOrDevice
   )
 import System.Directory (doesFileExist)
 
@@ -404,6 +412,10 @@ extendPath req suffix = req{path = path req <> suffix}
 
 toGet :: Request -> Request
 toGet req = req{method = methodGet}
+
+
+toPut :: Request -> Request
+toPut req = req{method = methodPut}
 
 
 maybeValue :: (a -> Value) -> Maybe a -> Value
@@ -717,7 +729,7 @@ runSigninComplete api@Api{apiSession = session} kd mbResults = do
 
 
 signinComplete :: (FromJSON a) => Api -> SigninCompletion -> IO a
-signinComplete = invoke signinCompleteReq
+signinComplete api = invoke' id (handleSigninComplete api) signinCompleteReq api
 
 
 signinCompleteReq :: Endpoints -> SigninCompletion -> Request
@@ -742,6 +754,28 @@ signinCompleteValue sc =
         , ("accountName", String (siAccountName sc))
         , ("c", String (siTag sc))
         ]
+
+
+handleSigninComplete :: (FromJSON a) => Api -> Response (ApiResponse a) -> IO a
+handleSigninComplete api resp = do
+  let code = statusCode $ responseStatus resp
+      body = responseBody resp
+  if
+    | code == 401 -> fail "invalid username or password"
+    | code == 403 -> fail "account is locked"
+    | code == 412 -> fail "need to login to Apple and acknowledge the privacy agreement"
+    | code == 409 -> runTwoX api
+    | code >= 400 -> fail $ showStatusOf resp
+    | Failed x <- body -> fail $ Text.unpack $ aeReason x
+    | Succeeded x <- body -> pure x
+
+
+-- sends a request to determine the option
+runTwoX :: (FromJSON a) => Api -> IO a
+runTwoX api = do
+  let handleTwoStep = runTwoStep api pleaseReadCode
+      handleTwoFactor = runTwoFactor api pleaseReadCode
+  twoXChoices api >>= withSelectedPhoneOrDevice handleTwoFactor handleTwoStep
 
 
 validate :: Api -> IO ValidateReply
@@ -790,6 +824,16 @@ accountLoginBase :: Endpoints -> Request
 accountLoginBase = (`extendPath` "/accountLogin") . epSetup
 
 
+twoXChoices :: Api -> IO TrustData
+twoXChoices api@Api{apiEndpoints = ep} = callRequiredHeaders api (epAuth ep)
+
+
+callRequiredHeaders :: (FromJSON a) => Api -> Request -> IO a
+callRequiredHeaders api@Api{apiSession = s} req = do
+  savedHdrs <- loadSavedHeaders s
+  callApi api (withHeaders (requiredHeaders savedHdrs) req) >>= failIfError
+
+
 accountLoginValue :: SavedHeaders -> Value
 accountLoginValue hs =
   asObject
@@ -798,6 +842,85 @@ accountLoginValue hs =
     , ("trustToken", maybeValue String (shTrustToken hs))
     , ("extended_login", Bool True)
     ]
+
+
+runTwoStep :: (FromJSON a) => Api -> IO Text -> TrustedDevice -> IO a
+runTwoStep api receiveCode td = do
+  askForTwoStepCode api td
+  code <- receiveCode
+  verifyTwoStepCode api td code
+
+
+verifyTwoStepCode :: (FromJSON a) => Api -> TrustedDevice -> Text -> IO a
+verifyTwoStepCode api td code =
+  let value =
+        Object
+          [ ("securityCode", String code)
+          , ("mode", String "sms")
+          , ("phoneNumber", String (tdId td))
+          ]
+      req' = verifySecurityCodeReq "phone" $ apiEndpoints api
+      req = req'{requestBody = RequestBodyLBS $ encode value}
+   in callApi api req >>= failIfError
+
+
+verifySecurityCodeReq :: Text -> Endpoints -> Request
+verifySecurityCodeReq codeType =
+  (`extendPath` ("/verify/" <> toS codeType <> "/securitycode"))
+    . withHeaders [(hContentType, "application/json")]
+    . epAuth
+
+
+askForTwoStepCode :: Api -> TrustedDevice -> IO ()
+askForTwoStepCode api@Api{apiEndpoints = ep} td =
+  let pathTail = toS $ "/" <> tdId td <> "/securitycode"
+      mkTheReq = (`extendPath` pathTail) . askForTwoStepCodeBase
+   in callRequiredHeaders api (mkTheReq ep)
+
+
+askForTwoStepCodeBase :: Endpoints -> Request
+askForTwoStepCodeBase = (`extendPath` "/verify/device") . toPut . epAuth
+
+
+runTwoFactor :: (FromJSON a) => Api -> IO Text -> TrustedPhone -> IO a
+runTwoFactor api receiveCode tpn = do
+  askForTwoFactorCode api tpn
+  code <- receiveCode
+  verifyTwoFactorCode api tpn code
+
+
+verifyTwoFactorCode :: (FromJSON a) => Api -> TrustedPhone -> Text -> IO a
+verifyTwoFactorCode api tpn code =
+  let value =
+        Object
+          [ ("securityCode", String code)
+          , ("mode", String "sms")
+          , ("phoneNumber", Object [("id", toJSON (tpnId tpn))])
+          ]
+      req' = verifySecurityCodeReq "phone" $ apiEndpoints api
+      req = req'{requestBody = RequestBodyLBS $ encode value}
+   in callApi api req >>= failIfError
+
+
+askForTwoFactorCode :: Api -> TrustedPhone -> IO ()
+askForTwoFactorCode api tp = do
+  let mode = fromMaybe "sms" $ tpnPushMode tp
+      value =
+        Object
+          [ ("mode", String mode)
+          , ("phoneNumber", Object [("id", toJSON (tpnId tp))])
+          ]
+      req' = askForTwoFactorCodeBase $ apiEndpoints api
+      req = req'{requestBody = RequestBodyLBS $ encode value}
+  callRequiredHeaders api req
+
+
+askForTwoFactorCodeBase :: Endpoints -> Request
+askForTwoFactorCodeBase =
+  (`extendPath` "/verify/phone")
+    . toPut
+    . withHeaders [(hContentType, "application/json")]
+    . epAuth
 
 
 validate2FA :: Endpoints -> Request

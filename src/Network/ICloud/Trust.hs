@@ -11,6 +11,9 @@ module Network.ICloud.Trust
   , TrustData (..)
 
     -- * functions
+  , withSelectedPhoneOrDevice
+  , pleaseReadCode
+  , pleaseChooseN
   , selectPhone
   , selectDevice
   )
@@ -35,6 +38,7 @@ import Data.Aeson.Casing (aesonPrefix, camelCase)
 import Data.Aeson.KeyMap (filterWithKey, toList)
 import Data.Aeson.Types (Parser)
 import Data.Text (Text)
+import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.Word (Word8)
 import Fmt ((+|), (|+))
@@ -69,12 +73,18 @@ selectPhone xs = do
 
 pleaseChooseN :: Int -> Int -> IO Int
 pleaseChooseN low high = do
-  let readN = readMaybe <$> promptNonEmpty "> "
-  Text.putStrLn $ "Please choose from [" +| low |+ " - " +| high |+ "]"
+  let readN = readMaybe <$> promptNonEmpty prefix
+      prefix = "Please choose an option between " +| low |+ " and " +| high |+ ""
   readN >>= \case
     Nothing -> pleaseChooseN low high
     Just x | x < low || x > high -> pleaseChooseN low high
     Just x -> pure x
+
+
+pleaseReadCode :: IO Text
+pleaseReadCode = do
+  let prefix = "Please enter the n-digit code you just received"
+  Text.pack <$> promptNonEmpty prefix
 
 
 -- | Information describing the status of the security code verifiction
@@ -167,6 +177,16 @@ data TrustData = TrustData
   deriving (Eq, Show)
 
 
+
+
+-- | Selects a phone/device and applies the appropriate handler
+withSelectedPhoneOrDevice
+  :: (TrustedPhone -> IO a) -> (TrustedDevice -> IO a) -> TrustData -> IO a
+withSelectedPhoneOrDevice handlePhone handleDevice = do
+  let ikou (TrustedDevices ys) = selectDevice ys >>= handleDevice
+      ikou (TrustedPhoneNumbers [y]) = handlePhone y
+      ikou (TrustedPhoneNumbers ys) = selectPhone ys >>= handlePhone
+  ikou . tdList
 toJSONTrustData :: TrustData -> Value
 toJSONTrustData td =
   let asPairs (Object o) = toList o
