@@ -202,10 +202,10 @@ toJSONTrustData td =
 parseJSONTrustData :: Value -> Parser TrustData
 parseJSONTrustData = withObject "TrustData" $ \o ->
   let securityCode = o .: "securityCode"
-      tdNoTrustedDevices = o .: "noTrustedDevices"
+      noTrustedDevices = o .: "noTrustedDevices"
       isListKey key _ignored = key == "trustedPhoneNumbers" || key == "trustedDevices"
       theList = parseJSON (Object $ filterWithKey isListKey o)
-   in TrustData <$> theList <*> securityCode <*> tdNoTrustedDevices
+   in TrustData <$> theList <*> securityCode <*> noTrustedDevices
 
 
 instance ToJSON TrustData where
