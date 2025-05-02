@@ -244,6 +244,11 @@ callApi api req = do
   mapM asJson raw
 
 
+callSEReply
+  :: (FromJSON a) => Api -> Request -> IO (Response (SEReply a))
+callSEReply api req = rawRequest api req >>= mapM asJson
+
+
 -- confirm the content-type of the response before attempting to parse
 -- if it's wrong, throw  InvalidContentType
 -- try to parse, if that fails, throw WrongDataType
@@ -251,11 +256,6 @@ asJson :: (FromJSON a) => LBS.ByteString -> IO a
 asJson resp = case eitherDecode resp of
   Left _err -> fail "did not decode JSON response correctly"
   Right x -> pure x
-
-
-failIfError' :: Response (SEReply a) -> IO a
-failIfError' r | statusCode (responseStatus r) >= 400 = fail $ showStatusOf r
-failIfError' r = extractOr $ responseBody r
 
 
 extractOr' :: (ExtractOr a b) => Response (b a) -> IO a
@@ -818,7 +818,7 @@ verifyTwoStepCode api td code =
           ]
       req' = verifySecurityCodeReq "phone" $ apiEndpoints api
       req = req'{requestBody = RequestBodyLBS $ encode value}
-   in callApi api req >>= extractOr'
+   in callSEReply api req >>= extractOr'
 
 
 verifySecurityCodeReq :: Text -> Endpoints -> Request
@@ -856,7 +856,7 @@ verifyTwoFactorCode api tpn code =
           ]
       req' = verifySecurityCodeReq "phone" $ apiEndpoints api
       req = req'{requestBody = RequestBodyLBS $ encode value}
-   in callApi api req >>= extractOr'
+   in callSEReply api req >>= extractOr'
 
 
 askForTwoFactorCode :: Api -> TrustedPhone -> IO ()
