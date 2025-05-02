@@ -105,7 +105,11 @@ import Network.HTTP.Types
   , methodPost
   , methodPut
   )
-import Network.ICloud.Http.Errors (ApiResponse, extractOrFail)
+import Network.ICloud.Http.Errors
+  ( ApiResponse
+  , ExtractOr (..)
+  , SEReply
+  )
 import Network.ICloud.PBKDF2 (FancyPseudoRandomF, deriveKey, wrapIO)
 import Network.ICloud.Session
   ( Credentials (..)
@@ -249,9 +253,14 @@ asJson resp = case eitherDecode resp of
   Right x -> pure x
 
 
-failIfError :: Response (ApiResponse a) -> IO a
-failIfError r | statusCode (responseStatus r) >= 400 = fail $ showStatusOf r
-failIfError r = extractOrFail $ responseBody r
+failIfError' :: Response (SEReply a) -> IO a
+failIfError' r | statusCode (responseStatus r) >= 400 = fail $ showStatusOf r
+failIfError' r = extractOr $ responseBody r
+
+
+extractOr' :: (ExtractOr a b) => Response (b a) -> IO a
+extractOr' r | statusCode (responseStatus r) >= 400 = fail $ showStatusOf r
+extractOr' r = extractOr $ responseBody r
 
 
 showStatusOf :: Response a -> String
@@ -394,7 +403,7 @@ invoke
   -> Api
   -> b
   -> IO a
-invoke = invoke' id failIfError
+invoke = invoke' id extractOr'
 
 
 invoke'
@@ -417,7 +426,7 @@ invokeWithAuthHdrs
   -> IO a
 invokeWithAuthHdrs mkReq api other = do
   savedHdrs <- loadSavedHeaders (apiSession api)
-  invoke' (withHeaders (authHeaders api savedHdrs)) failIfError mkReq api other
+  invoke' (withHeaders (authHeaders api savedHdrs)) extractOr' mkReq api other
 
 
 -- | Update the @SavedHeaders@ using some response headers
@@ -715,7 +724,7 @@ handleSigninComplete api resp = do
     | code == 412 -> fail "need to login to Apple and acknowledge the privacy agreement"
     | code == 409 -> runTwoX api
     | code >= 400 -> fail $ showStatusOf resp
-    | otherwise -> extractOrFail body
+    | otherwise -> extractOr body
 
 
 -- sends a request to determine the option
@@ -727,7 +736,7 @@ runTwoX api = do
 
 
 validate :: Api -> IO ValidateReply
-validate api@Api{apiEndpoints} = callApi api (validateReq apiEndpoints) >>= failIfError
+validate api@Api{apiEndpoints} = callApi api (validateReq apiEndpoints) >>= extractOr'
 
 
 validateReq :: Endpoints -> Request
@@ -779,7 +788,7 @@ twoXChoices api@Api{apiEndpoints = ep} = callRequiredHeaders api (epAuth ep)
 callRequiredHeaders :: (FromJSON a) => Api -> Request -> IO a
 callRequiredHeaders api@Api{apiSession = s} req = do
   savedHdrs <- loadSavedHeaders s
-  callApi api (withHeaders (requiredHeaders savedHdrs) req) >>= failIfError
+  callApi api (withHeaders (requiredHeaders savedHdrs) req) >>= extractOr'
 
 
 accountLoginValue :: SavedHeaders -> Value
@@ -809,7 +818,7 @@ verifyTwoStepCode api td code =
           ]
       req' = verifySecurityCodeReq "phone" $ apiEndpoints api
       req = req'{requestBody = RequestBodyLBS $ encode value}
-   in callApi api req >>= failIfError
+   in callApi api req >>= extractOr'
 
 
 verifySecurityCodeReq :: Text -> Endpoints -> Request
@@ -847,7 +856,7 @@ verifyTwoFactorCode api tpn code =
           ]
       req' = verifySecurityCodeReq "phone" $ apiEndpoints api
       req = req'{requestBody = RequestBodyLBS $ encode value}
-   in callApi api req >>= failIfError
+   in callApi api req >>= extractOr'
 
 
 askForTwoFactorCode :: Api -> TrustedPhone -> IO ()

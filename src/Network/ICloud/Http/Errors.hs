@@ -1,4 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 {- |
@@ -17,8 +19,8 @@ module Network.ICloud.Http.Errors
   , ServiceErrors (..)
   , SEReply ()
 
-    -- * functions
-  , extractOrFail
+    -- * classes
+  , ExtractOr (..)
   )
 where
 
@@ -48,14 +50,6 @@ instance (FromJSON a) => FromJSON (ApiResponse a) where
   parseJSON v = (Failed <$> parseJSON v) <|> (Succeeded <$> parseJSON v)
 
 
-{- | Obtains the success value from an ApiResponse on throws an exception in IO
-reporting =  the failure
--}
-extractOrFail :: ApiResponse a -> IO a
-extractOrFail (Failed x) = fail $ Text.unpack $ aeReason x
-extractOrFail (Succeeded x) = pure x
-
-
 -- | Represents an API response that reports a failure.
 data ApiError
   = ApiError
@@ -67,6 +61,11 @@ data ApiError
 
 instance FromJSON ApiError where
   parseJSON = withObject "ApiError" parseApiError
+
+
+instance ExtractOr a ApiResponse where
+  extractOr (Succeeded x) = pure x
+  extractOr (Failed x) = fail $ Text.unpack $ aeReason x
 
 
 {-
@@ -136,4 +135,15 @@ instance FromJSON ServiceErrors where
 
 
 parseServiceErrors :: Object -> Parser (Maybe [ServiceError])
-parseServiceErrors o = o .: "service_errors"
+parseServiceErrors o = o .:? "service_errors"
+
+
+-- | Specifies a function that extracts a result from a container in IO
+class ExtractOr a b where
+  -- | extract a result type from containing type in IO, reporting errors in IO
+  extractOr :: b a -> IO a
+
+
+instance ExtractOr a SEReply where
+  extractOr (SEReply (Right a)) = pure a
+  extractOr (SEReply (Left se)) = fail $ Text.unpack $ showServiceErrors se
