@@ -15,7 +15,7 @@ module Network.ICloud.Http.Errors
   , ApiResponse (..)
   , ServiceError (..)
   , ServiceErrors (..)
-  , ServiceErrorReply ()
+  , SEReply ()
 
     -- * functions
   , extractOrFail
@@ -108,14 +108,22 @@ instance FromJSON ServiceError where
   parseJSON = genericParseJSON $ aesonPrefix snakeCase
 
 
--- | A response that might contain a  @ServiceErrors@
-newtype ServiceErrorReply a = ServiceErrorReply
-  { unServiceErrorReply :: Either ServiceErrors a
+showServiceErrors :: ServiceErrors -> Text
+showServiceErrors (ServiceErrors Nothing) = "unexpected non-service error response"
+showServiceErrors (ServiceErrors (Just xs)) = Text.concat $ map ((<> ":") . seMessage) xs
+
+
+-- | A response that might contain @ServiceErrors@
+newtype SEReply a = SEReply
+  { unSEReply :: Either ServiceErrors a
   }
   deriving (Eq, Show, Generic)
 
 
-instance (FromJSON a) => FromJSON (ServiceErrorReply a)
+instance (FromJSON a) => FromJSON (SEReply a) where
+  parseJSON =
+    let parseJSON' v = (Left <$> parseJSON v) <|> (Right <$> parseJSON v)
+     in fmap SEReply . parseJSON'
 
 
 -- | A container for optional @ServiceError@s
