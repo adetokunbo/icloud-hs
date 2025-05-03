@@ -805,19 +805,14 @@ runTwoStep :: (FromJSON a) => Api -> IO Text -> TrustedDevice -> IO a
 runTwoStep api receiveCode td = do
   askForTwoStepCode api td
   code <- receiveCode
-  verifyTwoStepCode api td code
+  verifyCode api td code
 
 
-verifyTwoStepCode :: (FromJSON a) => Api -> TrustedDevice -> Text -> IO a
-verifyTwoStepCode api td code =
-  let value =
-        Object
-          [ ("securityCode", String code)
-          , ("mode", String "sms")
-          , ("phoneNumber", String (tdId td))
-          ]
+verifyCode :: (FromJSON a, AsVerifyRequest b) => Api -> b -> Text -> IO a
+verifyCode api x code =
+  let body = RequestBodyLBS $ encode $ asVerifyRequest x code
       req' = verifySecurityCodeReq "phone" $ apiEndpoints api
-      req = req'{requestBody = RequestBodyLBS $ encode value}
+      req = req'{requestBody = body}
    in callSEReply api req >>= extractOr'
 
 
@@ -843,20 +838,7 @@ runTwoFactor :: (FromJSON a) => Api -> IO Text -> TrustedPhone -> IO a
 runTwoFactor api receiveCode tpn = do
   askForTwoFactorCode api tpn
   code <- receiveCode
-  verifyTwoFactorCode api tpn code
-
-
-verifyTwoFactorCode :: (FromJSON a) => Api -> TrustedPhone -> Text -> IO a
-verifyTwoFactorCode api tpn code =
-  let value =
-        Object
-          [ ("securityCode", String code)
-          , ("mode", String "sms")
-          , ("phoneNumber", Object [("id", toJSON (tpnId tpn))])
-          ]
-      req' = verifySecurityCodeReq "phone" $ apiEndpoints api
-      req = req'{requestBody = RequestBodyLBS $ encode value}
-   in callSEReply api req >>= extractOr'
+  verifyCode api tpn code
 
 
 askForTwoFactorCode :: Api -> TrustedPhone -> IO ()
@@ -906,3 +888,25 @@ withHeaders requestHeaders req = req{requestHeaders}
 
 simpleOptions :: Options
 simpleOptions = aesonPrefix snakeCase
+
+
+class AsVerifyRequest a where
+  asVerifyRequest :: a -> Text -> Value
+
+
+instance AsVerifyRequest TrustedPhone where
+  asVerifyRequest tpn code =
+    Object
+      [ ("securityCode", String code)
+      , ("mode", String "sms")
+      , ("phoneNumber", Object [("id", toJSON (tpnId tpn))])
+      ]
+
+
+instance AsVerifyRequest TrustedDevice where
+  asVerifyRequest td code =
+    Object
+      [ ("securityCode", String code)
+      , ("mode", String "sms")
+      , ("phoneNumber", String (tdId td))
+      ]
