@@ -185,7 +185,7 @@ hasActiveSession api =
 
 
 -- | Implements the SRP authentication sequence using the ICloud API
-runApiSrpAuth :: Api -> IO Value
+runApiSrpAuth :: Api -> IO ()
 runApiSrpAuth api@Api{apiSession} = do
   let Credentials
         { credAccountName = user
@@ -671,7 +671,7 @@ data SigninCompletion = SigninCompletion
   }
 
 
-runSigninComplete :: Api -> KeyDeriver -> Maybe Results -> IO Value
+runSigninComplete :: Api -> KeyDeriver -> Maybe Results -> IO ()
 runSigninComplete api@Api{apiSession = session} kd mbResults = do
   siSavedHeaders <- loadSavedHeaders session
   let siAccountName = credAccountName $ sessionCreds session
@@ -686,7 +686,7 @@ runSigninComplete api@Api{apiSession = session} kd mbResults = do
   maybe onFail (signinComplete api . completion) mbResults
 
 
-signinComplete :: (FromJSON a) => Api -> SigninCompletion -> IO a
+signinComplete :: Api -> SigninCompletion -> IO ()
 signinComplete api = invoke' id (handleSigninComplete api) signinCompleteReq api
 
 
@@ -714,7 +714,7 @@ signinCompleteValue sc =
         ]
 
 
-handleSigninComplete :: (FromJSON a) => Api -> Response (ApiResponse a) -> IO a
+handleSigninComplete :: Api -> Response (ApiResponse ()) -> IO ()
 handleSigninComplete api resp = do
   let code = statusCode $ responseStatus resp
       body = responseBody resp
