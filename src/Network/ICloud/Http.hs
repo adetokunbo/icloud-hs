@@ -108,7 +108,7 @@ import Network.HTTP.Types
 import Network.ICloud.Http.Errors
   ( ApiResponse
   , ExtractOr (..)
-  , SEReply
+  , extractOrRetry
   )
 import Network.ICloud.PBKDF2 (FancyPseudoRandomF, deriveKey, wrapIO)
 import Network.ICloud.Session
@@ -245,8 +245,13 @@ callApi api req = do
 
 
 callSEReply
-  :: (FromJSON a) => Api -> Request -> IO (Response (SEReply a))
-callSEReply api req = rawRequest api req >>= mapM asJson
+  :: (FromJSON a) => Api -> Request -> IO (Maybe a)
+callSEReply api req =
+  let
+    extractOrRetry' r | statusCode (responseStatus r) >= 400 = fail $ showStatusOf r
+    extractOrRetry' r = extractOrRetry $ responseBody r
+   in
+    rawRequest api req >>= mapM asJson >>= extractOrRetry'
 
 
 -- confirm the content-type of the response before attempting to parse
@@ -730,9 +735,31 @@ handleSigninComplete api resp = do
 -- sends a request to determine the option
 runTwoX :: (FromJSON a) => Api -> IO a
 runTwoX api = do
-  let handleTwoStep = runTwoStep api pleaseReadCode
-      handleTwoFactor = runTwoFactor api pleaseReadCode
+  let
+    handleTwoStep = runTwoX' (askForTwoStepCode api) pleaseReadCode api
+    handleTwoFactor = runTwoX' (askForTwoFactorCode api) pleaseReadCode api
   twoXChoices api >>= withSelectedPhoneOrDevice handleTwoFactor handleTwoStep
+
+
+runTwoX'
+  :: (AsVerifyRequest b, FromJSON a)
+  => (b -> IO ())
+  -> IO Text
+  -> Api
+  -> b
+  -> IO a
+runTwoX' askForCode enterReceivedCode api verifier = do
+  let maybeRetry = maybe (runTwoX' askForCode enterReceivedCode api verifier) pure
+  askForCode verifier
+  enterReceivedCode >>= verifyCodeOrRetry api verifier >>= maybeRetry
+
+
+verifyCodeOrRetry :: (FromJSON a, AsVerifyRequest b) => Api -> b -> Text -> IO (Maybe a)
+verifyCodeOrRetry api x code =
+  let body = RequestBodyLBS $ encode $ asVerifyRequest x code
+      req' = verifySecurityCodeReq "phone" $ apiEndpoints api
+      req = req'{requestBody = body}
+   in callSEReply api req
 
 
 validate :: Api -> IO ValidateReply
@@ -801,21 +828,6 @@ accountLoginValue hs =
     ]
 
 
-runTwoStep :: (FromJSON a) => Api -> IO Text -> TrustedDevice -> IO a
-runTwoStep api receiveCode td = do
-  askForTwoStepCode api td
-  code <- receiveCode
-  verifyCode api td code
-
-
-verifyCode :: (FromJSON a, AsVerifyRequest b) => Api -> b -> Text -> IO a
-verifyCode api x code =
-  let body = RequestBodyLBS $ encode $ asVerifyRequest x code
-      req' = verifySecurityCodeReq "phone" $ apiEndpoints api
-      req = req'{requestBody = body}
-   in callSEReply api req >>= extractOr'
-
-
 verifySecurityCodeReq :: Text -> Endpoints -> Request
 verifySecurityCodeReq codeType =
   (`extendPath` ("/verify/" <> toS codeType <> "/securitycode"))
@@ -832,13 +844,6 @@ askForTwoStepCode api@Api{apiEndpoints = ep} td =
 
 askForTwoStepCodeBase :: Endpoints -> Request
 askForTwoStepCodeBase = (`extendPath` "/verify/device") . toPut . epAuth
-
-
-runTwoFactor :: (FromJSON a) => Api -> IO Text -> TrustedPhone -> IO a
-runTwoFactor api receiveCode tpn = do
-  askForTwoFactorCode api tpn
-  code <- receiveCode
-  verifyCode api tpn code
 
 
 askForTwoFactorCode :: Api -> TrustedPhone -> IO ()
