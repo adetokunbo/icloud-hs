@@ -13,11 +13,10 @@ Datatypes that model the structured errors returned by the ICloud API.
 -}
 module Network.ICloud.Http.Errors
   ( -- * data types
-    ApiError (..)
-  , ApiResponse (..)
-  , ServiceError (..)
-  , ServiceErrors (..)
-  , SEReply ()
+    ApiResponse (..)
+  , ApiError (..)
+  , SEReply
+  , extractOrRetry
 
     -- * classes
   , ExtractOr (..)
@@ -93,7 +92,7 @@ parseApiError o =
    in ApiError <$> reason <*> code
 
 
--- | Represents a service error, multiple of which might occcur in one api response
+-- | Represents a service error, several of which may be included in one api response
 data ServiceError
   = ServiceError
   { seCode :: !Int
@@ -107,6 +106,18 @@ instance FromJSON ServiceError where
   parseJSON = genericParseJSON $ aesonPrefix snakeCase
 
 
+class IsBadCode a where
+  isBadCode :: a -> Bool
+
+
+instance IsBadCode ServiceError where
+  isBadCode = (== "Incorrect verification code") . seMessage
+
+
+instance IsBadCode [ServiceError] where
+  isBadCode = any isBadCode
+
+
 showServiceErrors :: ServiceErrors -> Text
 showServiceErrors (ServiceErrors Nothing) = "unexpected non-service error response"
 showServiceErrors (ServiceErrors (Just xs)) = Text.concat $ map ((<> ":") . seMessage) xs
@@ -117,6 +128,17 @@ newtype SEReply a = SEReply
   { unSEReply :: Either ServiceErrors a
   }
   deriving (Eq, Show, Generic)
+
+
+{- | Specifies a function that extracts a result from an 'SEReply' indicating if a
+   retry should be attempted
+
+a result of @Nothing@ indicates a retry is necessary
+-}
+extractOrRetry :: SEReply a -> IO (Maybe a)
+extractOrRetry (SEReply (Right x)) = pure (Just x)
+extractOrRetry (SEReply (Left se)) | isBadCode se = pure Nothing
+extractOrRetry (SEReply (Left se)) = fail $ Text.unpack $ showServiceErrors se
 
 
 instance (FromJSON a) => FromJSON (SEReply a) where
@@ -132,6 +154,11 @@ newtype ServiceErrors = ServiceErrors {unServiceErrors :: Maybe [ServiceError]}
 
 instance FromJSON ServiceErrors where
   parseJSON = withObject "ServiceErrors" (fmap ServiceErrors . parseServiceErrors)
+
+
+instance IsBadCode ServiceErrors where
+  isBadCode (ServiceErrors Nothing) = False
+  isBadCode (ServiceErrors (Just xs)) = isBadCode xs
 
 
 parseServiceErrors :: Object -> Parser (Maybe [ServiceError])
