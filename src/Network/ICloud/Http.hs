@@ -65,7 +65,6 @@ import Data.Aeson
 import Data.Aeson.Casing (aesonPrefix, snakeCase)
 import Data.Aeson.KeyMap (fromList)
 import Data.Aeson.Types (Parser, Value (..))
-import Data.Attoparsec.Cookie (readJar, writeNetscapeJar)
 import Data.Base64.Types (extractBase64)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Base16 as Base16
@@ -77,7 +76,6 @@ import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
-import Data.Time (getCurrentTime)
 import Data.Word (Word64)
 import GHC.Generics (Generic)
 import Network.HTTP.Client
@@ -85,11 +83,8 @@ import Network.HTTP.Client
   , Request (..)
   , RequestBody (..)
   , Response (..)
-  , createCookieJar
   , defaultRequest
   , httpLbs
-  , insertCookiesIntoRequest
-  , updateCookieJar
   )
 import Network.HTTP.Client.TLS (newTlsManager)
 import Network.HTTP.Types
@@ -105,6 +100,7 @@ import Network.HTTP.Types
   , methodPost
   , methodPut
   )
+import Network.ICloud.Http.CookieJar
 import Network.ICloud.Http.Errors
   ( ApiResponse
   , ExtractOr (..)
@@ -129,7 +125,6 @@ import Network.ICloud.Trust
   , pleaseReadCode
   , withSelectedPhoneOrDevice
   )
-import System.Directory (doesFileExist)
 
 
 -- | Combines datatypes used whenever the http API is accessed
@@ -276,62 +271,6 @@ showStatusOf resp =
       theStatus = responseStatus resp
       theCode = statusCode theStatus
    in showResponse' theCode theStatus
-
-
-{- |
-if the cookie jar file exists
-then
-  load it.
-  update the cookie jar from the request and response
-  save it
-else
-  ensure its parent directory exists
-  create the cookie jar from the request and response
-  save it
-
-currently unhandled:
-  cannot create directory
-  cannot write due to permissions
-  files exists, but data cannot be parsed
--}
-updateCookieJarOf' :: FilePath -> Response a -> Request -> IO (Response a)
-updateCookieJarOf' dataPath resp req = do
-  pathExists <- doesFileExist dataPath
-  now <- getCurrentTime
-  if pathExists
-    then do
-      readJar dataPath >>= \case
-        Left e -> fail $ show e
-        Right old -> do
-          let (updated, resp_) = updateCookieJar resp req now old
-          writeNetscapeJar dataPath updated
-          pure resp_
-    else do
-      let (updated, resp_) = updateCookieJar resp req now $ createCookieJar []
-      writeNetscapeJar dataPath updated
-      pure resp_
-
-
-addCookiesFromJar :: FilePath -> Request -> IO Request
-addCookiesFromJar dataPath req = do
-  pathExists <- doesFileExist dataPath
-  if not pathExists
-    then pure req
-    else do
-      now <- getCurrentTime
-      readJar dataPath >>= \case
-        Left e -> fail $ show e
-        Right jar -> do
-          let (req', jar') = insertCookiesIntoRequest req jar now
-          writeNetscapeJar dataPath jar'
-          pure req'
-
-
-usingJarCookies :: FilePath -> Request -> (Request -> IO (Response b)) -> IO (Response b)
-usingJarCookies cookieJarPath req doReq = do
-  req' <- addCookiesFromJar cookieJarPath req
-  resp <- doReq req'
-  updateCookieJarOf' cookieJarPath resp req'
 
 
 authHeaders :: Api -> SavedHeaders -> RequestHeaders
