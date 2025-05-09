@@ -1,6 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedLists #-}
@@ -330,47 +329,19 @@ asObject = Object . fromList
 
 mkJsonRequest :: (a -> Request) -> (b -> Value) -> a -> b -> Request
 mkJsonRequest mkBase mkBody baseSrc bodySrc =
-  let body = mkBody bodySrc
-   in mkJsonRequest' mkBase body baseSrc
+  withBody (encode $ mkBody bodySrc) $ mkBase baseSrc
 
 
-mkJsonRequest' :: (a -> Request) -> Value -> a -> Request
-mkJsonRequest' mkBase body baseSrc =
-  let base = mkBase baseSrc
-      encodedBody = encode body
-   in base{requestBody = RequestBodyLBS encodedBody}
-
-
-invoke
+callHandlingResponse
   :: (FromJSON a)
   => (Endpoints -> b -> Request)
-  -> Api
-  -> b
-  -> IO a
-invoke = invoke' id extractOr'
-
-
-invoke'
-  :: (FromJSON a)
-  => (Request -> Request)
+  -> (Request -> Request)
   -> (Response (ApiResponse a) -> IO a)
-  -> (Endpoints -> b -> Request)
   -> Api
   -> b
   -> IO a
-invoke' modReq handleResponse mkReq api@Api{apiEndpoints} x =
+callHandlingResponse mkReq modReq handleResponse api@Api{apiEndpoints} x =
   callApi api (modReq $ mkReq apiEndpoints x) >>= handleResponse
-
-
-invokeWithAuthHdrs
-  :: (FromJSON a)
-  => (Endpoints -> b -> Request)
-  -> Api
-  -> b
-  -> IO a
-invokeWithAuthHdrs mkReq api other = do
-  savedHdrs <- loadSavedHeaders (apiSession api)
-  invoke' (withHeaders (authHeaders api savedHdrs)) extractOr' mkReq api other
 
 
 -- | Update the @SavedHeaders@ using some response headers
@@ -529,7 +500,9 @@ parseSigninInitReply o =
 
 
 signinInit :: Api -> FromClient -> IO SigninInitReply
-signinInit = invokeWithAuthHdrs signinInitReq
+signinInit api other = do
+  savedHdrs <- loadSavedHeaders (apiSession api)
+  callHandlingResponse signinInitReq (withHeaders (authHeaders api savedHdrs)) extractOr' api other
 
 
 -- | Data used during key derivation and verification
@@ -628,10 +601,11 @@ runSigninComplete api@Api{apiSession = session} kd mbResults = do
           }
       onFail = fail "the server public value was invalid"
   maybe onFail (signinComplete api . completion) mbResults
+  increaseTrust api
 
 
 signinComplete :: Api -> SigninCompletion -> IO ()
-signinComplete api = invoke' id (handleSigninComplete api) signinCompleteReq api
+signinComplete api = callHandlingResponse signinCompleteReq id (handleSigninComplete api) api
 
 
 signinCompleteReq :: Endpoints -> SigninCompletion -> Request
@@ -671,13 +645,13 @@ handleSigninComplete api resp = do
     | otherwise -> extractOr body
 
 
--- sends a request to determine the option
+-- | Performs a code verification authentication flow
 runTwoX :: (FromJSON a) => Api -> IO a
 runTwoX api = do
   let
     handleTwoStep = runTwoX' (askForTwoStepCode api) pleaseReadCode api
     handleTwoFactor = runTwoX' (askForTwoFactorCode api) pleaseReadCode api
-  twoXChoices api >>= withSelectedPhoneOrDevice handleTwoFactor handleTwoStep
+  chooseTrustType api >>= withSelectedPhoneOrDevice handleTwoFactor handleTwoStep
 
 
 runTwoX'
@@ -695,9 +669,8 @@ runTwoX' askForCode enterReceivedCode api verifier = do
 
 verifyCodeOrRetry :: (FromJSON a, AsVerifyRequest b) => Api -> b -> Text -> IO (Maybe a)
 verifyCodeOrRetry api x code =
-  let body = RequestBodyLBS $ encode $ asVerifyRequest x code
-      req' = verifySecurityCodeReq "phone" $ apiEndpoints api
-      req = req'{requestBody = body}
+  let req' = verifySecurityCodeReq "phone" $ apiEndpoints api
+      req = withBody (encode $ asVerifyRequest x code) req'
    in callSEReply api req
 
 
@@ -706,7 +679,7 @@ validate api@Api{apiEndpoints} = callApi api (validateReq apiEndpoints) >>= extr
 
 
 validateReq :: Endpoints -> Request
-validateReq = mkJsonRequest' validateBase Null
+validateReq = withBody (encode Null) . validateBase
 
 
 validateBase :: Endpoints -> Request
@@ -729,14 +702,10 @@ instance ToJSON ValidateReply where
   toEncoding = genericToEncoding simpleOptions
 
 
-twoSvTrust :: Endpoints -> Request
-twoSvTrust = (`extendPath` "/2sv/trust") . toGet . epAuth
-
-
 accountLogin :: Api -> IO ValidateReply
 accountLogin api = do
   savedHdrs <- loadSavedHeaders $ apiSession api
-  invoke accountLoginReq api savedHdrs
+  callHandlingResponse accountLoginReq id extractOr' api savedHdrs
 
 
 accountLoginReq :: Endpoints -> SavedHeaders -> Request
@@ -747,8 +716,16 @@ accountLoginBase :: Endpoints -> Request
 accountLoginBase = (`extendPath` "/accountLogin") . epSetup
 
 
-twoXChoices :: Api -> IO TrustData
-twoXChoices api@Api{apiEndpoints = ep} = callRequiredHeaders api (epAuth ep)
+chooseTrustType :: Api -> IO TrustData
+chooseTrustType api@Api{apiEndpoints = ep} = callRequiredHeaders api (epAuth ep)
+
+
+increaseTrust :: Api -> IO ()
+increaseTrust api = callRequiredHeaders api $ twoSvTrust (apiEndpoints api)
+
+
+twoSvTrust :: Endpoints -> Request
+twoSvTrust = (`extendPath` "/2sv/trust") . toGet . epAuth
 
 
 callRequiredHeaders :: (FromJSON a) => Api -> Request -> IO a
@@ -793,8 +770,7 @@ askForTwoFactorCode api tp = do
           [ ("mode", String mode)
           , ("phoneNumber", Object [("id", toJSON (tpnId tp))])
           ]
-      req' = askForTwoFactorCodeBase $ apiEndpoints api
-      req = req'{requestBody = RequestBodyLBS $ encode value}
+      req = withBody (encode value) $ askForTwoFactorCodeBase $ apiEndpoints api
   callRequiredHeaders api req
 
 
@@ -804,14 +780,6 @@ askForTwoFactorCodeBase =
     . toPut
     . withHeaders [(hContentType, "application/json")]
     . epAuth
-
-
-validate2FA :: Endpoints -> Request
-validate2FA = (`extendPath` "/verify/trusteddevice/securitycode") . epSetup
-
-
-validate2FAValue :: Text -> Value
-validate2FAValue code = Object [("securityCode", Object [("code", String code)])]
 
 
 validateVerification :: Endpoints -> Request
@@ -828,6 +796,10 @@ listDevices = (`extendPath` "/listDevices") . toGet . epSetup
 
 withHeaders :: RequestHeaders -> Request -> Request
 withHeaders requestHeaders req = req{requestHeaders}
+
+
+withBody :: LBS.LazyByteString -> Request -> Request
+withBody b req = req{requestBody = RequestBodyLBS b}
 
 
 simpleOptions :: Options
