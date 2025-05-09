@@ -177,8 +177,6 @@ data TrustData = TrustData
   deriving (Eq, Show)
 
 
-
-
 -- | Selects a phone/device and applies the appropriate handler
 withSelectedPhoneOrDevice
   :: (TrustedPhone -> IO a) -> (TrustedDevice -> IO a) -> TrustData -> IO a
@@ -187,6 +185,8 @@ withSelectedPhoneOrDevice handlePhone handleDevice = do
       ikou (TrustedPhoneNumbers [y]) = handlePhone y
       ikou (TrustedPhoneNumbers ys) = selectPhone ys >>= handlePhone
   ikou . tdList
+
+
 toJSONTrustData :: TrustData -> Value
 toJSONTrustData td =
   let asPairs (Object o) = toList o
