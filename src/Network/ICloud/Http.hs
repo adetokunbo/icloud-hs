@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
@@ -50,18 +49,13 @@ import Data.Aeson
   ( FromJSON (..)
   , Key
   , Object
-  , Options (..)
   , ToJSON (..)
   , eitherDecode
   , encode
-  , genericParseJSON
-  , genericToEncoding
-  , genericToJSON
   , withObject
   , withText
   , (.:)
   )
-import Data.Aeson.Casing (aesonPrefix, snakeCase)
 import Data.Aeson.KeyMap (fromList)
 import Data.Aeson.Types (Parser, Value (..))
 import Data.Base64.Types (extractBase64)
@@ -76,7 +70,6 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
 import Data.Word (Word64)
-import GHC.Generics (Generic)
 import Network.HTTP.Client
   ( Manager
   , Request (..)
@@ -115,6 +108,7 @@ import Network.ICloud.Session
   , loadSession
   , pristine
   , runSrpAuth
+  , saveLoginMsg
   , updateSessionSavedHeaders
   )
 import Network.ICloud.Trust
@@ -161,8 +155,8 @@ login :: Api -> IO ()
 login api = do
   active <- hasActiveSession api
   unless active $ do
-    _completionReply <- runApiSrpAuth api
-    _ <- accountLogin api
+    runApiSrpAuth api
+    accountLogin api >>= saveLoginMsg (apiSession api)
     pure ()
 
 
@@ -674,7 +668,7 @@ verifyCodeOrRetry api x code =
    in callSEReply api req
 
 
-validate :: Api -> IO ValidateReply
+validate :: Api -> IO Value
 validate api@Api{apiEndpoints} = callApi api (validateReq apiEndpoints) >>= extractOr'
 
 
@@ -686,23 +680,7 @@ validateBase :: Endpoints -> Request
 validateBase ep = withHeaders (commonHeaders ep) $ (`extendPath` "/validate") $ epSetup ep
 
 
-data ValidateReply = ValidateReply
-  { vrIsExtendedLogin :: !Bool
-  , vrHsaChallengeRequired :: !Bool
-  }
-  deriving (Eq, Show, Generic)
-
-
-instance FromJSON ValidateReply where
-  parseJSON = genericParseJSON simpleOptions
-
-
-instance ToJSON ValidateReply where
-  toJSON = genericToJSON simpleOptions
-  toEncoding = genericToEncoding simpleOptions
-
-
-accountLogin :: Api -> IO ValidateReply
+accountLogin :: Api -> IO Value
 accountLogin api = do
   savedHdrs <- loadSavedHeaders $ apiSession api
   callHandlingResponse accountLoginReq id extractOr' api savedHdrs
@@ -800,10 +778,6 @@ withHeaders requestHeaders req = req{requestHeaders}
 
 withBody :: LBS.LazyByteString -> Request -> Request
 withBody b req = req{requestBody = RequestBodyLBS b}
-
-
-simpleOptions :: Options
-simpleOptions = aesonPrefix snakeCase
 
 
 class AsVerifyRequest a where

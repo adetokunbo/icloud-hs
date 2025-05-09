@@ -20,6 +20,7 @@ module Network.ICloud.Session
   , clientIdPath
   , credentialsPath
   , savedHeadersPath
+  , loginMsgPath
 
     -- * Session
   , Session (..)
@@ -30,6 +31,7 @@ module Network.ICloud.Session
   , newClientId
   , updateSessionSavedHeaders
   , pristine
+  , saveLoginMsg
 
     -- * path components
   , appBase
@@ -50,7 +52,9 @@ import Data.Aeson
   , KeyValue (..)
   , Options (..)
   , ToJSON (..)
+  , Value
   , eitherDecodeFileStrict
+  , encode
   , encodeFile
   , genericParseJSON
   , genericToEncoding
@@ -60,6 +64,7 @@ import Data.Aeson
   , (.:)
   )
 import Data.Aeson.Casing (aesonPrefix, snakeCase)
+import qualified Data.ByteString.Lazy as LBS
 import Data.Char (isAlphaNum)
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -106,6 +111,16 @@ credentials
 -}
 clientIdPath :: FilePath -> Credentials -> FilePath
 clientIdPath topDir creds = topDir </> Text.unpack (clientIdBase creds)
+
+
+-- | Determine the path of file to save the message the api returns on logon
+loginMsgPath :: FilePath -> Credentials -> FilePath
+loginMsgPath topDir creds = topDir </> Text.unpack (loginMsgBase creds)
+
+
+-- | Save the login message to user specific filepath
+saveLoginMsg :: Session -> Value -> IO ()
+saveLoginMsg Session{sessionCreds = creds, sessionTopDir = topDir} = saveValue (loginMsgPath topDir creds)
 
 
 {- | Determine the path of file containing the credentials in the configuration
@@ -160,6 +175,10 @@ sessionBase = (<> ".session.json") . sprucedName
 
 clientIdBase :: Credentials -> Text
 clientIdBase = (<> ".client-id.txt") . sprucedName
+
+
+loginMsgBase :: Credentials -> Text
+loginMsgBase = (<> ".last-logon.json") . sprucedName
 
 
 -- | Data obtained from HTTP response headers that define a user session
@@ -237,6 +256,11 @@ runSrpAuth mkClientSide stepOne stepTwo = do
   clientSide <- mkClientSide
   (serverSide, extra) <- stepOne clientSide
   stepTwo extra (calcResults extra clientSide serverSide)
+
+
+-- | Save's a JSON @Value@ to @filepath@
+saveValue :: FilePath -> Value -> IO ()
+saveValue fp v = LBS.writeFile fp $ encode v
 
 
 loadCredentials :: FilePath -> IO (Either String Credentials)
