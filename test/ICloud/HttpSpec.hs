@@ -8,15 +8,16 @@ import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified ICloud.Examples as Examples
 import Network.HTTP.Types (HeaderName)
-import Network.ICloud.Http
-  ( hCounter
+import Network.ICloud.Session
+  ( SavedHeaders (..)
+  , hCounter
   , hCountry
   , hSessionId
   , hSessionToken
   , hTrustToken
+  , pristine
   , updateSavedHeaders
   )
-import Network.ICloud.Session (SavedHeaders (..), pristine)
 import Test.Hspec (Spec, context, describe, it)
 import Test.QuickCheck
   ( Gen

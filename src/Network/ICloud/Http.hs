@@ -16,21 +16,11 @@ module Network.ICloud.Http
   , Realm (..)
 
     -- * functions
-  , updateSavedHeaders
   , mkApi
   , login
-
-    -- * HTTP header names
-  , hCounter
-  , hCountry
-  , hSessionId
-  , hSessionToken
-  , hTrustToken
-  , hOrigin
   )
 where
 
-import Control.Applicative (Alternative (..), (<|>))
 import Control.Monad (unless)
 import qualified Crypto.Hash.SHA256 as SHA256
 import Crypto.SRP
@@ -109,6 +99,7 @@ import Network.ICloud.Session
   , pristine
   , runSrpAuth
   , saveLoginMsg
+  , updateSavedHeaders
   , updateSessionSavedHeaders
   )
 import Network.ICloud.Trust
@@ -338,18 +329,6 @@ callHandlingResponse mkReq modReq handleResponse api@Api{apiEndpoints} x =
   callApi api (modReq $ mkReq apiEndpoints x) >>= handleResponse
 
 
--- | Update the @SavedHeaders@ using some response headers
-updateSavedHeaders :: [Header] -> SavedHeaders -> SavedHeaders
-updateSavedHeaders hs sd =
-  sd
-    { shCountry = (toS <$> lookup hCountry hs) <|> shCountry sd
-    , shSessionId = (toS <$> lookup hSessionId hs) <|> shSessionId sd
-    , shSessionToken = (toS <$> lookup hSessionToken hs) <|> shSessionToken sd
-    , shTrustToken = (toS <$> lookup hTrustToken hs) <|> shTrustToken sd
-    , shCounter = (toS <$> lookup hCounter hs) <|> shCounter sd
-    }
-
-
 -- | The known "realms" that have with different API endpoints.
 data Realm = China | Usual
   deriving (Eq, Show)
@@ -399,18 +378,12 @@ setupReq = apiRequest{host = "setup.icloud.com", path = "/setup/ws/1"}
 
 
 -- | Header names used in auth and server HTTP requests
-hCountry
-  , hSessionId
-  , hSessionToken
-  , hTrustToken
+hSessionId
   , hCounter
   , hOrigin
   , hClientId
     :: HeaderName
-hCountry = mk "X-Apple-ID-Account-Country"
 hSessionId = mk "X-Apple-ID-Session-Id"
-hSessionToken = mk "X-Apple-Session-Token"
-hTrustToken = mk "X-Apple-TwoSV-Trust-Token"
 hCounter = mk "scnt"
 hOrigin = mk "Origin"
 hClientId = mk "X-Apple-OAuth-State"

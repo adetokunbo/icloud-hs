@@ -30,8 +30,17 @@ module Network.ICloud.Session
   , runSrpAuth
   , newClientId
   , updateSessionSavedHeaders
+  , updateSavedHeaders
   , pristine
   , saveLoginMsg
+
+    -- ** header names
+  , hCounter
+  , hCountry
+  , hSessionId
+  , hSessionToken
+  , hTrustToken
+  , hOrigin
 
     -- * path components
   , appBase
@@ -39,6 +48,7 @@ module Network.ICloud.Session
   )
 where
 
+import Control.Applicative ((<|>))
 import Control.Monad ((>=>))
 import Crypto.SRP
   ( FromClient (..)
@@ -65,16 +75,47 @@ import Data.Aeson
   )
 import Data.Aeson.Casing (aesonPrefix, snakeCase)
 import qualified Data.ByteString.Lazy as LBS
+import Data.CaseInsensitive (mk)
 import Data.Char (isAlphaNum)
+import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.UUID (toText)
 import Data.UUID.V4 (nextRandom)
 import GHC.Generics (Generic)
+import Network.HTTP.Types.Header (Header, HeaderName)
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 import System.Environment.XDG.BaseDir (getUserConfigDir)
 import System.FilePath ((</>))
+
+
+-- | @HeaderName@s used to capture session info from HTTP responses
+hCountry
+  , hSessionId
+  , hSessionToken
+  , hTrustToken
+  , hCounter
+  , hOrigin
+    :: HeaderName
+hCountry = mk "X-Apple-ID-Account-Country"
+hSessionId = mk "X-Apple-ID-Session-Id"
+hSessionToken = mk "X-Apple-Session-Token"
+hTrustToken = mk "X-Apple-TwoSV-Trust-Token"
+hCounter = mk "scnt"
+hOrigin = mk "Origin"
+
+
+-- | Update the @SavedHeaders@ using some response headers
+updateSavedHeaders :: [Header] -> SavedHeaders -> SavedHeaders
+updateSavedHeaders hs sd =
+  sd
+    { shCountry = (toS <$> lookup hCountry hs) <|> shCountry sd
+    , shSessionId = (toS <$> lookup hSessionId hs) <|> shSessionId sd
+    , shSessionToken = (toS <$> lookup hSessionToken hs) <|> shSessionToken sd
+    , shTrustToken = (toS <$> lookup hTrustToken hs) <|> shTrustToken sd
+    , shCounter = (toS <$> lookup hCounter hs) <|> shCounter sd
+    }
 
 
 -- | Persistent data that identifies a user and their authentication state.
