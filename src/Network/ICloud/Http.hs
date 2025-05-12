@@ -269,7 +269,7 @@ authHeaders api savedHdrs =
           [ maybeHeaderOf hCounter $ shCounter savedHdrs
           , maybeHeaderOf hSessionId $ shSessionId savedHdrs
           ]
-   in staticHeaders <> endpointHeaders ep <> sdHeaders <> cidHeader
+   in appleOauthHeaders <> endpointHeaders ep <> sdHeaders <> cidHeader
 
 
 requiredHeaders :: SavedHeaders -> RequestHeaders
@@ -389,8 +389,8 @@ hOrigin = mk "Origin"
 hClientId = mk "X-Apple-OAuth-State"
 
 
-staticHeaders :: [Header]
-staticHeaders =
+appleOauthHeaders :: [Header]
+appleOauthHeaders =
   [ ("X-Apple-OAuth-Client-Id", xAppleKey)
   , ("X-Apple-OAuth-Client-Type", "firstPartyAuth")
   , ("X-Apple-OAuth-Redirect-URI", "https://www.icloud.com")
