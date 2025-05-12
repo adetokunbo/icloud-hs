@@ -11,12 +11,8 @@ Maintainer  : Tim Emiola <adetokunbo@emio.la>
 SPDX-License-Identifier: BSD3
 -}
 module Network.ICloud.Http
-  ( -- * data types
-    Endpoints (..)
-  , Realm (..)
-
-    -- * functions
-  , mkApi
+  ( -- * functions
+    mkApi
   , login
   )
 where
@@ -63,26 +59,36 @@ import Data.Word (Word64)
 import Network.HTTP.Client
   ( Manager
   , Request (..)
-  , RequestBody (..)
   , Response (..)
-  , defaultRequest
   , httpLbs
   )
 import Network.HTTP.Client.TLS (newTlsManager)
 import Network.HTTP.Types
-  ( Header
-  , HeaderName
+  ( HeaderName
   , RequestHeaders
   , Status (..)
-  , hAccept
   , hContentType
-  , hReferer
-  , hUserAgent
-  , methodGet
-  , methodPost
-  , methodPut
   )
 import Network.ICloud.Http.CookieJar
+import Network.ICloud.Http.Endpoints
+  ( Endpoints (..)
+  , Realm
+  , accountLoginBase
+  , extendPath
+  , homeHeaders
+  , realmEndpoints
+  , signinCompleteBase
+  , signinInitBase
+  , toPut
+  , twoSvTrust
+  , validateBase
+  , verifySecurityCodeReq
+  , withAcceptJson
+  , withAppleOauthHeaders
+  , withBody
+  , withHeaders
+  , withICloudWidgetKey
+  )
 import Network.ICloud.Http.Errors
   ( ApiResponse
   , ExtractOr (..)
@@ -126,13 +132,14 @@ data Api = Api
 mkApi :: Realm -> IO Api
 mkApi realm = do
   let apiHashAlgorithm = SHA256
+      apiGroup = G2048
       apiEndpoints = realmEndpoints realm
   apiManager <- newTlsManager
   apiSession <- loadSession
   apiWrappedPseudoRF <- wrapIO SHA256.hmac $ digestSize apiHashAlgorithm
   pure
     Api
-      { apiGroup = G2048
+      { apiGroup
       , apiEndpoints
       , apiManager
       , apiHashAlgorithm
@@ -148,7 +155,6 @@ login api = do
   unless active $ do
     runApiSrpAuth api
     accountLogin api >>= saveLoginMsg (apiSession api)
-    pure ()
 
 
 {- | Check if there is an active session
@@ -165,15 +171,15 @@ hasActiveSession api =
 
 -- | Implements the SRP authentication sequence using the ICloud API
 runApiSrpAuth :: Api -> IO ()
-runApiSrpAuth api@Api{apiSession} = do
+runApiSrpAuth api@Api{apiSession, apiGroup} = do
   let Credentials
         { credAccountName = user
         , credPassword = password
         } = sessionCreds apiSession
-      mkClientSide = mkFromClient user password $ apiGroup api
+      mkSrpClient = mkFromClient user password apiGroup
       stepOne = runSigninInit api
       stepTwo = runSigninComplete api
-  runSrpAuth mkClientSide stepOne stepTwo
+  runSrpAuth mkSrpClient stepOne stepTwo
 
 
 -- | Make a session request and obtain the raw byte results
@@ -269,7 +275,7 @@ authHeaders api savedHdrs =
           [ maybeHeaderOf hCounter $ shCounter savedHdrs
           , maybeHeaderOf hSessionId $ shSessionId savedHdrs
           ]
-   in appleOauthHeaders <> endpointHeaders ep <> sdHeaders <> cidHeader
+   in withAppleOauthHeaders $ homeHeaders ep <> sdHeaders <> cidHeader
 
 
 requiredHeaders :: SavedHeaders -> RequestHeaders
@@ -281,27 +287,7 @@ requiredHeaders savedHdrs =
           [ maybeHeaderOf hCounter $ shCounter savedHdrs
           , maybeHeaderOf hSessionId $ shSessionId savedHdrs
           ]
-   in acceptJson : widgetKey : sdHeaders
-
-
-endpointHeaders :: Endpoints -> RequestHeaders
-endpointHeaders ep = [(hOrigin, epHome ep), (hReferer, epHome ep <> "/")]
-
-
-commonHeaders :: Endpoints -> RequestHeaders
-commonHeaders ep = userAgent : endpointHeaders ep
-
-
-extendPath :: Request -> ByteString -> Request
-extendPath req suffix = req{path = path req <> suffix}
-
-
-toGet :: Request -> Request
-toGet req = req{method = methodGet}
-
-
-toPut :: Request -> Request
-toPut req = req{method = methodPut}
+   in withAcceptJson . withICloudWidgetKey $ sdHeaders
 
 
 maybeValue :: (a -> Value) -> Maybe a -> Value
@@ -329,96 +315,14 @@ callHandlingResponse mkReq modReq handleResponse api@Api{apiEndpoints} x =
   callApi api (modReq $ mkReq apiEndpoints x) >>= handleResponse
 
 
--- | The known "realms" that have with different API endpoints.
-data Realm = China | Usual
-  deriving (Eq, Show)
-
-
-realmEndpoints :: Realm -> Endpoints
-realmEndpoints China = chinaEndpoints
-realmEndpoints Usual = usualEndpoints
-
-
--- | A base URL roots and default Request used to construct other service Requests
-data Endpoints = Endpoints
-  { epHome :: !ByteString
-  , epAuth :: !Request
-  , epSetup :: !Request
-  }
-
-
-usualEndpoints :: Endpoints
-usualEndpoints =
-  Endpoints
-    { epHome = "https://www.icloud.com"
-    , epAuth = authReq
-    , epSetup = setupReq
-    }
-
-
-chinaEndpoints :: Endpoints
-chinaEndpoints =
-  Endpoints
-    { epHome = "https://www.icloud.com.cn"
-    , epAuth = authReq
-    , epSetup = setupReq{host = "setup.icloud.com.cn"}
-    }
-
-
-apiRequest :: Request
-apiRequest = defaultRequest{secure = True, method = methodPost}
-
-
-authReq :: Request
-authReq = apiRequest{host = "idmsa.apple.com", path = "/appleauth/auth"}
-
-
-setupReq :: Request
-setupReq = apiRequest{host = "setup.icloud.com", path = "/setup/ws/1"}
-
-
--- | Header names used in auth and server HTTP requests
+-- | @HeaderName@ used to represent API session data
 hSessionId
   , hCounter
-  , hOrigin
   , hClientId
     :: HeaderName
 hSessionId = mk "X-Apple-ID-Session-Id"
 hCounter = mk "scnt"
-hOrigin = mk "Origin"
 hClientId = mk "X-Apple-OAuth-State"
-
-
-appleOauthHeaders :: [Header]
-appleOauthHeaders =
-  [ ("X-Apple-OAuth-Client-Id", xAppleKey)
-  , ("X-Apple-OAuth-Client-Type", "firstPartyAuth")
-  , ("X-Apple-OAuth-Redirect-URI", "https://www.icloud.com")
-  , ("X-Apple-OAuth-Require-Grant-Code", "true")
-  , ("X-Apple-OAuth-Response-Mode", "web_message")
-  , ("X-Apple-OAuth-Response-Type", "code")
-  , widgetKey
-  ]
-
-
-xAppleKey :: ByteString
-xAppleKey = "d39ba9916b7251055b22c7f910e2ea796ee65e98b2ddecea8f5dde8d9d1a815d"
-
-
-browserAgent :: ByteString
-browserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"
-
-
-userAgent :: Header
-userAgent = (hUserAgent, browserAgent)
-
-
-widgetKey :: Header
-widgetKey = ("X-Apple-Widget-Key", xAppleKey)
-
-
-acceptJson :: Header
-acceptJson = (hAccept, "application/json")
 
 
 -- | Models the known values of password protocol
@@ -529,14 +433,6 @@ signinInitReq :: Endpoints -> FromClient -> Request
 signinInitReq = mkJsonRequest signinInitBase signinInitValue
 
 
-signinInitBase :: Endpoints -> Request
-signinInitBase =
-  let
-    withQuery x = x{queryString = "?isRememberMeEnabled=true"}
-   in
-    withQuery . (`extendPath` "/signin/init") . epAuth
-
-
 signinInitValue :: FromClient -> Value
 signinInitValue fc =
   let a = extractBase64 $ encodeBase64 $ fcPublicBytes fc
@@ -579,10 +475,6 @@ signinCompleteReq :: Endpoints -> SigninCompletion -> Request
 signinCompleteReq = mkJsonRequest signinCompleteBase signinCompleteValue
 
 
-signinCompleteBase :: Endpoints -> Request
-signinCompleteBase = (`extendPath` "/signin/complete") . epAuth
-
-
 signinCompleteValue :: SigninCompletion -> Value
 signinCompleteValue sc =
   let Results{rClientProof, rServerProof} = siResults sc
@@ -607,34 +499,34 @@ handleSigninComplete api resp = do
     | code == 401 -> fail "invalid username or password"
     | code == 403 -> fail "account is locked"
     | code == 412 -> fail "need to login to Apple and acknowledge the privacy agreement"
-    | code == 409 -> runTwoX api
+    | code == 409 -> checkAuthCode api
     | code >= 400 -> fail $ showStatusOf resp
     | otherwise -> extractOr body
 
 
 -- | Performs a code verification authentication flow
-runTwoX :: (FromJSON a) => Api -> IO a
-runTwoX api = do
+checkAuthCode :: (FromJSON a) => Api -> IO a
+checkAuthCode api = do
   let
-    handleTwoStep = runTwoX' (askForTwoStepCode api) pleaseReadCode api
-    handleTwoFactor = runTwoX' (askForTwoFactorCode api) pleaseReadCode api
+    handleTwoStep = checkAuthCode' (askForTwoStepCode api) pleaseReadCode api
+    handleTwoFactor = checkAuthCode' (askForTwoFactorCode api) pleaseReadCode api
   chooseTrustType api >>= withSelectedPhoneOrDevice handleTwoFactor handleTwoStep
 
 
-runTwoX'
+checkAuthCode'
   :: (AsVerifyRequest b, FromJSON a)
   => (b -> IO ())
-  -> IO Text
+  -> IO AuthCode
   -> Api
   -> b
   -> IO a
-runTwoX' askForCode enterReceivedCode api verifier = do
-  let maybeRetry = maybe (runTwoX' askForCode enterReceivedCode api verifier) pure
-  askForCode verifier
-  enterReceivedCode >>= verifyCodeOrRetry api verifier >>= maybeRetry
+checkAuthCode' seekAuthCode enterAuthCode api verifier = do
+  let maybeRetry = maybe (checkAuthCode' seekAuthCode enterAuthCode api verifier) pure
+  seekAuthCode verifier
+  enterAuthCode >>= verifyCodeOrRetry api verifier >>= maybeRetry
 
 
-verifyCodeOrRetry :: (FromJSON a, AsVerifyRequest b) => Api -> b -> Text -> IO (Maybe a)
+verifyCodeOrRetry :: (FromJSON a, AsVerifyRequest b) => Api -> b -> AuthCode -> IO (Maybe a)
 verifyCodeOrRetry api x code =
   let req' = verifySecurityCodeReq "phone" $ apiEndpoints api
       req = withBody (encode $ asVerifyRequest x code) req'
@@ -649,10 +541,6 @@ validateReq :: Endpoints -> Request
 validateReq = withBody (encode Null) . validateBase
 
 
-validateBase :: Endpoints -> Request
-validateBase ep = withHeaders (commonHeaders ep) $ (`extendPath` "/validate") $ epSetup ep
-
-
 accountLogin :: Api -> IO Value
 accountLogin api = do
   savedHdrs <- loadSavedHeaders $ apiSession api
@@ -663,20 +551,12 @@ accountLoginReq :: Endpoints -> SavedHeaders -> Request
 accountLoginReq = mkJsonRequest accountLoginBase accountLoginValue
 
 
-accountLoginBase :: Endpoints -> Request
-accountLoginBase = (`extendPath` "/accountLogin") . epSetup
-
-
 chooseTrustType :: Api -> IO TrustData
 chooseTrustType api@Api{apiEndpoints = ep} = callRequiredHeaders api (epAuth ep)
 
 
 increaseTrust :: Api -> IO ()
 increaseTrust api = callRequiredHeaders api $ twoSvTrust (apiEndpoints api)
-
-
-twoSvTrust :: Endpoints -> Request
-twoSvTrust = (`extendPath` "/2sv/trust") . toGet . epAuth
 
 
 callRequiredHeaders :: (FromJSON a) => Api -> Request -> IO a
@@ -695,66 +575,39 @@ accountLoginValue hs =
     ]
 
 
-verifySecurityCodeReq :: Text -> Endpoints -> Request
-verifySecurityCodeReq codeType =
-  (`extendPath` ("/verify/" <> toS codeType <> "/securitycode"))
-    . withHeaders [(hContentType, "application/json")]
-    . epAuth
-
-
 askForTwoStepCode :: Api -> TrustedDevice -> IO ()
 askForTwoStepCode api@Api{apiEndpoints = ep} td =
   let pathTail = toS $ "/" <> tdId td <> "/securitycode"
-      mkTheReq = (`extendPath` pathTail) . askForTwoStepCodeBase
-   in callRequiredHeaders api (mkTheReq ep)
-
-
-askForTwoStepCodeBase :: Endpoints -> Request
-askForTwoStepCodeBase = (`extendPath` "/verify/device") . toPut . epAuth
+      mkReqBase = (`extendPath` "/verify/device") . toPut . epAuth
+      mkReq = (`extendPath` pathTail) . mkReqBase
+   in callRequiredHeaders api (mkReq ep)
 
 
 askForTwoFactorCode :: Api -> TrustedPhone -> IO ()
 askForTwoFactorCode api tp = do
   let mode = fromMaybe "sms" $ tpnPushMode tp
+      mkReq =
+        (`extendPath` "/verify/phone")
+          . toPut
+          . withHeaders [(hContentType, "application/json")]
+          . epAuth
       value =
         Object
           [ ("mode", String mode)
           , ("phoneNumber", Object [("id", toJSON (tpnId tp))])
           ]
-      req = withBody (encode value) $ askForTwoFactorCodeBase $ apiEndpoints api
+      req = withBody (encode value) $ mkReq $ apiEndpoints api
   callRequiredHeaders api req
 
 
-askForTwoFactorCodeBase :: Endpoints -> Request
-askForTwoFactorCodeBase =
-  (`extendPath` "/verify/phone")
-    . toPut
-    . withHeaders [(hContentType, "application/json")]
-    . epAuth
-
-
-validateVerification :: Endpoints -> Request
-validateVerification = (`extendPath` "/validateVerificationCode") . epSetup
-
-
-sendVerification :: Endpoints -> Request
-sendVerification = (`extendPath` "/sendVerificationCode") . epSetup
-
-
-listDevices :: Endpoints -> Request
-listDevices = (`extendPath` "/listDevices") . toGet . epSetup
-
-
-withHeaders :: RequestHeaders -> Request -> Request
-withHeaders requestHeaders req = req{requestHeaders}
-
-
-withBody :: LBS.LazyByteString -> Request -> Request
-withBody b req = req{requestBody = RequestBodyLBS b}
+{- | The code sent to a user device that the user must enter to confirm
+authenticity
+-}
+type AuthCode = Text
 
 
 class AsVerifyRequest a where
-  asVerifyRequest :: a -> Text -> Value
+  asVerifyRequest :: a -> AuthCode -> Value
 
 
 instance AsVerifyRequest TrustedPhone where
