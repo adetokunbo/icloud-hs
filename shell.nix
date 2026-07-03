@@ -1,5 +1,6 @@
+{ ghc ? (import ./dev.nix).compiler-nix-name }:
 let
-  project = import ./default.nix {};
+  project = import ./default.nix { inherit ghc; };
 in
   project.shellFor {
     # Don't build haddock to optimize build time
@@ -12,8 +13,7 @@ in
       hlint = "latest";
       haskell-language-server = "latest";
       ghcid = "latest";
-      fourmolu = "0.15.0.0";
-      cabal-fmt = "latest";
+      fourmolu = "latest";
     };
     # See overlays/tools.nix for more details
 

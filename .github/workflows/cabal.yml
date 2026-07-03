@@ -18,7 +18,7 @@ jobs:
     strategy:
       matrix:
         cabal: ["3.10"]
-        ghc: ["8.8.4", "8.10.7", "9.0.2", "9.2.8", "9.4.5"]
+        ghc: ["8.10.7", "9.0.2", "9.2.8", "9.4.8", "9.6", "9.8", "9.10", "9.12"]
     env:
       CONFIG: "--enable-tests --enable-benchmarks --flags=build-the-readme"
     steps:
@@ -41,3 +41,17 @@ jobs:
       - run: cabal build all $CONFIG
       - run: cabal test all
       - run: cabal sdist all
+  build-latest:
+    runs-on: ubuntu-latest
+    needs: fourmolu
+    env:
+      CONFIG: "--enable-tests --enable-benchmarks --flags=build-the-readme --flags=use-doc-tests"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: haskell-actions/setup@v2
+        with:
+          ghc-version: "9.12"
+          cabal-version: "latest"
+      - run: cabal update
+      - run: cabal build $CONFIG
+      - run: cabal test $CONFIG
