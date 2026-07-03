@@ -14,6 +14,9 @@ module Network.ICloud.Http
   ( -- * functions
     mkApi
   , login
+
+    -- * classes
+  , AsVerifyRequest (..)
   )
 where
 
@@ -528,7 +531,7 @@ checkAuthCode' seekAuthCode enterAuthCode api verifier = do
 
 verifyCodeOrRetry :: (FromJSON a, AsVerifyRequest b) => Api -> b -> AuthCode -> IO (Maybe a)
 verifyCodeOrRetry api x code =
-  let req' = verifySecurityCodeReq "phone" $ apiEndpoints api
+  let req' = verifySecurityCodeReq (verifyCodeType x) $ apiEndpoints api
       req = withBody (encode $ asVerifyRequest x code) req'
    in callSEReply api req
 
@@ -608,9 +611,11 @@ type AuthCode = Text
 
 class AsVerifyRequest a where
   asVerifyRequest :: a -> AuthCode -> Value
+  verifyCodeType  :: a -> Text
 
 
 instance AsVerifyRequest TrustedPhone where
+  verifyCodeType _ = "phone"
   asVerifyRequest tpn code =
     Object
       [ ("securityCode", String code)
@@ -620,6 +625,7 @@ instance AsVerifyRequest TrustedPhone where
 
 
 instance AsVerifyRequest TrustedDevice where
+  verifyCodeType _ = "trusteddevice"
   asVerifyRequest td code =
     Object
       [ ("securityCode", String code)

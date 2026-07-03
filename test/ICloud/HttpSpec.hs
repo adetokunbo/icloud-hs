@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module ICloud.HttpSpec
   ( spec
   )
@@ -8,6 +10,7 @@ import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified ICloud.Examples as Examples
 import Network.HTTP.Types (HeaderName)
+import Network.ICloud.Http (AsVerifyRequest (..))
 import Network.ICloud.Session
   ( SavedHeaders (..)
   , hCounter
@@ -18,7 +21,8 @@ import Network.ICloud.Session
   , pristine
   , updateSavedHeaders
   )
-import Test.Hspec (Spec, context, describe, it)
+import Network.ICloud.Trust (TrustedDevice (..), TrustedPhone (..))
+import Test.Hspec (Spec, context, describe, it, shouldBe)
 import Test.QuickCheck
   ( Gen
   , Property
@@ -32,6 +36,7 @@ import Test.QuickCheck
 spec :: Spec
 spec = describe "module Network.ICloud.Http" $ do
   updateSavedHeadersSpec
+  verifyCodeTypeSpec
 
 
 updateSavedHeadersSpec :: Spec
@@ -64,3 +69,13 @@ sdChecks =
   , (hTrustToken, shTrustToken)
   , (hCounter, shCounter)
   ]
+
+
+verifyCodeTypeSpec :: Spec
+verifyCodeTypeSpec = describe "verifyCodeType" $ do
+  let phone  = TrustedPhone 1 "+1234" Nothing
+      device = TrustedDevice "dev-id" "MacBook" "Mac"
+  it "is 'phone' for TrustedPhone" $
+    verifyCodeType phone `shouldBe` "phone"
+  it "is 'trusteddevice' for TrustedDevice" $
+    verifyCodeType device `shouldBe` "trusteddevice"
