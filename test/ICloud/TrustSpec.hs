@@ -9,7 +9,9 @@ SPDX-License-Identifier: BSD3
 -}
 module ICloud.TrustSpec (spec, encode, genTrustData, genTrustedList) where
 
-import Data.Aeson (decode, encode)
+import Data.Aeson (Key, Value (..), decode, encode)
+import Data.Aeson.KeyMap (fromList)
+import Data.Maybe (catMaybes)
 import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified ICloud.Examples as Examples
@@ -20,6 +22,7 @@ import Test.Hspec
   , context
   , describe
   , it
+  , shouldBe
   )
 import Test.Main (withStdin)
 import Test.QuickCheck
@@ -42,6 +45,20 @@ spec = describe "module Network.ICloud.Trust" $ do
     context "parsing generated examples to/from JSON" $ do
       it "should succeed" prop_jsonRoundtripTrustData
 
+  describe "Setup2SADevice" $ do
+    context "parsing generated examples to/from JSON" $ do
+      it "should succeed" prop_jsonRoundtripSetup2SADevice
+
+  describe "setup2SADeviceLabel" $ do
+    it "returns phoneNumber when present" $
+      setup2SADeviceLabel (mkDevice [("phoneNumber", String "+1234")]) `shouldBe` "+1234"
+    it "returns name when phoneNumber is absent" $
+      setup2SADeviceLabel (mkDevice [("name", String "iPhone")]) `shouldBe` "iPhone"
+    it "prefers phoneNumber over name" $
+      setup2SADeviceLabel (mkDevice [("phoneNumber", String "+1234"), ("name", String "iPhone")]) `shouldBe` "+1234"
+    it "returns (unknown) when neither field is present" $
+      setup2SADeviceLabel (mkDevice [("deviceId", String "abc")]) `shouldBe` "(unknown)"
+
   describe "selectPhone" $ do
     context "when the selected input" $ do
       context "is a number within the range" $ do
@@ -56,10 +73,37 @@ spec = describe "module Network.ICloud.Trust" $ do
       context "is the maximum number" $ do
         it "should succeed" (prop_selectsWithMaxIndex selectDevice genTrustedDevice)
 
+  describe "selectSetupDevice" $ do
+    context "when the selected input" $ do
+      context "is a number within the range" $ do
+        it "should succeed" (prop_selectsWithNonMaxIndex selectSetupDevice genSetup2SADevice)
+      context "is the maximum number" $ do
+        it "should succeed" (prop_selectsWithMaxIndex selectSetupDevice genSetup2SADevice)
+
 
 prop_jsonRoundtripTrustData :: Property
 prop_jsonRoundtripTrustData = forAll genTrustData $ \td ->
   decode (encode td) == Just td
+
+
+prop_jsonRoundtripSetup2SADevice :: Property
+prop_jsonRoundtripSetup2SADevice = forAll genSetup2SADevice $ \d ->
+  decode (encode d) == Just d
+
+
+mkDevice :: [(Key, Value)] -> Setup2SADevice
+mkDevice = Setup2SADevice . fromList
+
+
+genSetup2SADevice :: Gen Setup2SADevice
+genSetup2SADevice = do
+  phone <- genExWordMaybe
+  devId <- genExWord
+  let pairs = catMaybes
+        [ Just ("deviceId", String devId)
+        , fmap (\p -> ("phoneNumber", String p)) phone
+        ]
+  pure $ Setup2SADevice $ fromList pairs
 
 
 genCodeStatus :: Gen CodeStatus

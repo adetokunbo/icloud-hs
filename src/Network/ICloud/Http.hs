@@ -14,13 +14,15 @@ module Network.ICloud.Http
   ( -- * functions
     mkApi
   , login
+  , requires2SA
+  , validateSetupBody
 
     -- * classes
   , AsVerifyRequest (..)
   )
 where
 
-import Control.Monad (unless)
+import Control.Monad (unless, when)
 import qualified Crypto.Hash.SHA256 as SHA256
 import Crypto.SRP
   ( FromClient (..)
@@ -44,9 +46,10 @@ import Data.Aeson
   , withObject
   , withText
   , (.:)
+  , (.:?)
   )
 import Data.Aeson.KeyMap (fromList)
-import Data.Aeson.Types (Parser, Value (..))
+import Data.Aeson.Types (Parser, Value (..), parseMaybe)
 import Data.Base64.Types (extractBase64)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Base16 as Base16
@@ -79,12 +82,15 @@ import Network.ICloud.Http.Endpoints
   , accountLoginBase
   , extendPath
   , homeHeaders
+  , listDevices
   , realmEndpoints
+  , sendVerification
   , signinCompleteBase
   , signinInitBase
   , toPut
   , twoSvTrust
   , validateBase
+  , validateVerification
   , verifySecurityCodeReq
   , withAcceptJson
   , withAppleOauthHeaders
@@ -112,10 +118,12 @@ import Network.ICloud.Session
   , updateSessionSavedHeaders
   )
 import Network.ICloud.Trust
-  ( TrustData
+  ( Setup2SADevice (..)
+  , TrustData
   , TrustedDevice (..)
   , TrustedPhone (..)
   , pleaseReadCode
+  , selectSetupDevice
   , withSelectedPhoneOrDevice
   )
 
@@ -157,7 +165,9 @@ login api = do
   active <- hasActiveSession api
   unless active $ do
     runApiSrpAuth api
-    accountLogin api >>= saveLoginMsg (apiSession api)
+    loginReply <- accountLogin api
+    saveLoginMsg (apiSession api) loginReply
+    when (requires2SA loginReply) $ check2SACode api
 
 
 {- | Check if there is an active session
@@ -601,6 +611,59 @@ askForTwoFactorCode api tp = do
           ]
       req = withBody (encode value) $ mkReq $ apiEndpoints api
   callRequiredHeaders api req
+
+
+newtype ListDevicesReply = ListDevicesReply {ldrDevices :: [Setup2SADevice]}
+
+
+instance FromJSON ListDevicesReply where
+  parseJSON = withObject "ListDevicesReply" $ \o -> ListDevicesReply <$> o .: "devices"
+
+
+listSetupDevices :: Api -> IO [Setup2SADevice]
+listSetupDevices api@Api{apiEndpoints = ep} =
+  ldrDevices <$> callRequiredHeaders api (listDevices ep)
+
+
+sendSetupVerification :: Api -> Setup2SADevice -> IO ()
+sendSetupVerification api@Api{apiSession = s, apiEndpoints = ep} device = do
+  savedHdrs <- loadSavedHeaders s
+  let req =
+        withHeaders (requiredHeaders savedHdrs)
+          $ withBody (encode device)
+          $ sendVerification ep
+  resp <- rawRequest api req
+  unless (statusCode (responseStatus resp) < 400) $ fail $ showStatusOf resp
+
+
+validateSetupBody :: Setup2SADevice -> AuthCode -> Value
+validateSetupBody (Setup2SADevice fields) code =
+  Object $ fields <> fromList [("verificationCode", String code), ("trustBrowser", Bool True)]
+
+
+validateSetupVerification :: Api -> Setup2SADevice -> AuthCode -> IO Bool
+validateSetupVerification api@Api{apiSession = s, apiEndpoints = ep} device code = do
+  savedHdrs <- loadSavedHeaders s
+  let req =
+        withHeaders (requiredHeaders savedHdrs)
+          $ withBody (encode $ validateSetupBody device code)
+          $ validateVerification ep
+  resp <- rawRequest api req
+  pure $ statusCode (responseStatus resp) < 400
+
+
+check2SACode :: Api -> IO ()
+check2SACode api = do
+  device <- listSetupDevices api >>= selectSetupDevice
+  sendSetupVerification api device
+  code <- pleaseReadCode
+  ok <- validateSetupVerification api device code
+  unless ok $ check2SACode api
+
+
+requires2SA :: Value -> Bool
+requires2SA v = fromMaybe False $
+  parseMaybe (withObject "login" (\o -> (== Just (1 :: Int)) <$> (o .:? "hsaVersion"))) v
 
 
 {- | The code sent to a user device that the user must enter to confirm

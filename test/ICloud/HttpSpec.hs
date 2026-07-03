@@ -5,12 +5,15 @@ module ICloud.HttpSpec
   )
 where
 
+import Data.Aeson (Value (..), object, toJSON, withObject, (.:))
+import Data.Aeson.KeyMap (fromList)
+import Data.Aeson.Types (parseMaybe)
 import Data.ByteString (ByteString)
 import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified ICloud.Examples as Examples
 import Network.HTTP.Types (HeaderName)
-import Network.ICloud.Http (AsVerifyRequest (..))
+import Network.ICloud.Http (AsVerifyRequest (..), requires2SA, validateSetupBody)
 import Network.ICloud.Session
   ( SavedHeaders (..)
   , hCounter
@@ -21,7 +24,7 @@ import Network.ICloud.Session
   , pristine
   , updateSavedHeaders
   )
-import Network.ICloud.Trust (TrustedDevice (..), TrustedPhone (..))
+import Network.ICloud.Trust (Setup2SADevice (..), TrustedDevice (..), TrustedPhone (..))
 import Test.Hspec (Spec, context, describe, it, shouldBe)
 import Test.QuickCheck
   ( Gen
@@ -37,6 +40,8 @@ spec :: Spec
 spec = describe "module Network.ICloud.Http" $ do
   updateSavedHeadersSpec
   verifyCodeTypeSpec
+  requires2SASpec
+  validateSetupBodySpec
 
 
 updateSavedHeadersSpec :: Spec
@@ -79,3 +84,29 @@ verifyCodeTypeSpec = describe "verifyCodeType" $ do
     verifyCodeType phone `shouldBe` "phone"
   it "is 'trusteddevice' for TrustedDevice" $
     verifyCodeType device `shouldBe` "trusteddevice"
+
+
+requires2SASpec :: Spec
+requires2SASpec = describe "requires2SA" $ do
+  it "is True when hsaVersion is 1" $
+    requires2SA (object [("hsaVersion", toJSON (1 :: Int))]) `shouldBe` True
+  it "is False when hsaVersion is 2" $
+    requires2SA (object [("hsaVersion", toJSON (2 :: Int))]) `shouldBe` False
+  it "is False when hsaVersion is absent" $
+    requires2SA (object []) `shouldBe` False
+  it "is False for non-object JSON" $
+    requires2SA Null `shouldBe` False
+
+
+validateSetupBodySpec :: Spec
+validateSetupBodySpec = describe "validateSetupBody" $ do
+  it "includes verificationCode from the code argument" $
+    field "verificationCode" `shouldBe` Just (String "123456")
+  it "includes trustBrowser set to True" $
+    field "trustBrowser" `shouldBe` Just (Bool True)
+  it "preserves original device fields" $
+    field "deviceId" `shouldBe` Just (String "abc")
+ where
+  device = Setup2SADevice $ fromList [("deviceId", String "abc")]
+  body = validateSetupBody device "123456"
+  field k = parseMaybe (withObject "body" (.: k)) body

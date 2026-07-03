@@ -9,6 +9,7 @@ module Network.ICloud.Trust
   , TrustedDevice (..)
   , TrustedList (..)
   , TrustData (..)
+  , Setup2SADevice (..)
 
     -- * functions
   , withSelectedPhoneOrDevice
@@ -16,13 +17,17 @@ module Network.ICloud.Trust
   , pleaseChooseN
   , selectPhone
   , selectDevice
+  , setup2SADeviceLabel
+  , selectSetupDevice
   )
 where
 
+import Control.Applicative ((<|>))
 import Control.Monad (when)
 import Data.Aeson
   ( FromJSON (..)
   , KeyValue (..)
+  , Object
   , Options (..)
   , SumEncoding (ObjectWithSingleField)
   , ToJSON (..)
@@ -36,6 +41,7 @@ import Data.Aeson
   )
 import Data.Aeson.Casing (aesonPrefix, camelCase)
 import Data.Aeson.KeyMap (filterWithKey, toList)
+import Data.Maybe (fromMaybe)
 import Data.Aeson.Types (Parser)
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -214,6 +220,43 @@ instance ToJSON TrustData where
 
 instance FromJSON TrustData where
   parseJSON = parseJSONTrustData
+
+
+{- | A 2SA device from the setup endpoint.
+
+Stored as the raw JSON object so the entire dict can be echoed back to
+sendVerificationCode and augmented for validateVerificationCode.
+-}
+newtype Setup2SADevice = Setup2SADevice {setup2SAFields :: Object}
+  deriving (Eq, Show)
+
+
+instance FromJSON Setup2SADevice where
+  parseJSON = withObject "Setup2SADevice" (pure . Setup2SADevice)
+
+
+instance ToJSON Setup2SADevice where
+  toJSON (Setup2SADevice o) = Object o
+
+
+-- | Extract a human-readable label from a @Setup2SADevice@, preferring @phoneNumber@ then @name@.
+setup2SADeviceLabel :: Setup2SADevice -> Text
+setup2SADeviceLabel (Setup2SADevice o) = fromMaybe "(unknown)" $ do
+  v <- lookup "phoneNumber" pairs <|> lookup "name" pairs
+  case v of
+    String t -> Just t
+    _ -> Nothing
+ where
+  pairs = toList o
+
+
+selectSetupDevice :: [Setup2SADevice] -> IO Setup2SADevice
+selectSetupDevice xs = do
+  when (null xs) $ fail "no 2SA devices available"
+  Text.putStrLn "Please select a trusted device to receive a verification code"
+  mapM_ (\(i, d) -> Text.putStrLn $ "" +| (i :: Int) |+ ") " +| setup2SADeviceLabel d |+ "") (zip [1 ..] xs)
+  idx <- pleaseChooseN 1 (length xs)
+  pure (xs !! (idx - 1))
 
 
 simpleOptions :: Options
