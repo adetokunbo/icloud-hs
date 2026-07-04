@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 module ICloud.Http.ErrorsSpec
   ( spec
   )
@@ -7,31 +9,32 @@ import Data.Aeson (Value (..), decode, encode, object)
 import Data.Aeson.Key (fromText)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
-import Data.Maybe (catMaybes)
-import Data.String.Conv (toS)
+import Control.Exception (throwIO, try)
+import Data.Maybe (catMaybes, fromMaybe)
 import Data.Text (Text)
 import qualified ICloud.Examples as Examples
-import Network.HTTP.Types (HeaderName)
 import Network.ICloud.Http.Errors
   ( ApiError (..)
+  , ApiResponse (..)
+  , AuthError (..)
+  , ExtractOr (..)
+  , SEReply
+  , extractOrRetry
   )
-import Network.ICloud.Session (SavedHeaders (..), pristine)
-import Test.Hspec (Spec, context, describe, it)
+import Test.Hspec (Spec, context, describe, it, shouldReturn)
 import Test.QuickCheck
   ( Gen
   , Property
   , elements
   , forAll
-  , forAllBlind
   , frequency
-  , sublistOf
-  , vectorOf
   )
 
 
 spec :: Spec
 spec = describe "module Network.ICloud.Http.Error" $ do
   apiErrorSpec
+  authErrorSpec
 
 
 apiErrorSpec :: Spec
@@ -83,3 +86,44 @@ genKeyValue keyGen = do
   value <- elements Examples.wordz
   key <- keyGen
   pure (key, value)
+
+
+authErrorSpec :: Spec
+authErrorSpec = describe "AuthError" $ do
+  context "is catchable with try @AuthError" $ do
+    it "catches InvalidCredentials" $
+      catchAuthError InvalidCredentials `shouldReturn` Left InvalidCredentials
+    it "catches AccountLocked" $
+      catchAuthError AccountLocked `shouldReturn` Left AccountLocked
+    it "catches PrivacyAgreementRequired" $
+      catchAuthError PrivacyAgreementRequired `shouldReturn` Left PrivacyAgreementRequired
+    it "catches ServiceError" $
+      catchAuthError (ServiceError "reason" (Just "code")) `shouldReturn` Left (ServiceError "reason" (Just "code"))
+    it "catches UnexpectedResponse" $
+      catchAuthError (UnexpectedResponse "oops") `shouldReturn` Left (UnexpectedResponse "oops")
+
+  context "extractOr on a Failed ApiResponse" $ do
+    it "throws ServiceError with the ApiError reason and code" $
+      catchAuthError' (extractOr (Failed (ApiError "bad" (Just "E1"))))
+        `shouldReturn` Right (ServiceError "bad" (Just "E1"))
+
+  context "extractOrRetry on a non-retryable service error" $ do
+    it "throws ServiceError" $
+      catchAuthError' (extractOrRetry nonRetryReply)
+        `shouldReturn` Right (ServiceError "some error:" Nothing)
+
+
+catchAuthError :: AuthError -> IO (Either AuthError AuthError)
+catchAuthError e = try (throwIO e)
+
+
+catchAuthError' :: IO a -> IO (Either AuthError AuthError)
+catchAuthError' action = try action >>= \case
+  Left e  -> pure (Right e)
+  Right _ -> pure (Left (UnexpectedResponse "expected AuthError but got success"))
+
+
+nonRetryReply :: SEReply ()
+nonRetryReply =
+  let json = "{\"service_errors\":[{\"code\":0,\"title\":\"t\",\"message\":\"some error\"}]}"
+   in fromMaybe (error "nonRetryReply: bad fixture") (decode json)

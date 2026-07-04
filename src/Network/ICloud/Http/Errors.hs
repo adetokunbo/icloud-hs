@@ -15,6 +15,7 @@ module Network.ICloud.Http.Errors
   ( -- * data types
     ApiResponse (..)
   , ApiError (..)
+  , AuthError (..)
   , SEReply
   , extractOrRetry
 
@@ -24,6 +25,7 @@ module Network.ICloud.Http.Errors
 where
 
 import Control.Applicative (Alternative (..), (<|>))
+import Control.Exception (Exception, throwIO)
 import Data.Aeson
   ( FromJSON (..)
   , Object
@@ -62,9 +64,22 @@ instance FromJSON ApiError where
   parseJSON = withObject "ApiError" parseApiError
 
 
+-- | Structured errors thrown by the ICloud authentication layer
+data AuthError
+  = InvalidCredentials
+  | AccountLocked
+  | PrivacyAgreementRequired
+  | ServiceError !Text !(Maybe Text)
+  | UnexpectedResponse !Text
+  deriving (Eq, Show)
+
+
+instance Exception AuthError
+
+
 instance ExtractOr a ApiResponse where
   extractOr (Succeeded x) = pure x
-  extractOr (Failed x) = fail $ Text.unpack $ aeReason x
+  extractOr (Failed x) = throwIO $ ServiceError (aeReason x) (aeCode x)
 
 
 {-
@@ -92,9 +107,8 @@ parseApiError o =
    in ApiError <$> reason <*> code
 
 
--- | Represents a service error, several of which may be included in one api response
-data ServiceError
-  = ServiceError
+data SvcError
+  = SvcError
   { seCode :: !Int
   , seTitle :: !Text
   , seMessage :: !Text
@@ -102,7 +116,7 @@ data ServiceError
   deriving (Eq, Show, Generic)
 
 
-instance FromJSON ServiceError where
+instance FromJSON SvcError where
   parseJSON = genericParseJSON $ aesonPrefix snakeCase
 
 
@@ -110,22 +124,22 @@ class IsBadCode a where
   isBadCode :: a -> Bool
 
 
-instance IsBadCode ServiceError where
+instance IsBadCode SvcError where
   isBadCode = (== "Incorrect verification code") . seMessage
 
 
-instance IsBadCode [ServiceError] where
+instance IsBadCode [SvcError] where
   isBadCode = any isBadCode
 
 
-showServiceErrors :: ServiceErrors -> Text
-showServiceErrors (ServiceErrors Nothing) = "unexpected non-service error response"
-showServiceErrors (ServiceErrors (Just xs)) = Text.concat $ map ((<> ":") . seMessage) xs
+showSvcErrors :: SvcErrors -> Text
+showSvcErrors (SvcErrors Nothing) = "unexpected non-service error response"
+showSvcErrors (SvcErrors (Just xs)) = Text.concat $ map ((<> ":") . seMessage) xs
 
 
--- | A response that might contain @ServiceErrors@
+-- | A response that might contain service errors
 newtype SEReply a = SEReply
-  { unSEReply :: Either ServiceErrors a
+  { unSEReply :: Either SvcErrors a
   }
   deriving (Eq, Show, Generic)
 
@@ -138,7 +152,7 @@ a result of @Nothing@ indicates a retry is necessary
 extractOrRetry :: SEReply a -> IO (Maybe a)
 extractOrRetry (SEReply (Right x)) = pure (Just x)
 extractOrRetry (SEReply (Left se)) | isBadCode se = pure Nothing
-extractOrRetry (SEReply (Left se)) = fail $ Text.unpack $ showServiceErrors se
+extractOrRetry (SEReply (Left se)) = throwIO $ ServiceError (showSvcErrors se) Nothing
 
 
 instance (FromJSON a) => FromJSON (SEReply a) where
@@ -147,22 +161,21 @@ instance (FromJSON a) => FromJSON (SEReply a) where
      in fmap SEReply . parseJSON'
 
 
--- | A container for optional @ServiceError@s
-newtype ServiceErrors = ServiceErrors {unServiceErrors :: Maybe [ServiceError]}
+newtype SvcErrors = SvcErrors {unSvcErrors :: Maybe [SvcError]}
   deriving (Eq, Show)
 
 
-instance FromJSON ServiceErrors where
-  parseJSON = withObject "ServiceErrors" (fmap ServiceErrors . parseServiceErrors)
+instance FromJSON SvcErrors where
+  parseJSON = withObject "SvcErrors" (fmap SvcErrors . parseSvcErrors)
 
 
-instance IsBadCode ServiceErrors where
-  isBadCode (ServiceErrors Nothing) = False
-  isBadCode (ServiceErrors (Just xs)) = isBadCode xs
+instance IsBadCode SvcErrors where
+  isBadCode (SvcErrors Nothing) = False
+  isBadCode (SvcErrors (Just xs)) = isBadCode xs
 
 
-parseServiceErrors :: Object -> Parser (Maybe [ServiceError])
-parseServiceErrors o = o .:? "service_errors"
+parseSvcErrors :: Object -> Parser (Maybe [SvcError])
+parseSvcErrors o = o .:? "service_errors"
 
 
 -- | Specifies a function that extracts a result from a container in IO
@@ -173,4 +186,4 @@ class ExtractOr a b where
 
 instance ExtractOr a SEReply where
   extractOr (SEReply (Right a)) = pure a
-  extractOr (SEReply (Left se)) = fail $ Text.unpack $ showServiceErrors se
+  extractOr (SEReply (Left se)) = throwIO $ ServiceError (showSvcErrors se) Nothing

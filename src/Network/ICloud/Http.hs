@@ -19,9 +19,13 @@ module Network.ICloud.Http
 
     -- * classes
   , AsVerifyRequest (..)
+
+    -- * errors
+  , AuthError (..)
   )
 where
 
+import Control.Exception (throwIO)
 import Control.Monad (unless, when)
 import qualified Crypto.Hash.SHA256 as SHA256
 import Crypto.SRP
@@ -100,6 +104,7 @@ import Network.ICloud.Http.Endpoints
   )
 import Network.ICloud.Http.Errors
   ( ApiResponse
+  , AuthError (..)
   , ExtractOr (..)
   , extractOrRetry
   )
@@ -238,7 +243,7 @@ callApi api req = do
   raw <- rawRequest api req
   let theType = lookup hContentType $ responseHeaders raw
       isJson = maybe False isJsonType theType
-  unless isJson $ fail $ "response was not JSON: " ++ show theType
+  unless isJson $ throwIO $ UnexpectedResponse $ "response was not JSON: " <> toS (show theType)
   mapM asJson raw
 
 
@@ -246,7 +251,7 @@ callSEReply
   :: (FromJSON a) => Api -> Request -> IO (Maybe a)
 callSEReply api req =
   let
-    extractOrRetry' r | statusCode (responseStatus r) >= 400 = fail $ showStatusOf r
+    extractOrRetry' r | statusCode (responseStatus r) >= 400 = throwIO $ UnexpectedResponse $ showStatusOf r
     extractOrRetry' r = extractOrRetry $ responseBody r
    in
     rawRequest api req >>= mapM asJson >>= extractOrRetry'
@@ -257,20 +262,20 @@ callSEReply api req =
 -- try to parse, if that fails, throw WrongDataType
 asJson :: (FromJSON a) => LBS.ByteString -> IO a
 asJson resp = case eitherDecode resp of
-  Left _err -> fail "did not decode JSON response correctly"
+  Left _err -> throwIO $ UnexpectedResponse "did not decode JSON response correctly"
   Right x -> pure x
 
 
 extractOr' :: (ExtractOr a b) => Response (b a) -> IO a
-extractOr' r | statusCode (responseStatus r) >= 400 = fail $ showStatusOf r
+extractOr' r | statusCode (responseStatus r) >= 400 = throwIO $ UnexpectedResponse $ showStatusOf r
 extractOr' r = extractOr $ responseBody r
 
 
-showStatusOf :: Response a -> String
+showStatusOf :: Response a -> Text
 showStatusOf resp =
-  let showResponse' x s | x >= 400 = "bad request:" ++ show s
-      showResponse' x s | x >= 500 = "server error:" ++ show s
-      showResponse' _x s = "ok:" ++ show s
+  let showResponse' x s | x >= 500 = "server error:" <> Text.pack (show s)
+      showResponse' x s | x >= 400 = "bad request:" <> Text.pack (show s)
+      showResponse' _x s = "ok:" <> Text.pack (show s)
       theStatus = responseStatus resp
       theCode = statusCode theStatus
    in showResponse' theCode theStatus
@@ -475,7 +480,7 @@ runSigninComplete api@Api{apiSession = session} kd mbResults = do
           , siResults
           , siSavedHeaders
           }
-      onFail = fail "the server public value was invalid"
+      onFail = throwIO $ UnexpectedResponse "the server public value was invalid"
   maybe onFail (signinComplete api . completion) mbResults
   increaseTrust api
 
@@ -509,11 +514,11 @@ handleSigninComplete api resp = do
   let code = statusCode $ responseStatus resp
       body = responseBody resp
   if
-    | code == 401 -> fail "invalid username or password"
-    | code == 403 -> fail "account is locked"
-    | code == 412 -> fail "need to login to Apple and acknowledge the privacy agreement"
+    | code == 401 -> throwIO InvalidCredentials
+    | code == 403 -> throwIO AccountLocked
+    | code == 412 -> throwIO PrivacyAgreementRequired
     | code == 409 -> checkAuthCode api
-    | code >= 400 -> fail $ showStatusOf resp
+    | code >= 400 -> throwIO $ UnexpectedResponse $ showStatusOf resp
     | otherwise -> extractOr body
 
 
@@ -633,7 +638,7 @@ sendSetupVerification api@Api{apiSession = s, apiEndpoints = ep} device = do
           $ withBody (encode device)
           $ sendVerification ep
   resp <- rawRequest api req
-  unless (statusCode (responseStatus resp) < 400) $ fail $ showStatusOf resp
+  unless (statusCode (responseStatus resp) < 400) $ throwIO $ UnexpectedResponse $ showStatusOf resp
 
 
 validateSetupBody :: Setup2SADevice -> AuthCode -> Value
