@@ -198,7 +198,9 @@ login api = do
   sh <- loadSavedHeaders (apiSession api)
   if sh == pristine
     then doFreshLogin api
-    else validate api >> loadSaved api
+    else do
+      valid <- validate api
+      if valid then loadSaved api else doFreshLogin api
 
 
 loadSaved :: Api -> IO AuthState
@@ -617,8 +619,14 @@ verifyCodeOrRetry api x code =
    in callSEReply api req
 
 
-validate :: Api -> IO Value
-validate api@Api{apiEndpoints} = callApi api (validateReq apiEndpoints) >>= extractOr'
+validate :: Api -> IO Bool
+validate api@Api{apiEndpoints} = do
+  resp <- rawRequest api (validateReq apiEndpoints)
+  let code = statusCode (responseStatus resp)
+  if
+    | code == 401 -> pure False
+    | code >= 400 -> throwIO $ UnexpectedResponse $ showStatusOf resp
+    | otherwise   -> pure True
 
 
 validateReq :: Endpoints -> Request

@@ -86,6 +86,11 @@ verifyCodeTypeSpec = describe "verifyCodeType" $ do
 
 
 
+-- NOTE: the following behaviours require network access and have no unit tests yet:
+--   * login falls through to doFreshLogin when validate returns 401 (G7)
+--   * completeTwoFactor calls accountLogin and returns Authenticated (G5)
+--   * complete2SA retries when the verification code is wrong (G5)
+
 validateSetupBodySpec :: Spec
 validateSetupBodySpec = describe "validateSetupBody" $ do
   it "includes verificationCode from the code argument" $
