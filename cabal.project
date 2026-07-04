@@ -1,3 +1,10 @@
 packages: .
 
+source-repository-package
+  type: git
+  location: https://github.com/adetokunbo/crypto-srp.git
+  tag: 37b2be3bc66b0d8d35bb080f28ac9745bf284483
+  --sha256: 067mg836zx239466jsnc93hcbmd26dmmdzvwk8zqc9z40aq62k6n
+
+
 test-show-details: streaming

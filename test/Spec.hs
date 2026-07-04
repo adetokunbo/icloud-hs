@@ -2,7 +2,6 @@
 
 module Main where
 
-import qualified Crypto.SRPSpec as SRP
 import qualified ICloud.Http.ErrorsSpec as HttpErrors
 import qualified ICloud.HttpSpec as Http
 import qualified ICloud.PBKDF2Spec as PBKDF2
@@ -26,5 +25,4 @@ main = do
     Http.spec
     HttpErrors.spec
     PBKDF2.spec
-    SRP.spec
     Trust.spec
