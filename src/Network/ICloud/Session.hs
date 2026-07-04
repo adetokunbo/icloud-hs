@@ -34,6 +34,15 @@ module Network.ICloud.Session
   , pristine
   , saveLoginMsg
 
+    -- * AccountData
+  , AccountData (..)
+  , accountDataRequires2FA
+  , accountDataRequires2SA
+  , unknownAccountData
+  , accountDataPath
+  , saveAccountData
+  , loadAccountData
+
     -- ** header names
   , hCounter
   , hCountry
@@ -49,7 +58,7 @@ module Network.ICloud.Session
 where
 
 import Control.Applicative ((<|>))
-import Control.Monad ((>=>))
+import Control.Monad ((>=>), forM)
 import Crypto.SRP
   ( FromClient (..)
   , FromServer (..)
@@ -72,10 +81,16 @@ import Data.Aeson
   , object
   , withObject
   , (.:)
+  , (.:?)
   )
 import Data.Aeson.Casing (aesonPrefix, snakeCase)
+import qualified Data.Aeson.Key as AesonKey
+import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.ByteString.Lazy as LBS
 import Data.CaseInsensitive (mk)
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
+import Data.Maybe (catMaybes)
 import Data.Char (isAlphaNum)
 import Data.String.Conv (toS)
 import Data.Text (Text)
@@ -162,6 +177,89 @@ loginMsgPath topDir creds = topDir </> Text.unpack (loginMsgBase creds)
 -- | Save the login message to user specific filepath
 saveLoginMsg :: Session -> Value -> IO ()
 saveLoginMsg Session{sessionCreds = creds, sessionTopDir = topDir} = saveValue (loginMsgPath topDir creds)
+
+
+-- | Structured account information obtained from the accountLogin API response
+data AccountData = AccountData
+  { adHsaVersion           :: !Int
+  , adHsaChallengeRequired :: !Bool
+  , adHsaTrustedBrowser    :: !Bool
+  , adWebservices          :: !(Map Text Text)
+  }
+  deriving (Eq, Show, Generic)
+
+
+instance FromJSON AccountData where
+  parseJSON = withObject "AccountData" $ \o -> do
+    dsInfo <- o .: "dsInfo"
+    adHsaVersion <- withObject "dsInfo" (.: "hsaVersion") dsInfo
+    adHsaChallengeRequired <- o .:? "hsaChallengeRequired" >>= maybe (pure False) pure
+    adHsaTrustedBrowser <- o .:? "hsaTrustedBrowser" >>= maybe (pure False) pure
+    adWebservices <- do
+      mbWs <- o .:? "webservices"
+      maybe (pure Map.empty) (withObject "webservices" parseWebservices) mbWs
+    pure AccountData{adHsaVersion, adHsaChallengeRequired, adHsaTrustedBrowser, adWebservices}
+   where
+    parseWebservices obj = do
+      let pairs = KeyMap.toAscList obj
+      urlPairs <- forM pairs $ \(k, v) ->
+        withObject "webservice" (\sv -> fmap (AesonKey.toText k,) <$> sv .:? "url") v
+      pure $ Map.fromList $ catMaybes urlPairs
+
+
+instance ToJSON AccountData where
+  toJSON AccountData{adHsaVersion, adHsaChallengeRequired, adHsaTrustedBrowser, adWebservices} =
+    object
+      [ "dsInfo" .= object ["hsaVersion" .= adHsaVersion]
+      , "hsaChallengeRequired" .= adHsaChallengeRequired
+      , "hsaTrustedBrowser" .= adHsaTrustedBrowser
+      , "webservices" .= fmap (\url -> object ["url" .= url]) adWebservices
+      ]
+
+
+-- | True when full 2FA (auth-endpoint) challenge is required
+accountDataRequires2FA :: AccountData -> Bool
+accountDataRequires2FA ad = adHsaVersion ad >= 2 && adHsaChallengeRequired ad
+
+
+-- | True when legacy 2SA (setup-endpoint) challenge is required
+accountDataRequires2SA :: AccountData -> Bool
+accountDataRequires2SA ad = adHsaVersion ad == 1
+
+
+-- | Sentinel used when no saved @AccountData@ is available
+unknownAccountData :: AccountData
+unknownAccountData = AccountData
+  { adHsaVersion = 0
+  , adHsaChallengeRequired = False
+  , adHsaTrustedBrowser = False
+  , adWebservices = Map.empty
+  }
+
+
+accountDataBase :: Credentials -> Text
+accountDataBase = (<> ".account-data.json") . sprucedName
+
+
+-- | Determine the path of the saved account-data file for the given credentials
+accountDataPath :: FilePath -> Credentials -> FilePath
+accountDataPath topDir creds = topDir </> Text.unpack (accountDataBase creds)
+
+
+-- | Persist @AccountData@ to the session's filesystem location
+saveAccountData :: Session -> AccountData -> IO ()
+saveAccountData Session{sessionCreds = creds, sessionTopDir = topDir} =
+  encodeFile (accountDataPath topDir creds)
+
+
+-- | Load persisted @AccountData@; returns @Nothing@ if the file is absent
+loadAccountData :: Session -> IO (Maybe AccountData)
+loadAccountData Session{sessionCreds = creds, sessionTopDir = topDir} = do
+  let path = accountDataPath topDir creds
+  exists <- doesFileExist path
+  if not exists
+    then pure Nothing
+    else eitherDecodeFileStrict path >>= either (const (pure Nothing)) (pure . Just)
 
 
 {- | Determine the path of file containing the credentials in the configuration

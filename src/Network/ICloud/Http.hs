@@ -14,8 +14,12 @@ module Network.ICloud.Http
   ( -- * functions
     mkApi
   , login
-  , requires2SA
+  , completeTwoFactor
+  , complete2SA
   , validateSetupBody
+
+    -- * types
+  , AuthState (..)
 
     -- * classes
   , AsVerifyRequest (..)
@@ -25,8 +29,8 @@ module Network.ICloud.Http
   )
 where
 
-import Control.Exception (throwIO)
-import Control.Monad (unless, when)
+import Control.Exception (Exception, throwIO, try)
+import Control.Monad (unless)
 import qualified Crypto.Hash.SHA256 as SHA256
 import Crypto.SRP
   ( FromClient (..)
@@ -50,7 +54,6 @@ import Data.Aeson
   , withObject
   , withText
   , (.:)
-  , (.:?)
   )
 import Data.Aeson.KeyMap (fromList)
 import Data.Aeson.Types (Parser, Value (..), parseMaybe)
@@ -110,15 +113,21 @@ import Network.ICloud.Http.Errors
   )
 import Network.ICloud.PBKDF2 (FancyPseudoRandomF, deriveKey, wrapIO)
 import Network.ICloud.Session
-  ( Credentials (..)
+  ( AccountData (..)
+  , Credentials (..)
   , SavedHeaders (..)
   , Session (..)
+  , accountDataRequires2FA
+  , accountDataRequires2SA
   , cookiePath
+  , loadAccountData
   , loadSavedHeaders
   , loadSession
   , pristine
   , runSrpAuth
+  , saveAccountData
   , saveLoginMsg
+  , unknownAccountData
   , updateSavedHeaders
   , updateSessionSavedHeaders
   )
@@ -164,27 +173,93 @@ mkApi realm = do
       }
 
 
--- | Logs into ICloud
-login :: Api -> IO ()
+-- | The result of a login attempt
+data AuthState
+  = Authenticated Session AccountData
+  | Requires2FA   Session TrustData
+  | Requires2SA   Session [Setup2SADevice]
+
+
+instance Show AuthState where
+  show (Authenticated _ ad) = "Authenticated <session> " ++ show ad
+  show (Requires2FA _ td)   = "Requires2FA <session> " ++ show td
+  show (Requires2SA _ ds)   = "Requires2SA <session> " ++ show ds
+
+
+newtype TwoFARequired = TwoFARequired TrustData
+  deriving Show
+
+instance Exception TwoFARequired
+
+
+-- | Logs into ICloud, returning the resulting @AuthState@
+login :: Api -> IO AuthState
 login api = do
-  active <- hasActiveSession api
-  unless active $ do
-    runApiSrpAuth api
-    loginReply <- accountLogin api
-    saveLoginMsg (apiSession api) loginReply
-    when (requires2SA loginReply) $ check2SACode api
+  sh <- loadSavedHeaders (apiSession api)
+  if sh == pristine
+    then doFreshLogin api
+    else validate api >> loadSaved api
 
 
-{- | Check if there is an active session
+loadSaved :: Api -> IO AuthState
+loadSaved api = do
+  mbAd <- loadAccountData (apiSession api)
+  case mbAd of
+    Just ad | accountDataRequires2FA ad -> doFreshLogin api
+    Just ad | accountDataRequires2SA ad -> doFreshLogin api
+    Just ad                             -> pure $ Authenticated (apiSession api) ad
+    Nothing                             -> pure $ Authenticated (apiSession api) unknownAccountData
 
-if @SavedHeaders@ are pristine skip and return false otherwise call
-validate and return True if no errors occur
--}
-hasActiveSession :: Api -> IO Bool
-hasActiveSession api =
-  let checkActive sh | sh == pristine = pure False
-      checkActive _sh = validate api >> pure True
-   in loadSavedHeaders (apiSession api) >>= checkActive
+
+doFreshLogin :: Api -> IO AuthState
+doFreshLogin api = do
+  result <- try $ runApiSrpAuth api
+  case result of
+    Left (TwoFARequired td) -> pure $ Requires2FA (apiSession api) td
+    Right () -> do
+      loginReply <- accountLogin api
+      let ad = parseAccountData loginReply
+      saveLoginMsg (apiSession api) loginReply
+      saveAccountData (apiSession api) ad
+      if accountDataRequires2SA ad
+        then Requires2SA (apiSession api) <$> listSetupDevices api
+        else pure $ Authenticated (apiSession api) ad
+
+
+parseAccountData :: Value -> AccountData
+parseAccountData v = fromMaybe unknownAccountData $ parseMaybe parseJSON v
+
+
+-- | Complete a 2FA (auth-endpoint) challenge after a @Requires2FA@ result
+completeTwoFactor :: Api -> TrustData -> IO AuthState
+completeTwoFactor api td = do
+  let handleTwoStep   = checkAuthCode' (askForTwoStepCode api)  pleaseReadCode api
+      handleTwoFactor = checkAuthCode' (askForTwoFactorCode api) pleaseReadCode api
+      doVerify :: IO Value
+      doVerify = withSelectedPhoneOrDevice handleTwoFactor handleTwoStep td
+  _ <- doVerify
+  loginReply <- accountLogin api
+  let ad = parseAccountData loginReply
+  saveLoginMsg (apiSession api) loginReply
+  saveAccountData (apiSession api) ad
+  pure $ Authenticated (apiSession api) ad
+
+
+-- | Complete a 2SA (setup-endpoint) challenge after a @Requires2SA@ result
+complete2SA :: Api -> [Setup2SADevice] -> IO AuthState
+complete2SA api devices = do
+  device <- selectSetupDevice devices
+  sendSetupVerification api device
+  code <- pleaseReadCode
+  ok <- validateSetupVerification api device code
+  if ok
+    then do
+      loginReply <- accountLogin api
+      let ad = parseAccountData loginReply
+      saveLoginMsg (apiSession api) loginReply
+      saveAccountData (apiSession api) ad
+      pure $ Authenticated (apiSession api) ad
+    else complete2SA api devices
 
 
 -- | Implements the SRP authentication sequence using the ICloud API
@@ -517,18 +592,9 @@ handleSigninComplete api resp = do
     | code == 401 -> throwIO InvalidCredentials
     | code == 403 -> throwIO AccountLocked
     | code == 412 -> throwIO PrivacyAgreementRequired
-    | code == 409 -> checkAuthCode api
+    | code == 409 -> chooseTrustType api >>= throwIO . TwoFARequired
     | code >= 400 -> throwIO $ UnexpectedResponse $ showStatusOf resp
     | otherwise -> extractOr body
-
-
--- | Performs a code verification authentication flow
-checkAuthCode :: (FromJSON a) => Api -> IO a
-checkAuthCode api = do
-  let
-    handleTwoStep = checkAuthCode' (askForTwoStepCode api) pleaseReadCode api
-    handleTwoFactor = checkAuthCode' (askForTwoFactorCode api) pleaseReadCode api
-  chooseTrustType api >>= withSelectedPhoneOrDevice handleTwoFactor handleTwoStep
 
 
 checkAuthCode'
@@ -656,19 +722,6 @@ validateSetupVerification api@Api{apiSession = s, apiEndpoints = ep} device code
   resp <- rawRequest api req
   pure $ statusCode (responseStatus resp) < 400
 
-
-check2SACode :: Api -> IO ()
-check2SACode api = do
-  device <- listSetupDevices api >>= selectSetupDevice
-  sendSetupVerification api device
-  code <- pleaseReadCode
-  ok <- validateSetupVerification api device code
-  unless ok $ check2SACode api
-
-
-requires2SA :: Value -> Bool
-requires2SA v = fromMaybe False $
-  parseMaybe (withObject "login" (\o -> (== Just (1 :: Int)) <$> (o .:? "hsaVersion"))) v
 
 
 {- | The code sent to a user device that the user must enter to confirm

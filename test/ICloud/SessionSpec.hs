@@ -11,21 +11,28 @@ SPDX-License-Identifier: BSD3
 module ICloud.SessionSpec (spec) where
 
 import Control.Monad (when)
-import Data.Aeson (encodeFile)
+import Data.Aeson (decode, encode, encodeFile)
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import Data.String (IsString (..))
 import Data.Text (Text)
 import qualified Data.Text.IO as Text
 import Data.Word (Word16)
 import Network.ICloud.Session
-  ( Credentials (..)
+  ( AccountData (..)
+  , Credentials (..)
   , SavedHeaders (..)
   , Session (..)
+  , accountDataRequires2FA
+  , accountDataRequires2SA
   , appBase
   , clientIdPath
   , cookiePath
   , credentialsPath
+  , loadAccountData
   , loadSavedHeaders
   , loadSession
+  , saveAccountData
   , savedHeadersPath
   , updateSessionSavedHeaders
   , (</>)
@@ -47,7 +54,9 @@ import Test.QuickCheck
   ( Arbitrary (arbitrary)
   , Gen
   , Property
+  , elements
   , frequency
+  , listOf
   )
 import Test.QuickCheck.Monadic (assert, monadicIO, pick, run)
 
@@ -55,6 +64,7 @@ import Test.QuickCheck.Monadic (assert, monadicIO, pick, run)
 spec :: Spec
 spec = do
   sessionSpec
+  accountDataSpec
 
 
 -- save credential somewhere
@@ -242,3 +252,70 @@ genIndexedSuffix pre = genIndexedTemplate (pre <>)
 
 genIndexedTemplate :: (IsString a) => (a -> a) -> Gen a
 genIndexedTemplate plate = plate . fromString . show <$> genWord16
+
+
+accountDataSpec :: Spec
+accountDataSpec = describe "module Network.ICloud.Session (AccountData)" $ do
+  context "AccountData" $ do
+    it "round-trips through JSON encoding" prop_jsonRoundtripAccountData
+  context "accountDataRequires2FA" $ do
+    it "is True when hsaVersion >= 2 and challenged" $
+      accountDataRequires2FA (mkAccountData 2 True) `shouldBe` True
+    it "is False when hsaVersion >= 2 but not challenged" $
+      accountDataRequires2FA (mkAccountData 2 False) `shouldBe` False
+    it "is False when hsaVersion is 1" $
+      accountDataRequires2FA (mkAccountData 1 True) `shouldBe` False
+  context "accountDataRequires2SA" $ do
+    it "is True when hsaVersion is 1" $
+      accountDataRequires2SA (mkAccountData 1 False) `shouldBe` True
+    it "is False when hsaVersion is 2" $
+      accountDataRequires2SA (mkAccountData 2 False) `shouldBe` False
+    it "is False when hsaVersion is 0" $
+      accountDataRequires2SA (mkAccountData 0 False) `shouldBe` False
+  context "AccountData JSON parsing" $ do
+    it "fails to parse from null JSON" $
+      (decode "null" :: Maybe AccountData) `shouldBe` Nothing
+    it "fails to parse when dsInfo is absent" $
+      (decode "{}" :: Maybe AccountData) `shouldBe` Nothing
+  context "saveAccountData / loadAccountData" $ around useTmp $ do
+    it "round-trips in a temp directory" prop_saveLoadAccountData
+
+
+prop_jsonRoundtripAccountData :: Property
+prop_jsonRoundtripAccountData = monadicIO $ do
+  ad <- pick genAccountData
+  assert $ decode (encode ad) == Just ad
+
+
+prop_saveLoadAccountData :: FilePath -> Property
+prop_saveLoadAccountData appRoot = monadicIO $ do
+  preCreds <- pick genPreCredentials
+  ad <- pick genAccountData
+  let creds = asCreds preCreds
+  loaded <- run $ do
+    encodeFile (credentialsPath appRoot) creds
+    s <- loadSession
+    saveAccountData s ad
+    loadAccountData s
+  assert $ Just ad == loaded
+
+
+mkAccountData :: Int -> Bool -> AccountData
+mkAccountData ver challenged = AccountData
+  { adHsaVersion = ver
+  , adHsaChallengeRequired = challenged
+  , adHsaTrustedBrowser = False
+  , adWebservices = Map.empty
+  }
+
+
+genAccountData :: Gen AccountData
+genAccountData = do
+  adHsaVersion <- abs <$> arbitrary
+  adHsaChallengeRequired <- arbitrary
+  adHsaTrustedBrowser <- arbitrary
+  adWebservices <- Map.fromList <$> listOf genWsPair
+  pure AccountData{adHsaVersion, adHsaChallengeRequired, adHsaTrustedBrowser, adWebservices}
+ where
+  genWsPair = (,) <$> elements wsNames <*> genIndexedSuffix "https://example.com/"
+  wsNames = ["findme", "contacts", "calendar", "mail"]

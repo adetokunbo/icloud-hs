@@ -5,7 +5,7 @@ module ICloud.HttpSpec
   )
 where
 
-import Data.Aeson (Value (..), object, toJSON, withObject, (.:))
+import Data.Aeson (Value (..), withObject, (.:))
 import Data.Aeson.KeyMap (fromList)
 import Data.Aeson.Types (parseMaybe)
 import Data.ByteString (ByteString)
@@ -13,7 +13,7 @@ import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified ICloud.Examples as Examples
 import Network.HTTP.Types (HeaderName)
-import Network.ICloud.Http (AsVerifyRequest (..), requires2SA, validateSetupBody)
+import Network.ICloud.Http (AsVerifyRequest (..), validateSetupBody)
 import Network.ICloud.Session
   ( SavedHeaders (..)
   , hCounter
@@ -40,7 +40,6 @@ spec :: Spec
 spec = describe "module Network.ICloud.Http" $ do
   updateSavedHeadersSpec
   verifyCodeTypeSpec
-  requires2SASpec
   validateSetupBodySpec
 
 
@@ -85,17 +84,6 @@ verifyCodeTypeSpec = describe "verifyCodeType" $ do
   it "is 'trusteddevice' for TrustedDevice" $
     verifyCodeType device `shouldBe` "trusteddevice"
 
-
-requires2SASpec :: Spec
-requires2SASpec = describe "requires2SA" $ do
-  it "is True when hsaVersion is 1" $
-    requires2SA (object [("hsaVersion", toJSON (1 :: Int))]) `shouldBe` True
-  it "is False when hsaVersion is 2" $
-    requires2SA (object [("hsaVersion", toJSON (2 :: Int))]) `shouldBe` False
-  it "is False when hsaVersion is absent" $
-    requires2SA (object []) `shouldBe` False
-  it "is False for non-object JSON" $
-    requires2SA Null `shouldBe` False
 
 
 validateSetupBodySpec :: Spec
