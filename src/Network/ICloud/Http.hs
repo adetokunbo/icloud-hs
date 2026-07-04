@@ -21,6 +21,9 @@ module Network.ICloud.Http
     -- * types
   , AuthState (..)
 
+    -- * types
+  , PasswordProtocol (..)
+
     -- * classes
   , AsVerifyRequest (..)
 

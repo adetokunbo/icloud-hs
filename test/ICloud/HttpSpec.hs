@@ -5,7 +5,7 @@ module ICloud.HttpSpec
   )
 where
 
-import Data.Aeson (Value (..), withObject, (.:))
+import Data.Aeson (Value (..), decode, withObject, (.:))
 import Data.Aeson.KeyMap (fromList)
 import Data.Aeson.Types (parseMaybe)
 import Data.ByteString (ByteString)
@@ -13,7 +13,9 @@ import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified ICloud.Examples as Examples
 import Network.HTTP.Types (HeaderName)
-import Network.ICloud.Http (AsVerifyRequest (..), validateSetupBody)
+import qualified Data.ByteString.Base16 as Base16
+import Crypto.SRP.Hashing (KnownAlgorithm (SHA256), hashText)
+import Network.ICloud.Http (AsVerifyRequest (..), PasswordProtocol (..), validateSetupBody)
 import Network.ICloud.Session
   ( SavedHeaders (..)
   , hCounter
@@ -30,6 +32,7 @@ import Test.QuickCheck
   ( Gen
   , Property
   , elements
+  , forAll
   , forAllBlind
   , sublistOf
   , vectorOf
@@ -40,6 +43,7 @@ spec :: Spec
 spec = describe "module Network.ICloud.Http" $ do
   updateSavedHeadersSpec
   verifyCodeTypeSpec
+  passwordProtocolSpec
   validateSetupBodySpec
 
 
@@ -84,6 +88,26 @@ verifyCodeTypeSpec = describe "verifyCodeType" $ do
   it "is 'trusteddevice' for TrustedDevice" $
     verifyCodeType device `shouldBe` "trusteddevice"
 
+
+
+passwordProtocolSpec :: Spec
+passwordProtocolSpec = describe "PasswordProtocol" $ do
+  context "parsing from JSON" $ do
+    it "parses 's2k' as New" $
+      (decode "\"s2k\"" :: Maybe PasswordProtocol) `shouldBe` Just New
+    it "parses 's2k_fo' as Old" $
+      (decode "\"s2k_fo\"" :: Maybe PasswordProtocol) `shouldBe` Just Old
+    it "fails on unknown strings" $
+      (decode "\"unknown\"" :: Maybe PasswordProtocol) `shouldBe` Nothing
+  context "key derivation" $ do
+    it "Old (Base16-encoded hash) always differs from New (raw hash)" $
+      prop_oldNewHashesDiffer
+
+
+prop_oldNewHashesDiffer :: Property
+prop_oldNewHashesDiffer = forAll (elements Examples.wordz) $ \pwd ->
+  let hashed = hashText SHA256 pwd
+   in Base16.encode hashed /= hashed
 
 
 -- NOTE: the following behaviours require network access and have no unit tests yet:
