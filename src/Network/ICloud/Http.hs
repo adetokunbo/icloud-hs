@@ -1,8 +1,10 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies #-}
 
 {- |
 Module      : Network.ICloud.Http
@@ -34,6 +36,8 @@ where
 
 import Control.Exception (Exception, throwIO, try)
 import Control.Monad (unless)
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Trans.Reader (ReaderT, ask, asks, runReaderT)
 import qualified Crypto.Hash.SHA256 as SHA256
 import Crypto.SRP
   ( FromClient (..)
@@ -41,10 +45,8 @@ import Crypto.SRP
   , KnownAlgorithm (SHA256)
   , PrimeGroup (G2048)
   , Results (..)
-  , XCalculator (..)
+  , calcResults
   , digestSize
-  , hashMany
-  , hashText
   , mkFromClient
   )
 import Data.Aeson
@@ -55,14 +57,12 @@ import Data.Aeson
   , eitherDecode
   , encode
   , withObject
-  , withText
   , (.:)
   )
 import Data.Aeson.KeyMap (fromList)
 import Data.Aeson.Types (Parser, Value (..), parseMaybe)
 import Data.Base64.Types (extractBase64)
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Base16 as Base16
 import Data.ByteString.Base64 (decodeBase64Untyped, encodeBase64)
 import qualified Data.ByteString.Lazy as LBS
 import Data.CaseInsensitive (mk)
@@ -114,26 +114,41 @@ import Network.ICloud.Http.Errors
   , ExtractOr (..)
   , extractOrRetry
   )
-import Network.ICloud.PBKDF2 (FancyPseudoRandomF, deriveKey, wrapIO)
+import Network.ICloud.Internal.LoginFSM
+  ( AfterAcctLogin (..)
+  , AfterArtifactDir (..)
+  , AfterCredentials (..)
+  , AfterLoadLastSession (..)
+  , AfterMkArtifactDir (..)
+  , AfterSrpDone (..)
+  , AtEnd (..)
+  , BeforeEnd (..)
+  , LoginEvent (..)
+  , LoginFSM (..)
+  , onReadyToAuth
+  )
+import Network.ICloud.PBKDF2 (FancyPseudoRandomF, wrapIO)
 import Network.ICloud.Session
   ( AccountData (..)
   , Credentials (..)
+  , KeyDeriver (..)
+  , PasswordProtocol (..)
   , SavedHeaders (..)
   , Session (..)
+  , SrpContext (..)
   , accountDataRequires2FA
   , accountDataRequires2SA
   , cookiePath
   , loadAccountData
   , loadSavedHeaders
-  , loadSession
   , pristine
-  , runSrpAuth
   , saveAccountData
   , saveLoginMsg
   , unknownAccountData
   , updateSavedHeaders
   , updateSessionSavedHeaders
   )
+import qualified Network.ICloud.Session as Session
 import Network.ICloud.Trust
   ( Setup2SADevice (..)
   , TrustData
@@ -163,7 +178,7 @@ mkApi realm = do
       apiGroup = G2048
       apiEndpoints = realmEndpoints realm
   apiManager <- newTlsManager
-  apiSession <- loadSession
+  apiSession <- Session.loadSession
   apiWrappedPseudoRF <- wrapIO SHA256.hmac $ digestSize apiHashAlgorithm
   pure
     Api
@@ -179,18 +194,19 @@ mkApi realm = do
 -- | The result of a login attempt
 data AuthState
   = Authenticated Session AccountData
-  | Requires2FA   Session TrustData
-  | Requires2SA   Session [Setup2SADevice]
+  | Requires2FA Session TrustData
+  | Requires2SA Session [Setup2SADevice]
 
 
 instance Show AuthState where
   show (Authenticated _ ad) = "Authenticated <session> " ++ show ad
-  show (Requires2FA _ td)   = "Requires2FA <session> " ++ show td
-  show (Requires2SA _ ds)   = "Requires2SA <session> " ++ show ds
+  show (Requires2FA _ td) = "Requires2FA <session> " ++ show td
+  show (Requires2SA _ ds) = "Requires2SA <session> " ++ show ds
 
 
 newtype TwoFARequired = TwoFARequired TrustData
-  deriving Show
+  deriving (Show)
+
 
 instance Exception TwoFARequired
 
@@ -212,23 +228,88 @@ loadSaved api = do
   case mbAd of
     Just ad | accountDataRequires2FA ad -> doFreshLogin api
     Just ad | accountDataRequires2SA ad -> doFreshLogin api
-    Just ad                             -> pure $ Authenticated (apiSession api) ad
-    Nothing                             -> pure $ Authenticated (apiSession api) unknownAccountData
+    Just ad -> pure $ Authenticated (apiSession api) ad
+    Nothing -> pure $ Authenticated (apiSession api) unknownAccountData
 
 
 doFreshLogin :: Api -> IO AuthState
 doFreshLogin api = do
-  result <- try $ runApiSrpAuth api
+  savedHdrs <- loadSavedHeaders (apiSession api)
+  let creds = sessionCreds (apiSession api)
+      start = ReadyToAuth creds savedHdrs
+  result <- runReaderT (onReadyToAuth start >>= end) api
   case result of
-    Left (TwoFARequired td) -> pure $ Requires2FA (apiSession api) td
-    Right () -> do
-      loginReply <- accountLogin api
-      let ad = parseAccountData loginReply
-      saveLoginMsg (apiSession api) loginReply
-      saveAccountData (apiSession api) ad
-      if accountDataRequires2SA ad
-        then Requires2SA (apiSession api) <$> listSetupDevices api
-        else pure $ Authenticated (apiSession api) ad
+    Normal _ ad -> pure $ Authenticated (apiSession api) ad
+    Needs2FA _ td -> pure $ Requires2FA (apiSession api) td
+    Needs2SA _ ds -> pure $ Requires2SA (apiSession api) ds
+    Halted -> throwIO $ UnexpectedResponse "login halted"
+
+
+instance LoginEvent (ReaderT Api IO) where
+  type State (ReaderT Api IO) = LoginFSM
+
+
+  initial = pure RatifyCredentials
+
+
+  ratifyCreds RatifyCredentials =
+    asks (GotCreds . RatifyArtificatDir . sessionCreds . apiSession)
+
+
+  ratifyArtifactDir (RatifyArtificatDir creds) =
+    pure $ DirPresent $ LoadLastSession creds
+
+
+  mkArtifactDir (MkArtificatDir creds) =
+    pure $ DirMade $ LoadLastSession creds
+
+
+  loadSession (LoadLastSession creds) = do
+    api <- ask
+    savedHdrs <- liftIO $ loadSavedHeaders (apiSession api)
+    pure $ HasClientId $ ReadyToAuth creds savedHdrs
+
+
+  mkClientId (MakeClientId creds savedHdrs) =
+    pure $ ReadyToAuth creds savedHdrs
+
+
+  srpInit (ReadyToAuth creds _) = do
+    api <- ask
+    let user = credAccountName creds
+        pass = credPassword creds
+    fc <- liftIO $ mkFromClient user pass (apiGroup api)
+    (fs, kd) <- liftIO $ runSigninInit api fc
+    pure $ SrpInitDone creds (SrpContext fc fs kd)
+
+
+  srpDone (SrpInitDone creds ctx) = do
+    api <- ask
+    let SrpContext{srpFromClient = fc, srpFromServer = fs, srpKeyDeriver = kd} = ctx
+        mbResults = calcResults kd fc fs
+    result <- liftIO $ try $ runSigninComplete api kd mbResults
+    pure $ case result of
+      Left (TwoFARequired td) -> SrpDone2FA $ NeedsTwoFa creds td
+      Right () -> SrpDoneOk $ DoAccountLogin creds
+
+
+  acctLogin (DoAccountLogin creds) = do
+    api <- ask
+    loginReply <- liftIO $ accountLogin api
+    let ad = parseAccountData loginReply
+    liftIO $ saveLoginMsg (apiSession api) loginReply
+    liftIO $ saveAccountData (apiSession api) ad
+    if accountDataRequires2SA ad
+      then liftIO $ AcctLogin2SA . NeedsTwoSa creds <$> listSetupDevices api
+      else pure $ AcctLoginOk $ AuthComplete creds ad
+
+
+  end (EndedAuthenticated (AuthComplete creds ad)) = pure $ Normal creds ad
+  end (EndedNeedsTwoFa (NeedsTwoFa creds td)) = pure $ Needs2FA creds td
+  end (EndedNeedsTwoSa (NeedsTwoSa creds ds)) = pure $ Needs2SA creds ds
+  end (EndedAfterCredentials _) = pure Halted
+  end (EndedAfterMkArtifactDir _) = pure Halted
+  end (EndedHaltInvalidSrp _) = pure Halted
 
 
 parseAccountData :: Value -> AccountData
@@ -238,7 +319,7 @@ parseAccountData v = fromMaybe unknownAccountData $ parseMaybe parseJSON v
 -- | Complete a 2FA (auth-endpoint) challenge after a @Requires2FA@ result
 completeTwoFactor :: Api -> TrustData -> IO AuthState
 completeTwoFactor api td = do
-  let handleTwoStep   = checkAuthCode' (askForTwoStepCode api)  pleaseReadCode api
+  let handleTwoStep = checkAuthCode' (askForTwoStepCode api) pleaseReadCode api
       handleTwoFactor = checkAuthCode' (askForTwoFactorCode api) pleaseReadCode api
       doVerify :: IO Value
       doVerify = withSelectedPhoneOrDevice handleTwoFactor handleTwoStep td
@@ -265,19 +346,6 @@ complete2SA api devices = do
       saveAccountData (apiSession api) ad
       pure $ Authenticated (apiSession api) ad
     else complete2SA api devices
-
-
--- | Implements the SRP authentication sequence using the ICloud API
-runApiSrpAuth :: Api -> IO ()
-runApiSrpAuth api@Api{apiSession, apiGroup} = do
-  let Credentials
-        { credAccountName = user
-        , credPassword = password
-        } = sessionCreds apiSession
-      mkSrpClient = mkFromClient user password apiGroup
-      stepOne = runSigninInit api
-      stepTwo = runSigninComplete api
-  runSrpAuth mkSrpClient stepOne stepTwo
 
 
 -- | Make a session request and obtain the raw byte results
@@ -423,19 +491,6 @@ hCounter = mk "scnt"
 hClientId = mk "X-Apple-OAuth-State"
 
 
--- | Models the known values of password protocol
-data PasswordProtocol = Old | New
-  deriving (Eq, Show)
-
-
-instance FromJSON PasswordProtocol where
-  parseJSON =
-    let fromText "s2k" = Right New
-        fromText "s2k_fo" = Right Old
-        fromText alt = Left $ "unknown PasswordProtocol: " ++ show alt
-     in withText "PasswordProtocol" $ either fail pure . fromText
-
-
 data SigninInitReply = SigninInitReply
   { sirTag :: !Text
   , sirProtocol :: !PasswordProtocol
@@ -472,39 +527,6 @@ signinInit :: Api -> FromClient -> IO SigninInitReply
 signinInit api other = do
   savedHdrs <- loadSavedHeaders (apiSession api)
   callHandlingResponse signinInitReq (withHeaders (authHeaders api savedHdrs)) extractOr' api other
-
-
--- | Data used during key derivation and verification
-data KeyDeriver = KeyDeriver
-  { kdTag :: !Text
-  , kdIterations :: !Word64
-  , kdProtocol :: !PasswordProtocol
-  , kdWrappedF :: !FancyPseudoRandomF
-  }
-
-
-instance XCalculator KeyDeriver where
-  calcX = calcXUsingKeyDeriver
-
-
-{--| Implements calcuation of X using PBKDF2 to derive a key from the password alone.
-
-Also handles support for both the latest and the legacy approach to serializing
-the hashed password as described
-[here](https://github.com/XcodesOrg/XcodesApp/pull/650)
--}
-calcXUsingKeyDeriver :: KeyDeriver -> FromClient -> FromServer -> ByteString
-calcXUsingKeyDeriver kd fc fs =
-  let FromServer{fsSalt, fsKnownAlgorithm = hashAlgo} = fs
-      h = hashMany hashAlgo
-      KeyDeriver{kdIterations = count, kdWrappedF, kdProtocol} = kd
-
-      -- the old protocol requires base16 encoding the digest before key derivation
-      useProtocol Old = Base16.encode
-      useProtocol New = id
-      hashed = useProtocol kdProtocol $ hashText hashAlgo $ fcPassword fc
-      reallyHashed = deriveKey kdWrappedF hashed fsSalt count
-   in h [fsSalt, h [":", reallyHashed]]
 
 
 runSigninInit :: Api -> FromClient -> IO (FromServer, KeyDeriver)
@@ -629,7 +651,7 @@ validate api@Api{apiEndpoints} = do
   if
     | code == 401 -> pure False
     | code >= 400 -> throwIO $ UnexpectedResponse $ showStatusOf resp
-    | otherwise   -> pure True
+    | otherwise -> pure True
 
 
 validateReq :: Endpoints -> Request
@@ -711,9 +733,9 @@ sendSetupVerification :: Api -> Setup2SADevice -> IO ()
 sendSetupVerification api@Api{apiSession = s, apiEndpoints = ep} device = do
   savedHdrs <- loadSavedHeaders s
   let req =
-        withHeaders (requiredHeaders savedHdrs)
-          $ withBody (encode device)
-          $ sendVerification ep
+        withHeaders (requiredHeaders savedHdrs) $
+          withBody (encode device) $
+            sendVerification ep
   resp <- rawRequest api req
   unless (statusCode (responseStatus resp) < 400) $ throwIO $ UnexpectedResponse $ showStatusOf resp
 
@@ -727,12 +749,11 @@ validateSetupVerification :: Api -> Setup2SADevice -> AuthCode -> IO Bool
 validateSetupVerification api@Api{apiSession = s, apiEndpoints = ep} device code = do
   savedHdrs <- loadSavedHeaders s
   let req =
-        withHeaders (requiredHeaders savedHdrs)
-          $ withBody (encode $ validateSetupBody device code)
-          $ validateVerification ep
+        withHeaders (requiredHeaders savedHdrs) $
+          withBody (encode $ validateSetupBody device code) $
+            validateVerification ep
   resp <- rawRequest api req
   pure $ statusCode (responseStatus resp) < 400
-
 
 
 {- | The code sent to a user device that the user must enter to confirm
@@ -743,7 +764,7 @@ type AuthCode = Text
 
 class AsVerifyRequest a where
   asVerifyRequest :: a -> AuthCode -> Value
-  verifyCodeType  :: a -> Text
+  verifyCodeType :: a -> Text
 
 
 instance AsVerifyRequest TrustedPhone where

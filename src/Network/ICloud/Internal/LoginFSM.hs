@@ -17,16 +17,17 @@ Login process
 -}
 module Network.ICloud.Internal.LoginFSM where
 
-import Data.Functor ((<&>))
 import Data.Kind (Type)
-import Network.ICloud.Session (Credentials, SavedHeaders)
+import Network.ICloud.Session (AccountData, Credentials, SavedHeaders, SrpContext)
+import Network.ICloud.Trust (Setup2SADevice, TrustData)
 
 
 -- | Represents different outcomes of the login process.
 data AtEnd
-  = Normal Credentials
+  = Normal Credentials AccountData
+  | Needs2FA Credentials TrustData
+  | Needs2SA Credentials [Setup2SADevice]
   | Halted
-  deriving (Eq)
 
 
 {- | @LoginEvent@ represents the valid events of the Login FSM.
@@ -45,6 +46,9 @@ class LoginEvent m where
   mkArtifactDir :: State m MkArtificatDir -> m (AfterMkArtifactDir (State m))
   mkClientId :: State m MakeClientId -> m (State m ReadyToAuth)
   loadSession :: State m LoadLastSession -> m (AfterLoadLastSession (State m))
+  srpInit :: State m ReadyToAuth -> m (State m SrpInitDone)
+  srpDone :: State m SrpInitDone -> m (AfterSrpDone (State m))
+  acctLogin :: State m DoAccountLogin -> m (AfterAcctLogin (State m))
   end :: BeforeEnd (State m) -> m AtEnd
 
 
@@ -79,8 +83,21 @@ onArtifactDirPresent
   -> m (BeforeEnd (State m))
 onArtifactDirPresent s =
   loadSession s >>= \case
-    NeedsClientId x -> mkClientId x <&> EndedReady
-    HasClientId x -> pure $ EndedReady x
+    NeedsClientId x -> mkClientId x >>= onReadyToAuth
+    HasClientId x -> onReadyToAuth x
+
+
+onReadyToAuth
+  :: (Monad m, LoginEvent m)
+  => State m ReadyToAuth
+  -> m (BeforeEnd (State m))
+onReadyToAuth s =
+  srpInit s >>= srpDone >>= \case
+    SrpDone2FA x -> pure $ EndedNeedsTwoFa x
+    SrpDoneOk x ->
+      acctLogin x >>= \case
+        AcctLoginOk y -> pure $ EndedAuthenticated y
+        AcctLogin2SA y -> pure $ EndedNeedsTwoSa y
 
 
 {- | The states of FSM defining the login process.
@@ -97,6 +114,13 @@ data LoginFSM s where
   LoadLastSession :: Credentials -> LoginFSM LoadLastSession
   MakeClientId :: Credentials -> SavedHeaders -> LoginFSM MakeClientId
   ReadyToAuth :: Credentials -> SavedHeaders -> LoginFSM ReadyToAuth
+  SrpInit :: Credentials -> SavedHeaders -> LoginFSM SrpInit
+  SrpInitDone :: Credentials -> SrpContext -> LoginFSM SrpInitDone
+  DoAccountLogin :: Credentials -> LoginFSM DoAccountLogin
+  AuthComplete :: Credentials -> AccountData -> LoginFSM AuthComplete
+  NeedsTwoFa :: Credentials -> TrustData -> LoginFSM NeedsTwoFa
+  NeedsTwoSa :: Credentials -> [Setup2SADevice] -> LoginFSM NeedsTwoSa
+  HaltInvalidSrp :: Credentials -> LoginFSM HaltInvalidSrp
 
 
 -- | Phantom type linked to a unique state in 'LoginFSM'
@@ -131,11 +155,42 @@ data MakeClientId
 data ReadyToAuth
 
 
+-- | Phantom type linked to a unique state in 'LoginFSM'
+data SrpInit
+
+
+-- | Phantom type linked to a unique state in 'LoginFSM'
+data SrpInitDone
+
+
+-- | Phantom type linked to a unique state in 'LoginFSM'
+data DoAccountLogin
+
+
+-- | Phantom type linked to a unique state in 'LoginFSM'
+data AuthComplete
+
+
+-- | Phantom type linked to a unique state in 'LoginFSM'
+data NeedsTwoFa
+
+
+-- | Phantom type linked to a unique state in 'LoginFSM'
+data NeedsTwoSa
+
+
+-- | Phantom type linked to a unique state in 'LoginFSM'
+data HaltInvalidSrp
+
+
 -- | The valid states to end from
 data BeforeEnd f
-  = EndedReady (f ReadyToAuth)
-  | EndedAfterCredentials (f HaltMissingCredentials)
+  = EndedAfterCredentials (f HaltMissingCredentials)
   | EndedAfterMkArtifactDir (f HaltCannotMkArtifactDir)
+  | EndedAuthenticated (f AuthComplete)
+  | EndedNeedsTwoFa (f NeedsTwoFa)
+  | EndedNeedsTwoSa (f NeedsTwoSa)
+  | EndedHaltInvalidSrp (f HaltInvalidSrp)
 
 
 -- | The valid states after 'loadSession'
@@ -160,3 +215,15 @@ data AfterArtifactDir f
 data AfterCredentials f
   = NoCreds (f HaltMissingCredentials)
   | GotCreds (f RatifyArtifactDir)
+
+
+-- | The valid states after 'srpDone'
+data AfterSrpDone f
+  = SrpDoneOk (f DoAccountLogin)
+  | SrpDone2FA (f NeedsTwoFa)
+
+
+-- | The valid states after 'acctLogin'
+data AfterAcctLogin f
+  = AcctLoginOk (f AuthComplete)
+  | AcctLogin2SA (f NeedsTwoSa)
