@@ -69,6 +69,7 @@ test-suite test
   other-modules:    ICloud.Examples
                     ICloud.HttpSpec
                     ICloud.Http.ErrorsSpec
+                    ICloud.LoginFSMSpec
                     ICloud.PBKDF2Spec
                     ICloud.SessionSpec
                     ICloud.TrustSpec

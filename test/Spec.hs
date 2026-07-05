@@ -4,6 +4,7 @@ module Main where
 
 import qualified ICloud.Http.ErrorsSpec as HttpErrors
 import qualified ICloud.HttpSpec as Http
+import qualified ICloud.LoginFSMSpec as LoginFSM
 import qualified ICloud.PBKDF2Spec as PBKDF2
 import qualified ICloud.SessionSpec as Session
 import qualified ICloud.TrustSpec as Trust
@@ -26,3 +27,4 @@ main = do
     HttpErrors.spec
     PBKDF2.spec
     Trust.spec
+    LoginFSM.spec
