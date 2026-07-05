@@ -86,7 +86,6 @@ import Network.HTTP.Types
   , Status (..)
   , hContentType
   )
-import Network.ICloud.Http.CookieJar
 import Network.ICloud.Http.Endpoints
   ( Endpoints (..)
   , Realm
@@ -159,6 +158,7 @@ import Network.ICloud.Trust
   , selectSetupDevice
   , withSelectedPhoneOrDevice
   )
+import Web.Cookie.Jar (usingCookiesFromFile)
 
 
 -- | Combines datatypes used whenever the http API is accessed
@@ -376,7 +376,7 @@ rawRequest' :: Bool -> Api -> Request -> IO (Response LBS.ByteString)
 rawRequest' mayRetry api req = do
   let Api{apiManager = mgr, apiSession = s} = api
       jarPath = cookiePath (sessionTopDir s) (sessionCreds s)
-  resp <- usingJarCookies jarPath req $ flip httpLbs mgr
+  resp <- usingCookiesFromFile jarPath req $ flip httpLbs mgr
   updateSessionSavedHeaders s $ updateSavedHeaders $ responseHeaders resp
   if mayRetry && needsRetry resp
     then rawRequest' False api req
