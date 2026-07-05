@@ -5,16 +5,16 @@ module ICloud.HttpSpec
   )
 where
 
+import Crypto.SRP.Hashing (KnownAlgorithm (SHA256), hashText)
 import Data.Aeson (Value (..), decode, withObject, (.:))
 import Data.Aeson.KeyMap (fromList)
 import Data.Aeson.Types (parseMaybe)
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Base16 as Base16
 import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified ICloud.Examples as Examples
 import Network.HTTP.Types (HeaderName)
-import qualified Data.ByteString.Base16 as Base16
-import Crypto.SRP.Hashing (KnownAlgorithm (SHA256), hashText)
 import Network.ICloud.Http (AsVerifyRequest (..), PasswordProtocol (..), validateSetupBody)
 import Network.ICloud.Session
   ( SavedHeaders (..)
@@ -81,13 +81,12 @@ sdChecks =
 
 verifyCodeTypeSpec :: Spec
 verifyCodeTypeSpec = describe "verifyCodeType" $ do
-  let phone  = TrustedPhone 1 "+1234" Nothing
+  let phone = TrustedPhone 1 "+1234" Nothing
       device = TrustedDevice "dev-id" "MacBook" "Mac"
   it "is 'phone' for TrustedPhone" $
     verifyCodeType phone `shouldBe` "phone"
   it "is 'trusteddevice' for TrustedDevice" $
     verifyCodeType device `shouldBe` "trusteddevice"
-
 
 
 passwordProtocolSpec :: Spec
@@ -109,11 +108,6 @@ prop_oldNewHashesDiffer = forAll (elements Examples.wordz) $ \pwd ->
   let hashed = hashText SHA256 pwd
    in Base16.encode hashed /= hashed
 
-
--- NOTE: the following behaviours require network access and have no unit tests yet:
---   * login falls through to doFreshLogin when validate returns 401 (G7)
---   * completeTwoFactor calls accountLogin and returns Authenticated (G5)
---   * complete2SA retries when the verification code is wrong (G5)
 
 validateSetupBodySpec :: Spec
 validateSetupBodySpec = describe "validateSetupBody" $ do

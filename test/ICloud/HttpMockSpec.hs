@@ -4,12 +4,14 @@ module ICloud.HttpMockSpec (spec) where
 
 import Data.Aeson (decode, encodeFile)
 import qualified Data.ByteString.Char8 as BS8
+import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Maybe (fromJust)
-import ICloud.Mock (Scenario (..), SrpOutcome (..), withMockApp)
+import ICloud.Mock (Scenario (..), SrpOutcome (..), defaultScenario, withMockApp)
 import Network.HTTP.Client (Request (..), defaultManagerSettings, defaultRequest, newManager)
 import Network.HTTP.Types (methodPost)
 import Network.ICloud.Http
-  ( AuthState (..)
+  ( Api
+  , AuthState (..)
   , complete2SAWith
   , completeTwoFactorWith
   , login
@@ -31,43 +33,33 @@ spec :: Spec
 spec = describe "Network.ICloud.Http.login" $ do
   it "returns Authenticated on fresh login" $
     withSystemTempDirectory "icloud-auth-mock" $ \tmpDir ->
-      withMockApp (Scenario True SrpOk) $ \serverPort -> do
-        mgr <- newManager defaultManagerSettings
-        api <- mkApiWith (testSession tmpDir) (testEndpoints serverPort) mgr
+      withMockApi tmpDir defaultScenario $ \api -> do
         result <- login api
         isAuthenticated result `shouldBe` True
 
   it "returns Authenticated when saved headers are valid" $
     withSystemTempDirectory "icloud-auth-mock" $ \tmpDir -> do
       writeSavedHeaders tmpDir
-      withMockApp (Scenario True SrpOk) $ \serverPort -> do
-        mgr <- newManager defaultManagerSettings
-        api <- mkApiWith (testSession tmpDir) (testEndpoints serverPort) mgr
+      withMockApi tmpDir defaultScenario $ \api -> do
         result <- login api
         isAuthenticated result `shouldBe` True
 
   it "falls through to fresh login when validate returns 401" $
     withSystemTempDirectory "icloud-auth-mock" $ \tmpDir -> do
       writeSavedHeaders tmpDir
-      withMockApp (Scenario False SrpOk) $ \serverPort -> do
-        mgr <- newManager defaultManagerSettings
-        api <- mkApiWith (testSession tmpDir) (testEndpoints serverPort) mgr
+      withMockApi tmpDir defaultScenario{snValidate = False} $ \api -> do
         result <- login api
         isAuthenticated result `shouldBe` True
 
   it "returns Requires2FA when signin complete returns 409" $
     withSystemTempDirectory "icloud-auth-mock" $ \tmpDir ->
-      withMockApp (Scenario True SrpNeeds2FA) $ \serverPort -> do
-        mgr <- newManager defaultManagerSettings
-        api <- mkApiWith (testSession tmpDir) (testEndpoints serverPort) mgr
+      withMockApi tmpDir defaultScenario{snSrpOutcome = SrpNeeds2FA} $ \api -> do
         result <- login api
         isRequires2FA result `shouldBe` True
 
   it "completeTwoFactor returns Authenticated after 2FA phone challenge" $
     withSystemTempDirectory "icloud-auth-2fa" $ \tmpDir ->
-      withMockApp (Scenario True SrpNeeds2FA) $ \serverPort -> do
-        mgr <- newManager defaultManagerSettings
-        api <- mkApiWith (testSession tmpDir) (testEndpoints serverPort) mgr
+      withMockApi tmpDir defaultScenario{snSrpOutcome = SrpNeeds2FA} $ \api -> do
         loginResult <- login api
         case loginResult of
           Requires2FA _ td -> do
@@ -77,11 +69,29 @@ spec = describe "Network.ICloud.Http.login" $ do
 
   it "complete2SA returns Authenticated after 2SA challenge" $
     withSystemTempDirectory "icloud-auth-2sa" $ \tmpDir ->
-      withMockApp (Scenario True SrpOk) $ \serverPort -> do
-        mgr <- newManager defaultManagerSettings
-        api <- mkApiWith (testSession tmpDir) (testEndpoints serverPort) mgr
+      withMockApi tmpDir defaultScenario $ \api -> do
         result <- complete2SAWith (\_ -> pure testDevice) (pure "0") api [testDevice]
         isAuthenticated result `shouldBe` True
+
+  it "complete2SA retries when the first verification code is wrong" $
+    withSystemTempDirectory "icloud-auth-2sa-retry" $ \tmpDir -> do
+      codeRef <- newIORef ["wrongcode", "0"]
+      let readCode = do
+            codes <- readIORef codeRef
+            case codes of
+              [] -> fail "no more codes"
+              (c : rest) -> writeIORef codeRef rest >> pure c
+      withMockApi tmpDir defaultScenario{snValidateCodeFails = True} $ \api -> do
+        result <- complete2SAWith (\_ -> pure testDevice) readCode api [testDevice]
+        isAuthenticated result `shouldBe` True
+
+
+withMockApi :: FilePath -> Scenario -> (Api -> IO a) -> IO a
+withMockApi tmpDir scenario action =
+  withMockApp scenario $ \serverPort -> do
+    mgr <- newManager defaultManagerSettings
+    api <- mkApiWith (testSession tmpDir) (testEndpoints serverPort) mgr
+    action api
 
 
 testSession :: FilePath -> Session

@@ -24,6 +24,7 @@ module Network.ICloud.Http
   , validateSetupBody
 
     -- * types
+  , Api
   , AuthState (..)
 
     -- * types
