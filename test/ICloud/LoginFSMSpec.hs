@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TypeFamilies #-}
 
@@ -23,8 +22,8 @@ data Script = Script
   , scriptSessionValid :: Bool
   , scriptSrp :: Bool
   , scriptAcct :: Bool
-  , scriptTwoFa :: Bool
-  , scriptTwoSa :: Bool
+  , scriptTwoFa :: [Bool]
+  , scriptTwoSa :: [Bool]
   }
 
 
@@ -39,17 +38,52 @@ allTrue =
     , scriptSessionValid = False
     , scriptSrp = True
     , scriptAcct = True
-    , scriptTwoFa = True
-    , scriptTwoSa = True
+    , scriptTwoFa = [True]
+    , scriptTwoSa = [True]
     }
 
 
-newtype TestM a = TestM {runTestM :: Script -> a}
-  deriving (Functor, Applicative, Monad)
+newtype TestM a = TestM {unTestM :: Script -> (a, Script)}
+
+
+instance Functor TestM where
+  fmap f (TestM m) = TestM $ \s -> let (a, s') = m s in (f a, s')
+
+
+instance Applicative TestM where
+  pure a = TestM $ \s -> (a, s)
+  TestM mf <*> TestM ma = TestM $ \s ->
+    let (f, s') = mf s
+        (a, s'') = ma s'
+     in (f a, s'')
+
+
+instance Monad TestM where
+  return = pure
+  TestM ma >>= f = TestM $ \s ->
+    let (a, s') = ma s
+        TestM mb = f a
+     in mb s'
+
+
+runTestM :: TestM a -> Script -> a
+runTestM (TestM m) s = fst (m s)
 
 
 asksScript :: (Script -> a) -> TestM a
-asksScript = TestM
+asksScript f = TestM $ \s -> (f s, s)
+
+
+popTwoFa :: TestM Bool
+popTwoFa = TestM $ \s -> case scriptTwoFa s of
+  (b : bs) -> (b, s{scriptTwoFa = bs})
+  [] -> (True, s)
+
+
+popTwoSa :: TestM Bool
+popTwoSa = TestM $ \s -> case scriptTwoSa s of
+  (b : bs) -> (b, s{scriptTwoSa = bs})
+  [] -> (True, s)
 
 
 instance LoginEvent TestM where
@@ -119,19 +153,17 @@ instance LoginEvent TestM where
   beginTwoFa (TestState ()) = pure (TestState ())
 
 
-  verifyTwoFa (TestState ()) = asksScript $ \s ->
-    if scriptTwoFa s
-      then TwoFaOk (TestState ())
-      else TwoFaRetry (TestState ())
+  verifyTwoFa (TestState ()) = do
+    result <- popTwoFa
+    pure $ if result then TwoFaOk (TestState ()) else TwoFaRetry (TestState ())
 
 
   beginTwoSa (TestState ()) = pure (TestState ())
 
 
-  verifyTwoSa (TestState ()) = asksScript $ \s ->
-    if scriptTwoSa s
-      then TwoSaOk (TestState ())
-      else TwoSaRetry (TestState ())
+  verifyTwoSa (TestState ()) = do
+    result <- popTwoSa
+    pure $ if result then TwoSaOk (TestState ()) else TwoSaRetry (TestState ())
 
 
   end _ = pure Halted
@@ -200,15 +232,21 @@ spec = do
       runScript (allTrue{scriptHasSavedSession = True, scriptSessionValid = False}) `shouldBe` Authenticated
 
   describe "LoginFSM.twoFaProcess" $ do
-    it "reaches Authenticated when 2FA verification succeeds" $
+    it "reaches Authenticated when 2FA verification succeeds on the first attempt" $
       runTwoFaScript allTrue `shouldBe` Authenticated
+
+    it "retries and reaches Authenticated after a failed 2FA verification" $
+      runTwoFaScript (allTrue{scriptTwoFa = [False, True]}) `shouldBe` Authenticated
 
     it "reaches Requires2SA when account login signals 2SA required after 2FA" $
       runTwoFaScript (allTrue{scriptAcct = False}) `shouldBe` TwoSa
 
   describe "LoginFSM.twoSaProcess" $ do
-    it "reaches Authenticated when 2SA verification succeeds" $
+    it "reaches Authenticated when 2SA verification succeeds on the first attempt" $
       runTwoSaScript allTrue `shouldBe` Authenticated
+
+    it "retries and reaches Authenticated after a failed 2SA verification" $
+      runTwoSaScript (allTrue{scriptTwoSa = [False, True]}) `shouldBe` Authenticated
 
     it "reaches Requires2SA when account login signals 2SA required after 2SA" $
       runTwoSaScript (allTrue{scriptAcct = False}) `shouldBe` TwoSa
