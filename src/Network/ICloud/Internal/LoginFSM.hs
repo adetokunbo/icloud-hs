@@ -17,7 +17,9 @@ Login process
 -}
 module Network.ICloud.Internal.LoginFSM where
 
+import Data.Functor ((<&>))
 import Data.Kind (Type)
+import Data.Text (Text)
 import Network.ICloud.Session (AccountData, Credentials, SavedHeaders, SrpContext)
 import Network.ICloud.Trust (Setup2SADevice, TrustData)
 
@@ -52,6 +54,8 @@ class LoginEvent m where
   increaseTrust :: State m IncreaseTrust -> m (State m DoAccountLogin)
   acctLogin :: State m DoAccountLogin -> m (AfterAcctLogin (State m))
   listTwoSaDevices :: State m NeedsTwoSa -> m (State m TwoSaReady)
+  beginTwoFa :: State m ReadyForTwoFa -> m (State m TwoFaVerifying)
+  verifyTwoFa :: State m TwoFaVerifying -> m (AfterTwoFaVerify (State m))
   end :: BeforeEnd (State m) -> m AtEnd
 
 
@@ -101,10 +105,27 @@ onReadyToAuth
 onReadyToAuth s =
   srpInit s >>= srpComplete >>= \case
     SrpComplete2FA x -> pure $ EndedNeedsTwoFa x
-    SrpCompleteOk x ->
-      increaseTrust x >>= acctLogin >>= \case
-        AcctLoginOk y -> pure $ EndedAuthenticated y
-        AcctLogin2SA y -> listTwoSaDevices y >>= pure . EndedNeedsTwoSa
+    SrpCompleteOk x -> increaseTrust x >>= acctLogin >>= onAcctLoginDone
+
+
+onAcctLoginDone
+  :: (Monad m, LoginEvent m)
+  => AfterAcctLogin (State m)
+  -> m (BeforeEnd (State m))
+onAcctLoginDone = \case
+  AcctLoginOk y -> pure $ EndedAuthenticated y
+  AcctLogin2SA y -> listTwoSaDevices y <&> EndedNeedsTwoSa
+
+
+-- | The 2FA completion process using events from 'LoginEvent'.
+twoFaProcess
+  :: (LoginEvent m, Monad m)
+  => State m ReadyForTwoFa
+  -> m (BeforeEnd (State m))
+twoFaProcess s =
+  beginTwoFa s >>= verifyTwoFa >>= \case
+    TwoFaOk x -> acctLogin x >>= onAcctLoginDone
+    TwoFaRetry x -> twoFaProcess x
 
 
 {- | The states of FSM defining the login process.
@@ -128,6 +149,8 @@ data LoginFSM s where
   DoAccountLogin :: Credentials -> LoginFSM DoAccountLogin
   AuthComplete :: Credentials -> AccountData -> LoginFSM AuthComplete
   NeedsTwoFa :: Credentials -> TrustData -> LoginFSM NeedsTwoFa
+  ReadyForTwoFa :: Credentials -> TrustData -> IO Text -> LoginFSM ReadyForTwoFa
+  TwoFaVerifying :: Credentials -> TrustData -> IO Text -> LoginFSM TwoFaVerifying
   NeedsTwoSa :: Credentials -> LoginFSM NeedsTwoSa
   TwoSaReady :: Credentials -> [Setup2SADevice] -> LoginFSM TwoSaReady
   HaltInvalidSrp :: Credentials -> LoginFSM HaltInvalidSrp
@@ -194,6 +217,14 @@ data NeedsTwoFa
 
 
 -- | Phantom type linked to a unique state in 'LoginFSM'
+data ReadyForTwoFa
+
+
+-- | Phantom type linked to a unique state in 'LoginFSM'
+data TwoFaVerifying
+
+
+-- | Phantom type linked to a unique state in 'LoginFSM'
 data NeedsTwoSa
 
 
@@ -256,3 +287,9 @@ data AfterSrpComplete f
 data AfterAcctLogin f
   = AcctLoginOk (f AuthComplete)
   | AcctLogin2SA (f NeedsTwoSa)
+
+
+-- | The valid states after 'verifyTwoFa'
+data AfterTwoFaVerify f
+  = TwoFaOk (f DoAccountLogin)
+  | TwoFaRetry (f ReadyForTwoFa)

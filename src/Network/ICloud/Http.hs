@@ -124,12 +124,14 @@ import Network.ICloud.Internal.LoginFSM
   , AfterLoadLastSession (..)
   , AfterMkArtifactDir (..)
   , AfterSrpComplete (..)
+  , AfterTwoFaVerify (..)
   , AfterValidateSession (..)
   , AtEnd (..)
   , BeforeEnd (..)
   , LoginEvent (..)
   , LoginFSM (..)
   , loginProcess
+  , twoFaProcess
   )
 import Network.ICloud.PBKDF2 (FancyPseudoRandomF, wrapIO)
 import Network.ICloud.Session
@@ -326,6 +328,26 @@ instance LoginEvent (ReaderT Api IO) where
     pure $ TwoSaReady creds devices
 
 
+  beginTwoFa (ReadyForTwoFa creds td readCode) = do
+    api <- ask
+    liftIO $ withSelectedPhoneOrDevice (askForTwoFactorCode api) (askForTwoStepCode api) td
+    pure $ TwoFaVerifying creds td readCode
+
+
+  verifyTwoFa (TwoFaVerifying creds td readCode) = do
+    api <- ask
+    code <- liftIO readCode
+    let doVerify =
+          withSelectedPhoneOrDevice
+            (\tp -> verifyCodeOrRetry api tp code)
+            (\td' -> verifyCodeOrRetry api td' code)
+            td
+    mbResult <- liftIO (doVerify :: IO (Maybe ()))
+    pure $ case mbResult of
+      Nothing -> TwoFaRetry $ ReadyForTwoFa creds td readCode
+      Just () -> TwoFaOk $ DoAccountLogin creds
+
+
   end (EndedAuthenticated (AuthComplete creds ad)) = pure $ Normal creds ad
   end (EndedNeedsTwoFa (NeedsTwoFa creds td)) = pure $ Needs2FA creds td
   end (EndedNeedsTwoSa (TwoSaReady creds ds)) = pure $ Needs2SA creds ds
@@ -346,16 +368,14 @@ completeTwoFactor = completeTwoFactorWith pleaseReadCode
 -- | Like 'completeTwoFactor' with an injectable code prompt, for testing
 completeTwoFactorWith :: IO AuthCode -> Api -> TrustData -> IO AuthState
 completeTwoFactorWith readCode api td = do
-  let handleTwoStep = checkAuthCode' (askForTwoStepCode api) readCode api
-      handleTwoFactor = checkAuthCode' (askForTwoFactorCode api) readCode api
-      doVerify :: IO Value
-      doVerify = withSelectedPhoneOrDevice handleTwoFactor handleTwoStep td
-  _ <- doVerify
-  loginReply <- accountLogin api
-  let ad = parseAccountData loginReply
-  saveLoginMsg (apiSession api) loginReply
-  saveAccountData (apiSession api) ad
-  pure $ Authenticated (apiSession api) ad
+  let creds = sessionCreds (apiSession api)
+      start = ReadyForTwoFa creds td readCode
+  result <- runReaderT (twoFaProcess start >>= end) api
+  case result of
+    Normal _ ad -> pure $ Authenticated (apiSession api) ad
+    Needs2FA _ td' -> pure $ Requires2FA (apiSession api) td'
+    Needs2SA _ ds -> pure $ Requires2SA (apiSession api) ds
+    Halted -> throwIO $ UnexpectedResponse "completeTwoFactor halted"
 
 
 -- | Complete a 2SA (setup-endpoint) challenge after a @Requires2SA@ result
@@ -660,19 +680,6 @@ handleSigninComplete api resp = do
     | code == 409 -> Left <$> chooseTrustType api
     | code >= 400 -> throwIO $ UnexpectedResponse $ showStatusOf resp
     | otherwise -> Right <$> extractOr body
-
-
-checkAuthCode'
-  :: (AsVerifyRequest b, FromJSON a)
-  => (b -> IO ())
-  -> IO AuthCode
-  -> Api
-  -> b
-  -> IO a
-checkAuthCode' seekAuthCode enterAuthCode api verifier = do
-  let maybeRetry = maybe (checkAuthCode' seekAuthCode enterAuthCode api verifier) pure
-  seekAuthCode verifier
-  enterAuthCode >>= verifyCodeOrRetry api verifier >>= maybeRetry
 
 
 verifyCodeOrRetry :: (FromJSON a, AsVerifyRequest b) => Api -> b -> AuthCode -> IO (Maybe a)

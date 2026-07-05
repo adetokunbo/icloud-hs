@@ -23,6 +23,7 @@ data Script = Script
   , scriptSessionValid :: Bool
   , scriptSrp :: Bool
   , scriptAcct :: Bool
+  , scriptTwoFa :: Bool
   }
 
 
@@ -37,6 +38,7 @@ allTrue =
     , scriptSessionValid = False
     , scriptSrp = True
     , scriptAcct = True
+    , scriptTwoFa = True
     }
 
 
@@ -112,6 +114,15 @@ instance LoginEvent TestM where
   listTwoSaDevices (TestState ()) = pure (TestState ())
 
 
+  beginTwoFa (TestState ()) = pure (TestState ())
+
+
+  verifyTwoFa (TestState ()) = asksScript $ \s ->
+    if scriptTwoFa s
+      then TwoFaOk (TestState ())
+      else TwoFaRetry (TestState ())
+
+
   end _ = pure Halted
 
 
@@ -139,31 +150,43 @@ runScript :: Script -> Outcome
 runScript s = outcomeOf $ runTestM loginProcess s
 
 
+runTwoFaScript :: Script -> Outcome
+runTwoFaScript s = outcomeOf $ runTestM (twoFaProcess (TestState ())) s
+
+
 spec :: Spec
-spec = describe "LoginFSM.loginProcess" $ do
-  it "halts when credentials are missing" $
-    runScript (allTrue{scriptCreds = False}) `shouldBe` HaltCreds
+spec = do
+  describe "LoginFSM.loginProcess" $ do
+    it "halts when credentials are missing" $
+      runScript (allTrue{scriptCreds = False}) `shouldBe` HaltCreds
 
-  it "halts when the artifact directory cannot be created" $
-    runScript (allTrue{scriptDir = False, scriptMkDir = False}) `shouldBe` HaltMkDir
+    it "halts when the artifact directory cannot be created" $
+      runScript (allTrue{scriptDir = False, scriptMkDir = False}) `shouldBe` HaltMkDir
 
-  it "reaches Requires2FA when SRP completes with a 2FA challenge" $
-    runScript (allTrue{scriptSrp = False}) `shouldBe` TwoFa
+    it "reaches Requires2FA when SRP completes with a 2FA challenge" $
+      runScript (allTrue{scriptSrp = False}) `shouldBe` TwoFa
 
-  it "reaches Authenticated on the happy path" $
-    runScript allTrue `shouldBe` Authenticated
+    it "reaches Authenticated on the happy path" $
+      runScript allTrue `shouldBe` Authenticated
 
-  it "reaches Requires2SA when account login signals 2SA required" $
-    runScript (allTrue{scriptAcct = False}) `shouldBe` TwoSa
+    it "reaches Requires2SA when account login signals 2SA required" $
+      runScript (allTrue{scriptAcct = False}) `shouldBe` TwoSa
 
-  it "passes through mkClientId when the session has no client ID" $
-    runScript (allTrue{scriptLoad = False}) `shouldBe` Authenticated
+    it "passes through mkClientId when the session has no client ID" $
+      runScript (allTrue{scriptLoad = False}) `shouldBe` Authenticated
 
-  it "creates the artifact directory when absent then reaches Authenticated" $
-    runScript (allTrue{scriptDir = False}) `shouldBe` Authenticated
+    it "creates the artifact directory when absent then reaches Authenticated" $
+      runScript (allTrue{scriptDir = False}) `shouldBe` Authenticated
 
-  it "returns Authenticated immediately when the saved session is still valid" $
-    runScript (allTrue{scriptHasSavedSession = True, scriptSessionValid = True}) `shouldBe` Authenticated
+    it "returns Authenticated immediately when the saved session is still valid" $
+      runScript (allTrue{scriptHasSavedSession = True, scriptSessionValid = True}) `shouldBe` Authenticated
 
-  it "falls through to SRP when the saved session is stale" $
-    runScript (allTrue{scriptHasSavedSession = True, scriptSessionValid = False}) `shouldBe` Authenticated
+    it "falls through to SRP when the saved session is stale" $
+      runScript (allTrue{scriptHasSavedSession = True, scriptSessionValid = False}) `shouldBe` Authenticated
+
+  describe "LoginFSM.twoFaProcess" $ do
+    it "reaches Authenticated when 2FA verification succeeds" $
+      runTwoFaScript allTrue `shouldBe` Authenticated
+
+    it "reaches Requires2SA when account login signals 2SA required after 2FA" $
+      runTwoFaScript (allTrue{scriptAcct = False}) `shouldBe` TwoSa
