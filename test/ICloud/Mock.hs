@@ -34,6 +34,8 @@ data Scenario = Scenario
   , snSrpOutcome :: SrpOutcome
   , snValidateCodeFails :: Bool
   -- ^ when True, the first validateVerificationCode call returns 400
+  , snAccountLoginNeeds2SA :: Bool
+  -- ^ when True, the first accountLogin call returns a 2SA-required response
   }
 
 
@@ -43,6 +45,7 @@ defaultScenario =
     { snValidate = True
     , snSrpOutcome = SrpOk
     , snValidateCodeFails = False
+    , snAccountLoginNeeds2SA = False
     }
 
 
@@ -54,11 +57,23 @@ withMockApp :: Scenario -> (Int -> IO a) -> IO a
 withMockApp scenario action = do
   srpInit <- LBS.readFile =<< getDataFileName "testdata/srp_init_ok_test.json"
   trustData <- LBS.readFile =<< getDataFileName "testdata/trust_data_test.json"
+  login2sa <- LBS.readFile =<< getDataFileName "testdata/login_2sa_test.json"
   loginWorking <- LBS.readFile =<< getDataFileName "testdata/login_working_test.json"
   listDevices <- LBS.readFile =<< getDataFileName "testdata/trusted_devices_test.json"
   codeAttemptsRef <- newIORef (0 :: Int)
+  accountLoginRef <- newIORef (0 :: Int)
   testWithApplication
-    (pure $ mockApp scenario srpInit trustData loginWorking listDevices codeAttemptsRef)
+    ( pure $
+        mockApp
+          scenario
+          srpInit
+          trustData
+          login2sa
+          loginWorking
+          listDevices
+          codeAttemptsRef
+          accountLoginRef
+    )
     action
 
 
@@ -68,44 +83,61 @@ mockApp
   -> LBS.ByteString
   -> LBS.ByteString
   -> LBS.ByteString
+  -> LBS.ByteString
+  -> IORef Int
   -> IORef Int
   -> Application
-mockApp scenario srpInit trustData loginWorking listDevices codeAttemptsRef req respond = do
-  let method = requestMethod req
-      segs = pathInfo req
-      json st body = responseLBS st jsonHeaders body
-  resp <- case (method, segs) of
-    ("POST", ["appleauth", "auth", "signin", "init"]) ->
-      pure $ json status200 srpInit
-    ("POST", ["appleauth", "auth", "signin", "complete"]) ->
-      pure $ case snSrpOutcome scenario of
-        SrpOk -> json status200 "{}"
-        SrpNeeds2FA -> json status409 "{}"
-    ("GET", ["appleauth", "auth", "2sv", "trust"]) ->
-      pure $ json status200 "{}"
-    ("POST", ["appleauth", "auth"]) ->
-      pure $ json status200 trustData
-    ("PUT", ["appleauth", "auth", "verify", "phone"]) ->
-      pure $ json status200 "{}"
-    ("POST", ["appleauth", "auth", "verify", "phone", "securitycode"]) ->
-      pure $ json status200 "true"
-    ("GET", ["setup", "ws", "1", "listDevices"]) ->
-      pure $ json status200 listDevices
-    ("POST", ["setup", "ws", "1", "sendVerificationCode"]) ->
-      pure $ json status200 "{}"
-    ("POST", ["setup", "ws", "1", "validateVerificationCode"]) -> do
-      n <- readIORef codeAttemptsRef
-      writeIORef codeAttemptsRef (n + 1)
-      pure $
-        if snValidateCodeFails scenario && n == 0
-          then responseLBS status400 [] ""
-          else json status200 "{}"
-    ("POST", ["setup", "ws", "1", "validate"]) ->
-      pure $
-        if snValidate scenario
-          then json status200 "{}"
-          else responseLBS status401 [] ""
-    ("POST", ["setup", "ws", "1", "accountLogin"]) ->
-      pure $ json status200 loginWorking
-    _ -> pure $ responseLBS status404 [] "not found"
-  respond resp
+mockApp
+  scenario
+  srpInit
+  trustData
+  login2sa
+  loginWorking
+  listDevices
+  codeAttemptsRef
+  accountLoginRef
+  req
+  respond = do
+    let method = requestMethod req
+        segs = pathInfo req
+        json st body = responseLBS st jsonHeaders body
+    resp <- case (method, segs) of
+      ("POST", ["appleauth", "auth", "signin", "init"]) ->
+        pure $ json status200 srpInit
+      ("POST", ["appleauth", "auth", "signin", "complete"]) ->
+        pure $ case snSrpOutcome scenario of
+          SrpOk -> json status200 "{}"
+          SrpNeeds2FA -> json status409 "{}"
+      ("GET", ["appleauth", "auth", "2sv", "trust"]) ->
+        pure $ json status200 "{}"
+      ("POST", ["appleauth", "auth"]) ->
+        pure $ json status200 trustData
+      ("PUT", ["appleauth", "auth", "verify", "phone"]) ->
+        pure $ json status200 "{}"
+      ("POST", ["appleauth", "auth", "verify", "phone", "securitycode"]) ->
+        pure $ json status200 "true"
+      ("GET", ["setup", "ws", "1", "listDevices"]) ->
+        pure $ json status200 listDevices
+      ("POST", ["setup", "ws", "1", "sendVerificationCode"]) ->
+        pure $ json status200 "{}"
+      ("POST", ["setup", "ws", "1", "validateVerificationCode"]) -> do
+        n <- readIORef codeAttemptsRef
+        writeIORef codeAttemptsRef (n + 1)
+        pure $
+          if snValidateCodeFails scenario && n == 0
+            then responseLBS status400 [] ""
+            else json status200 "{}"
+      ("POST", ["setup", "ws", "1", "validate"]) ->
+        pure $
+          if snValidate scenario
+            then json status200 "{}"
+            else responseLBS status401 [] ""
+      ("POST", ["setup", "ws", "1", "accountLogin"]) -> do
+        n <- readIORef accountLoginRef
+        writeIORef accountLoginRef (n + 1)
+        pure $
+          if snAccountLoginNeeds2SA scenario && n == 0
+            then json status200 login2sa
+            else json status200 loginWorking
+      _ -> pure $ responseLBS status404 [] "not found"
+    respond resp
