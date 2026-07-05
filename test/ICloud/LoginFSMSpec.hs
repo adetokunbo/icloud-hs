@@ -109,6 +109,9 @@ instance LoginEvent TestM where
       else AcctLogin2SA (TestState ())
 
 
+  listTwoSaDevices (TestState ()) = pure (TestState ())
+
+
   end _ = pure Halted
 
 

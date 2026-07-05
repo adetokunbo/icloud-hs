@@ -314,14 +314,21 @@ instance LoginEvent (ReaderT Api IO) where
     let ad = parseAccountData loginReply
     liftIO $ saveLoginMsg (apiSession api) loginReply
     liftIO $ saveAccountData (apiSession api) ad
-    if accountDataRequires2SA ad
-      then liftIO $ AcctLogin2SA . NeedsTwoSa creds <$> listSetupDevices api
-      else pure $ AcctLoginOk $ AuthComplete creds ad
+    pure $
+      if accountDataRequires2SA ad
+        then AcctLogin2SA $ NeedsTwoSa creds
+        else AcctLoginOk $ AuthComplete creds ad
+
+
+  listTwoSaDevices (NeedsTwoSa creds) = do
+    api <- ask
+    devices <- liftIO $ listSetupDevices api
+    pure $ TwoSaReady creds devices
 
 
   end (EndedAuthenticated (AuthComplete creds ad)) = pure $ Normal creds ad
   end (EndedNeedsTwoFa (NeedsTwoFa creds td)) = pure $ Needs2FA creds td
-  end (EndedNeedsTwoSa (NeedsTwoSa creds ds)) = pure $ Needs2SA creds ds
+  end (EndedNeedsTwoSa (TwoSaReady creds ds)) = pure $ Needs2SA creds ds
   end (EndedAfterCredentials _) = pure Halted
   end (EndedAfterMkArtifactDir _) = pure Halted
   end (EndedHaltInvalidSrp _) = pure Halted

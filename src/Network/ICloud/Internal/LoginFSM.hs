@@ -51,6 +51,7 @@ class LoginEvent m where
   srpComplete :: State m SrpInitDone -> m (AfterSrpComplete (State m))
   increaseTrust :: State m IncreaseTrust -> m (State m DoAccountLogin)
   acctLogin :: State m DoAccountLogin -> m (AfterAcctLogin (State m))
+  listTwoSaDevices :: State m NeedsTwoSa -> m (State m TwoSaReady)
   end :: BeforeEnd (State m) -> m AtEnd
 
 
@@ -103,7 +104,7 @@ onReadyToAuth s =
     SrpCompleteOk x ->
       increaseTrust x >>= acctLogin >>= \case
         AcctLoginOk y -> pure $ EndedAuthenticated y
-        AcctLogin2SA y -> pure $ EndedNeedsTwoSa y
+        AcctLogin2SA y -> listTwoSaDevices y >>= pure . EndedNeedsTwoSa
 
 
 {- | The states of FSM defining the login process.
@@ -127,7 +128,8 @@ data LoginFSM s where
   DoAccountLogin :: Credentials -> LoginFSM DoAccountLogin
   AuthComplete :: Credentials -> AccountData -> LoginFSM AuthComplete
   NeedsTwoFa :: Credentials -> TrustData -> LoginFSM NeedsTwoFa
-  NeedsTwoSa :: Credentials -> [Setup2SADevice] -> LoginFSM NeedsTwoSa
+  NeedsTwoSa :: Credentials -> LoginFSM NeedsTwoSa
+  TwoSaReady :: Credentials -> [Setup2SADevice] -> LoginFSM TwoSaReady
   HaltInvalidSrp :: Credentials -> LoginFSM HaltInvalidSrp
 
 
@@ -196,6 +198,10 @@ data NeedsTwoSa
 
 
 -- | Phantom type linked to a unique state in 'LoginFSM'
+data TwoSaReady
+
+
+-- | Phantom type linked to a unique state in 'LoginFSM'
 data HaltInvalidSrp
 
 
@@ -205,7 +211,7 @@ data BeforeEnd f
   | EndedAfterMkArtifactDir (f HaltCannotMkArtifactDir)
   | EndedAuthenticated (f AuthComplete)
   | EndedNeedsTwoFa (f NeedsTwoFa)
-  | EndedNeedsTwoSa (f NeedsTwoSa)
+  | EndedNeedsTwoSa (f TwoSaReady)
   | EndedHaltInvalidSrp (f HaltInvalidSrp)
 
 
