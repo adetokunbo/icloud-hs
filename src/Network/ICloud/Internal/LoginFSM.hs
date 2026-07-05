@@ -56,6 +56,8 @@ class LoginEvent m where
   listTwoSaDevices :: State m NeedsTwoSa -> m (State m TwoSaReady)
   beginTwoFa :: State m ReadyForTwoFa -> m (State m TwoFaVerifying)
   verifyTwoFa :: State m TwoFaVerifying -> m (AfterTwoFaVerify (State m))
+  beginTwoSa :: State m ReadyForTwoSa -> m (State m TwoSaVerifying)
+  verifyTwoSa :: State m TwoSaVerifying -> m (AfterTwoSaVerify (State m))
   end :: BeforeEnd (State m) -> m AtEnd
 
 
@@ -128,6 +130,17 @@ twoFaProcess s =
     TwoFaRetry x -> twoFaProcess x
 
 
+-- | The 2SA completion process using events from 'LoginEvent'.
+twoSaProcess
+  :: (LoginEvent m, Monad m)
+  => State m ReadyForTwoSa
+  -> m (BeforeEnd (State m))
+twoSaProcess s =
+  beginTwoSa s >>= verifyTwoSa >>= \case
+    TwoSaOk x -> acctLogin x >>= onAcctLoginDone
+    TwoSaRetry x -> twoSaProcess x
+
+
 {- | The states of FSM defining the login process.
 
 Each constructor specifies the concrete data required by the process in that
@@ -153,6 +166,8 @@ data LoginFSM s where
   TwoFaVerifying :: Credentials -> TrustData -> IO Text -> LoginFSM TwoFaVerifying
   NeedsTwoSa :: Credentials -> LoginFSM NeedsTwoSa
   TwoSaReady :: Credentials -> [Setup2SADevice] -> LoginFSM TwoSaReady
+  ReadyForTwoSa :: Credentials -> [Setup2SADevice] -> ([Setup2SADevice] -> IO Setup2SADevice) -> IO Text -> LoginFSM ReadyForTwoSa
+  TwoSaVerifying :: Credentials -> Setup2SADevice -> [Setup2SADevice] -> ([Setup2SADevice] -> IO Setup2SADevice) -> IO Text -> LoginFSM TwoSaVerifying
   HaltInvalidSrp :: Credentials -> LoginFSM HaltInvalidSrp
 
 
@@ -233,6 +248,14 @@ data TwoSaReady
 
 
 -- | Phantom type linked to a unique state in 'LoginFSM'
+data ReadyForTwoSa
+
+
+-- | Phantom type linked to a unique state in 'LoginFSM'
+data TwoSaVerifying
+
+
+-- | Phantom type linked to a unique state in 'LoginFSM'
 data HaltInvalidSrp
 
 
@@ -293,3 +316,9 @@ data AfterAcctLogin f
 data AfterTwoFaVerify f
   = TwoFaOk (f DoAccountLogin)
   | TwoFaRetry (f ReadyForTwoFa)
+
+
+-- | The valid states after 'verifyTwoSa'
+data AfterTwoSaVerify f
+  = TwoSaOk (f DoAccountLogin)
+  | TwoSaRetry (f ReadyForTwoSa)

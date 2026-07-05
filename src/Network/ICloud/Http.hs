@@ -125,6 +125,7 @@ import Network.ICloud.Internal.LoginFSM
   , AfterMkArtifactDir (..)
   , AfterSrpComplete (..)
   , AfterTwoFaVerify (..)
+  , AfterTwoSaVerify (..)
   , AfterValidateSession (..)
   , AtEnd (..)
   , BeforeEnd (..)
@@ -132,6 +133,7 @@ import Network.ICloud.Internal.LoginFSM
   , LoginFSM (..)
   , loginProcess
   , twoFaProcess
+  , twoSaProcess
   )
 import Network.ICloud.PBKDF2 (FancyPseudoRandomF, wrapIO)
 import Network.ICloud.Session
@@ -348,6 +350,23 @@ instance LoginEvent (ReaderT Api IO) where
       Just () -> TwoFaOk $ DoAccountLogin creds
 
 
+  beginTwoSa (ReadyForTwoSa creds devices pickDevice readCode) = do
+    api <- ask
+    device <- liftIO $ pickDevice devices
+    liftIO $ sendSetupVerification api device
+    pure $ TwoSaVerifying creds device devices pickDevice readCode
+
+
+  verifyTwoSa (TwoSaVerifying creds device devices pickDevice readCode) = do
+    api <- ask
+    code <- liftIO readCode
+    ok <- liftIO $ validateSetupVerification api device code
+    pure $
+      if ok
+        then TwoSaOk $ DoAccountLogin creds
+        else TwoSaRetry $ ReadyForTwoSa creds devices pickDevice readCode
+
+
   end (EndedAuthenticated (AuthComplete creds ad)) = pure $ Normal creds ad
   end (EndedNeedsTwoFa (NeedsTwoFa creds td)) = pure $ Needs2FA creds td
   end (EndedNeedsTwoSa (TwoSaReady creds ds)) = pure $ Needs2SA creds ds
@@ -391,18 +410,14 @@ complete2SAWith
   -> [Setup2SADevice]
   -> IO AuthState
 complete2SAWith pickDevice readCode api devices = do
-  device <- pickDevice devices
-  sendSetupVerification api device
-  code <- readCode
-  ok <- validateSetupVerification api device code
-  if ok
-    then do
-      loginReply <- accountLogin api
-      let ad = parseAccountData loginReply
-      saveLoginMsg (apiSession api) loginReply
-      saveAccountData (apiSession api) ad
-      pure $ Authenticated (apiSession api) ad
-    else complete2SAWith pickDevice readCode api devices
+  let creds = sessionCreds (apiSession api)
+      start = ReadyForTwoSa creds devices pickDevice readCode
+  result <- runReaderT (twoSaProcess start >>= end) api
+  case result of
+    Normal _ ad -> pure $ Authenticated (apiSession api) ad
+    Needs2FA _ td -> pure $ Requires2FA (apiSession api) td
+    Needs2SA _ ds -> pure $ Requires2SA (apiSession api) ds
+    Halted -> throwIO $ UnexpectedResponse "complete2SA halted"
 
 
 -- | Make a session request and obtain the raw byte results

@@ -24,6 +24,7 @@ data Script = Script
   , scriptSrp :: Bool
   , scriptAcct :: Bool
   , scriptTwoFa :: Bool
+  , scriptTwoSa :: Bool
   }
 
 
@@ -39,6 +40,7 @@ allTrue =
     , scriptSrp = True
     , scriptAcct = True
     , scriptTwoFa = True
+    , scriptTwoSa = True
     }
 
 
@@ -123,6 +125,15 @@ instance LoginEvent TestM where
       else TwoFaRetry (TestState ())
 
 
+  beginTwoSa (TestState ()) = pure (TestState ())
+
+
+  verifyTwoSa (TestState ()) = asksScript $ \s ->
+    if scriptTwoSa s
+      then TwoSaOk (TestState ())
+      else TwoSaRetry (TestState ())
+
+
   end _ = pure Halted
 
 
@@ -152,6 +163,10 @@ runScript s = outcomeOf $ runTestM loginProcess s
 
 runTwoFaScript :: Script -> Outcome
 runTwoFaScript s = outcomeOf $ runTestM (twoFaProcess (TestState ())) s
+
+
+runTwoSaScript :: Script -> Outcome
+runTwoSaScript s = outcomeOf $ runTestM (twoSaProcess (TestState ())) s
 
 
 spec :: Spec
@@ -190,3 +205,10 @@ spec = do
 
     it "reaches Requires2SA when account login signals 2SA required after 2FA" $
       runTwoFaScript (allTrue{scriptAcct = False}) `shouldBe` TwoSa
+
+  describe "LoginFSM.twoSaProcess" $ do
+    it "reaches Authenticated when 2SA verification succeeds" $
+      runTwoSaScript allTrue `shouldBe` Authenticated
+
+    it "reaches Requires2SA when account login signals 2SA required after 2SA" $
+      runTwoSaScript (allTrue{scriptAcct = False}) `shouldBe` TwoSa
