@@ -128,7 +128,7 @@ import Network.ICloud.Internal.LoginFSM
   , BeforeEnd (..)
   , LoginEvent (..)
   , LoginFSM (..)
-  , onReadyToAuth
+  , loginProcess
   )
 import Network.ICloud.PBKDF2 (FancyPseudoRandomF, wrapIO)
 import Network.ICloud.Session
@@ -235,30 +235,7 @@ instance Exception TwoFARequired
 -- | Logs into ICloud, returning the resulting @AuthState@
 login :: Api -> IO AuthState
 login api = do
-  sh <- loadSavedHeaders (apiSession api)
-  if sh == pristine
-    then doFreshLogin api
-    else do
-      valid <- validate api
-      if valid then loadSaved api else doFreshLogin api
-
-
-loadSaved :: Api -> IO AuthState
-loadSaved api = do
-  mbAd <- loadAccountData (apiSession api)
-  case mbAd of
-    Just ad | accountDataRequires2FA ad -> doFreshLogin api
-    Just ad | accountDataRequires2SA ad -> doFreshLogin api
-    Just ad -> pure $ Authenticated (apiSession api) ad
-    Nothing -> pure $ Authenticated (apiSession api) unknownAccountData
-
-
-doFreshLogin :: Api -> IO AuthState
-doFreshLogin api = do
-  savedHdrs <- loadSavedHeaders (apiSession api)
-  let creds = sessionCreds (apiSession api)
-      start = ReadyToAuth creds savedHdrs
-  result <- runReaderT (onReadyToAuth start >>= end) api
+  result <- runReaderT (loginProcess >>= end) api
   case result of
     Normal _ ad -> pure $ Authenticated (apiSession api) ad
     Needs2FA _ td -> pure $ Requires2FA (apiSession api) td
@@ -288,7 +265,19 @@ instance LoginEvent (ReaderT Api IO) where
   loadSession (LoadLastSession creds) = do
     api <- ask
     savedHdrs <- liftIO $ loadSavedHeaders (apiSession api)
-    pure $ HasClientId $ ReadyToAuth creds savedHdrs
+    if savedHdrs == pristine
+      then pure $ HasClientId $ ReadyToAuth creds savedHdrs
+      else do
+        valid <- liftIO $ validate api
+        if not valid
+          then pure $ HasClientId $ ReadyToAuth creds savedHdrs
+          else do
+            mbAd <- liftIO $ loadAccountData (apiSession api)
+            pure $ case mbAd of
+              Just ad | accountDataRequires2FA ad -> HasClientId $ ReadyToAuth creds savedHdrs
+              Just ad | accountDataRequires2SA ad -> HasClientId $ ReadyToAuth creds savedHdrs
+              Just ad -> SessionStillValid $ AuthComplete creds ad
+              Nothing -> SessionStillValid $ AuthComplete creds unknownAccountData
 
 
   mkClientId (MakeClientId creds savedHdrs) =

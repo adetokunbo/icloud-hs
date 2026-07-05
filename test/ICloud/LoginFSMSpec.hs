@@ -19,6 +19,7 @@ data Script = Script
   , scriptDir :: Bool
   , scriptMkDir :: Bool
   , scriptLoad :: Bool
+  , scriptSessionValid :: Bool
   , scriptSrp :: Bool
   , scriptAcct :: Bool
   }
@@ -31,6 +32,7 @@ allTrue =
     , scriptDir = True
     , scriptMkDir = True
     , scriptLoad = True
+    , scriptSessionValid = False
     , scriptSrp = True
     , scriptAcct = True
     }
@@ -70,9 +72,12 @@ instance LoginEvent TestM where
 
 
   loadSession (TestState ()) = asksScript $ \s ->
-    if scriptLoad s
-      then HasClientId (TestState ())
-      else NeedsClientId (TestState ())
+    if not (scriptLoad s)
+      then NeedsClientId (TestState ())
+      else
+        if scriptSessionValid s
+          then SessionStillValid (TestState ())
+          else HasClientId (TestState ())
 
 
   mkClientId (TestState ()) = pure (TestState ())
@@ -142,3 +147,6 @@ spec = describe "LoginFSM.loginProcess" $ do
 
   it "creates the artifact directory when absent then reaches Authenticated" $
     runScript (allTrue{scriptDir = False}) `shouldBe` Authenticated
+
+  it "returns Authenticated immediately when the saved session is still valid" $
+    runScript (allTrue{scriptSessionValid = True}) `shouldBe` Authenticated

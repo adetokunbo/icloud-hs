@@ -85,6 +85,7 @@ onArtifactDirPresent s =
   loadSession s >>= \case
     NeedsClientId x -> mkClientId x >>= onReadyToAuth
     HasClientId x -> onReadyToAuth x
+    SessionStillValid x -> pure $ EndedAuthenticated x
 
 
 onReadyToAuth
@@ -197,6 +198,7 @@ data BeforeEnd f
 data AfterLoadLastSession f
   = NeedsClientId (f MakeClientId)
   | HasClientId (f ReadyToAuth)
+  | SessionStillValid (f AuthComplete)
 
 
 -- | The valid states after 'mkArtifactDir'
