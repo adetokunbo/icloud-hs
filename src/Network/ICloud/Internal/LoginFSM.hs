@@ -45,7 +45,7 @@ class LoginEvent m where
   initial :: m (State m RatifyCredentials)
   ratifyCreds :: State m RatifyCredentials -> m (AfterCredentials (State m))
   ratifyArtifactDir :: State m RatifyArtifactDir -> m (AfterArtifactDir (State m))
-  mkArtifactDir :: State m MkArtificatDir -> m (AfterMkArtifactDir (State m))
+  mkArtifactDir :: State m MkArtifactDir -> m (AfterMkArtifactDir (State m))
   mkClientId :: State m MakeClientId -> m (State m ReadyToAuth)
   loadSession :: State m LoadLastSession -> m (AfterLoadLastSession (State m))
   validateSession :: State m HasSavedSession -> m (AfterValidateSession (State m))
@@ -149,8 +149,8 @@ state, and is tagged with a distinct phantom type.
 data LoginFSM s where
   RatifyCredentials :: LoginFSM RatifyCredentials
   HaltMissingCredentials :: LoginFSM HaltMissingCredentials
-  RatifyArtificatDir :: Credentials -> LoginFSM RatifyArtifactDir
-  MkArtificatDir :: Credentials -> LoginFSM MkArtificatDir
+  RatifyArtifactDir :: Credentials -> LoginFSM RatifyArtifactDir
+  MkArtifactDir :: Credentials -> LoginFSM MkArtifactDir
   HaltCannotMkArtifactDir :: Credentials -> LoginFSM HaltCannotMkArtifactDir
   LoadLastSession :: Credentials -> LoginFSM LoadLastSession
   MakeClientId :: Credentials -> SavedHeaders -> LoginFSM MakeClientId
@@ -184,7 +184,7 @@ data RatifyArtifactDir
 
 
 -- | Phantom type linked to a unique state in 'LoginFSM'
-data MkArtificatDir
+data MkArtifactDir
 
 
 -- | Phantom type linked to a unique state in 'LoginFSM'
@@ -291,7 +291,7 @@ data AfterMkArtifactDir f
 -- | The valid states after 'ratifyArtifactDir'
 data AfterArtifactDir f
   = DirPresent (f LoadLastSession)
-  | DirAbsent (f MkArtificatDir)
+  | DirAbsent (f MkArtifactDir)
 
 
 -- | The valid states after 'ratifyCreds'

@@ -259,14 +259,14 @@ instance LoginEvent (ReaderT Api IO) where
 
 
   ratifyCreds RatifyCredentials =
-    asks (GotCreds . RatifyArtificatDir . sessionCreds . apiSession)
+    asks (GotCreds . RatifyArtifactDir . sessionCreds . apiSession)
 
 
-  ratifyArtifactDir (RatifyArtificatDir creds) =
+  ratifyArtifactDir (RatifyArtifactDir creds) =
     pure $ DirPresent $ LoadLastSession creds
 
 
-  mkArtifactDir (MkArtificatDir creds) =
+  mkArtifactDir (MkArtifactDir creds) =
     pure $ DirMade $ LoadLastSession creds
 
 
