@@ -1,0 +1,244 @@
+{
+  "dsInfo": {
+    "lastName": "TARANTINO",
+    "iCDPEnabled": false,
+    "tantorMigrated": true,
+    "dsid": "quentintarantino",
+    "hsaEnabled": true,
+    "ironcadeMigrated": true,
+    "locale": "fr-fr_FR",
+    "brZoneConsolidated": false,
+    "isManagedAppleID": false,
+    "gilligan-invited": "true",
+    "appleIdAliases": [
+      "quentintarantino@me.com",
+      "quentintarantino@icloud.com"
+    ],
+    "hsaVersion": 2,
+    "isPaidDeveloper": false,
+    "countryCode": "FRA",
+    "notificationId": "12345678-1234-1234-1234-123456789012quentintarantino",
+    "primaryEmailVerified": true,
+    "aDsID": "123456-12-12345678-1234-1234-1234-123456789012quentintarantino",
+    "locked": false,
+    "hasICloudQualifyingDevice": true,
+    "primaryEmail": "quentintarantino@hotmail.fr",
+    "appleIdEntries": [
+      {
+        "isPrimary": true,
+        "type": "EMAIL",
+        "value": "quentintarantino@hotmail.fr"
+      },
+      {
+        "type": "EMAIL",
+        "value": "quentintarantino@me.com"
+      },
+      {
+        "type": "EMAIL",
+        "value": "quentintarantino@icloud.com"
+      }
+    ],
+    "gilligan-enabled": "true",
+    "fullName": "Quentin TARANTINO",
+    "languageCode": "fr-fr",
+    "appleId": "quentintarantino@hotmail.fr",
+    "firstName": "Quentin",
+    "iCloudAppleIdAlias": "quentintarantino@icloud.com",
+    "notesMigrated": true,
+    "hasPaymentInfo": true,
+    "pcsDeleted": false,
+    "appleIdAlias": "quentintarantino@me.com",
+    "brMigrated": true,
+    "statusCode": 2,
+    "familyEligible": true
+  },
+  "hasMinimumDeviceForPhotosWeb": true,
+  "iCDPEnabled": false,
+  "webservices": {
+    "reminders": {
+      "url": "https://p31-remindersws.icloud.com:443",
+      "status": "active"
+    },
+    "notes": {
+      "url": "https://p38-notesws.icloud.com:443",
+      "status": "active"
+    },
+    "mail": {
+      "url": "https://p38-mailws.icloud.com:443",
+      "status": "active"
+    },
+    "ckdatabasews": {
+      "pcsRequired": true,
+      "url": "https://p31-ckdatabasews.icloud.com:443",
+      "status": "active"
+    },
+    "photosupload": {
+      "pcsRequired": true,
+      "url": "https://p31-uploadphotosws.icloud.com:443",
+      "status": "active"
+    },
+    "photos": {
+      "pcsRequired": true,
+      "uploadUrl": "https://p31-uploadphotosws.icloud.com:443",
+      "url": "https://p31-photosws.icloud.com:443",
+      "status": "active"
+    },
+    "drivews": {
+      "pcsRequired": true,
+      "url": "https://p31-drivews.icloud.com:443",
+      "status": "active"
+    },
+    "uploadimagews": {
+      "url": "https://p31-uploadimagews.icloud.com:443",
+      "status": "active"
+    },
+    "schoolwork": {},
+    "cksharews": {
+      "url": "https://p31-ckshare.icloud.com:443",
+      "status": "active"
+    },
+    "findme": {
+      "url": "https://p31-fmipweb.icloud.com:443",
+      "status": "active"
+    },
+    "ckdeviceservice": {
+      "url": "https://p31-ckdevice.icloud.com:443"
+    },
+    "iworkthumbnailws": {
+      "url": "https://p31-iworkthumbnailws.icloud.com:443",
+      "status": "active"
+    },
+    "calendar": {
+      "url": "https://p31-calendarws.icloud.com:443",
+      "status": "active"
+    },
+    "docws": {
+      "pcsRequired": true,
+      "url": "https://p31-docws.icloud.com:443",
+      "status": "active"
+    },
+    "settings": {
+      "url": "https://p31-settingsws.icloud.com:443",
+      "status": "active"
+    },
+    "streams": {
+      "url": "https://p31-streams.icloud.com:443",
+      "status": "active"
+    },
+    "keyvalue": {
+      "url": "https://p31-keyvalueservice.icloud.com:443",
+      "status": "active"
+    },
+    "archivews": {
+      "url": "https://p31-archivews.icloud.com:443",
+      "status": "active"
+    },
+    "push": {
+      "url": "https://p31-pushws.icloud.com:443",
+      "status": "active"
+    },
+    "iwmb": {
+      "url": "https://p31-iwmb.icloud.com:443",
+      "status": "active"
+    },
+    "iworkexportws": {
+      "url": "https://p31-iworkexportws.icloud.com:443",
+      "status": "active"
+    },
+    "geows": {
+      "url": "https://p31-geows.icloud.com:443",
+      "status": "active"
+    },
+    "account": {
+      "iCloudEnv": {
+        "shortId": "p",
+        "vipSuffix": "prod"
+      },
+      "url": "https://p31-setup.icloud.com:443",
+      "status": "active"
+    },
+    "fmf": {
+      "url": "https://p31-fmfweb.icloud.com:443",
+      "status": "active"
+    },
+    "contacts": {
+      "url": "https://p31-contactsws.icloud.com:443",
+      "status": "active"
+    }
+  },
+  "pcsEnabled": true,
+  "configBag": {
+    "urls": {
+      "accountCreateUI": "https://appleid.apple.com/widget/account/?widgetKey=widget_keyquentintarantino#!create",
+      "accountLoginUI": "https://idmsa.apple.com/appleauth/auth/signin?widgetKey=widget_keyquentintarantino",
+      "accountLogin": "https://setup.icloud.com/setup/ws/1/accountLogin",
+      "accountRepairUI": "https://appleid.apple.com/widget/account/?widgetKey=widget_keyquentintarantino#!repair",
+      "downloadICloudTerms": "https://setup.icloud.com/setup/ws/1/downloadLiteTerms",
+      "repairDone": "https://setup.icloud.com/setup/ws/1/repairDone",
+      "accountAuthorizeUI": "https://idmsa.apple.com/appleauth/auth/authorize/signin?client_id=widget_keyquentintarantino",
+      "vettingUrlForEmail": "https://id.apple.com/IDMSEmailVetting/vetShareEmail",
+      "accountCreate": "https://setup.icloud.com/setup/ws/1/createLiteAccount",
+      "getICloudTerms": "https://setup.icloud.com/setup/ws/1/getTerms",
+      "vettingUrlForPhone": "https://id.apple.com/IDMSEmailVetting/vetSharePhone"
+    },
+    "accountCreateEnabled": "true"
+  },
+  "hsaTrustedBrowser": false,
+  "appsOrder": [
+    "mail",
+    "contacts",
+    "calendar",
+    "photos",
+    "iclouddrive",
+    "notes3",
+    "reminders",
+    "pages",
+    "numbers",
+    "keynote",
+    "newspublisher",
+    "fmf",
+    "find",
+    "settings"
+  ],
+  "version": 2,
+  "isExtendedLogin": true,
+  "pcsServiceIdentitiesIncluded": false,
+  "hsaChallengeRequired": true,
+  "requestInfo": {
+    "country": "FR",
+    "timeZone": "GMT+1",
+    "region": "IDF"
+  },
+  "pcsDeleted": false,
+  "iCloudInfo": {
+    "SafariBookmarksHasMigratedToCloudKit": true
+  },
+  "apps": {
+    "calendar": {},
+    "reminders": {},
+    "keynote": {
+      "isQualifiedForBeta": true
+    },
+    "settings": {
+      "canLaunchWithOneFactor": true
+    },
+    "mail": {},
+    "numbers": {
+      "isQualifiedForBeta": true
+    },
+    "photos": {},
+    "pages": {
+      "isQualifiedForBeta": true
+    },
+    "notes3": {},
+    "find": {
+      "canLaunchWithOneFactor": true
+    },
+    "iclouddrive": {},
+    "newspublisher": {
+      "isHidden": true
+    },
+    "fmf": {},
+    "contacts": {}
+  }
+}

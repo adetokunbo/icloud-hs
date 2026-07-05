@@ -1,0 +1,10 @@
+{
+  "devices": [
+    {
+      "deviceType": "SMS",
+      "areaCode": "",
+      "phoneNumber": "*******58",
+      "deviceId": "1"
+    }
+  ]
+}
