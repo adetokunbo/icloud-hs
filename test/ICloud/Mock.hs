@@ -41,7 +41,8 @@ withMockApp scenario action = do
   srpInit <- LBS.readFile =<< getDataFileName "testdata/srp_init_ok_test.json"
   trustData <- LBS.readFile =<< getDataFileName "testdata/trust_data_test.json"
   loginWorking <- LBS.readFile =<< getDataFileName "testdata/login_working_test.json"
-  testWithApplication (pure $ mockApp scenario srpInit trustData loginWorking) action
+  listDevices <- LBS.readFile =<< getDataFileName "testdata/trusted_devices_test.json"
+  testWithApplication (pure $ mockApp scenario srpInit trustData loginWorking listDevices) action
 
 
 mockApp
@@ -49,8 +50,9 @@ mockApp
   -> LBS.ByteString
   -> LBS.ByteString
   -> LBS.ByteString
+  -> LBS.ByteString
   -> Application
-mockApp scenario srpInit trustData loginWorking req respond = do
+mockApp scenario srpInit trustData loginWorking listDevices req respond = do
   let method = requestMethod req
       segs = pathInfo req
       json st body = responseLBS st jsonHeaders body
@@ -65,6 +67,16 @@ mockApp scenario srpInit trustData loginWorking req respond = do
           json status200 "{}"
         ("POST", ["appleauth", "auth"]) ->
           json status200 trustData
+        ("PUT", ["appleauth", "auth", "verify", "phone"]) ->
+          json status200 "{}"
+        ("POST", ["appleauth", "auth", "verify", "phone", "securitycode"]) ->
+          json status200 "true"
+        ("GET", ["setup", "ws", "1", "listDevices"]) ->
+          json status200 listDevices
+        ("POST", ["setup", "ws", "1", "sendVerificationCode"]) ->
+          json status200 "{}"
+        ("POST", ["setup", "ws", "1", "validateVerificationCode"]) ->
+          json status200 "{}"
         ("POST", ["setup", "ws", "1", "validate"]) ->
           if scenValidate scenario
             then json status200 "{}"

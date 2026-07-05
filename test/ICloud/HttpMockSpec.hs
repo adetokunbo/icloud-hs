@@ -2,12 +2,19 @@
 
 module ICloud.HttpMockSpec (spec) where
 
-import Data.Aeson (encodeFile)
+import Data.Aeson (decode, encodeFile)
 import qualified Data.ByteString.Char8 as BS8
+import Data.Maybe (fromJust)
 import ICloud.Mock (Scenario (..), SrpOutcome (..), withMockApp)
 import Network.HTTP.Client (Request (..), defaultManagerSettings, defaultRequest, newManager)
 import Network.HTTP.Types (methodPost)
-import Network.ICloud.Http (AuthState (..), login, mkApiWith)
+import Network.ICloud.Http
+  ( AuthState (..)
+  , complete2SAWith
+  , completeTwoFactorWith
+  , login
+  , mkApiWith
+  )
 import Network.ICloud.Http.Endpoints (Endpoints (..))
 import Network.ICloud.Session
   ( Credentials (..)
@@ -15,8 +22,9 @@ import Network.ICloud.Session
   , Session (..)
   , savedHeadersPath
   )
+import Network.ICloud.Trust (Setup2SADevice)
 import System.IO.Temp (withSystemTempDirectory)
-import Test.Hspec (Spec, describe, it, shouldBe)
+import Test.Hspec (Spec, describe, expectationFailure, it, shouldBe)
 
 
 spec :: Spec
@@ -54,6 +62,26 @@ spec = describe "Network.ICloud.Http.login" $ do
         api <- mkApiWith (testSession tmpDir) (testEndpoints serverPort) mgr
         result <- login api
         isRequires2FA result `shouldBe` True
+
+  it "completeTwoFactor returns Authenticated after 2FA phone challenge" $
+    withSystemTempDirectory "icloud-auth-2fa" $ \tmpDir ->
+      withMockApp (Scenario True SrpNeeds2FA) $ \serverPort -> do
+        mgr <- newManager defaultManagerSettings
+        api <- mkApiWith (testSession tmpDir) (testEndpoints serverPort) mgr
+        loginResult <- login api
+        case loginResult of
+          Requires2FA _ td -> do
+            result <- completeTwoFactorWith (pure "123456") api td
+            isAuthenticated result `shouldBe` True
+          _ -> expectationFailure "expected Requires2FA from login"
+
+  it "complete2SA returns Authenticated after 2SA challenge" $
+    withSystemTempDirectory "icloud-auth-2sa" $ \tmpDir ->
+      withMockApp (Scenario True SrpOk) $ \serverPort -> do
+        mgr <- newManager defaultManagerSettings
+        api <- mkApiWith (testSession tmpDir) (testEndpoints serverPort) mgr
+        result <- complete2SAWith (\_ -> pure testDevice) (pure "0") api [testDevice]
+        isAuthenticated result `shouldBe` True
 
 
 testSession :: FilePath -> Session
@@ -99,3 +127,10 @@ isAuthenticated _ = False
 isRequires2FA :: AuthState -> Bool
 isRequires2FA (Requires2FA _ _) = True
 isRequires2FA _ = False
+
+
+testDevice :: Setup2SADevice
+testDevice =
+  fromJust $
+    decode
+      "{\"deviceType\":\"SMS\",\"areaCode\":\"\",\"phoneNumber\":\"*******58\",\"deviceId\":\"1\"}"

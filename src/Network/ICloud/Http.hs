@@ -18,7 +18,9 @@ module Network.ICloud.Http
   , mkApiWith
   , login
   , completeTwoFactor
+  , completeTwoFactorWith
   , complete2SA
+  , complete2SAWith
   , validateSetupBody
 
     -- * types
@@ -336,9 +338,14 @@ parseAccountData v = fromMaybe unknownAccountData $ parseMaybe parseJSON v
 
 -- | Complete a 2FA (auth-endpoint) challenge after a @Requires2FA@ result
 completeTwoFactor :: Api -> TrustData -> IO AuthState
-completeTwoFactor api td = do
-  let handleTwoStep = checkAuthCode' (askForTwoStepCode api) pleaseReadCode api
-      handleTwoFactor = checkAuthCode' (askForTwoFactorCode api) pleaseReadCode api
+completeTwoFactor = completeTwoFactorWith pleaseReadCode
+
+
+-- | Like 'completeTwoFactor' with an injectable code prompt, for testing
+completeTwoFactorWith :: IO AuthCode -> Api -> TrustData -> IO AuthState
+completeTwoFactorWith readCode api td = do
+  let handleTwoStep = checkAuthCode' (askForTwoStepCode api) readCode api
+      handleTwoFactor = checkAuthCode' (askForTwoFactorCode api) readCode api
       doVerify :: IO Value
       doVerify = withSelectedPhoneOrDevice handleTwoFactor handleTwoStep td
   _ <- doVerify
@@ -351,10 +358,20 @@ completeTwoFactor api td = do
 
 -- | Complete a 2SA (setup-endpoint) challenge after a @Requires2SA@ result
 complete2SA :: Api -> [Setup2SADevice] -> IO AuthState
-complete2SA api devices = do
-  device <- selectSetupDevice devices
+complete2SA = complete2SAWith selectSetupDevice pleaseReadCode
+
+
+-- | Like 'complete2SA' with injectable device selector and code prompt, for testing
+complete2SAWith
+  :: ([Setup2SADevice] -> IO Setup2SADevice)
+  -> IO AuthCode
+  -> Api
+  -> [Setup2SADevice]
+  -> IO AuthState
+complete2SAWith pickDevice readCode api devices = do
+  device <- pickDevice devices
   sendSetupVerification api device
-  code <- pleaseReadCode
+  code <- readCode
   ok <- validateSetupVerification api device code
   if ok
     then do
@@ -363,7 +380,7 @@ complete2SA api devices = do
       saveLoginMsg (apiSession api) loginReply
       saveAccountData (apiSession api) ad
       pure $ Authenticated (apiSession api) ad
-    else complete2SA api devices
+    else complete2SAWith pickDevice readCode api devices
 
 
 -- | Make a session request and obtain the raw byte results
