@@ -86,10 +86,13 @@ instance LoginEvent TestM where
   srpInit (TestState ()) = pure (TestState ())
 
 
-  srpDone (TestState ()) = asksScript $ \s ->
+  srpComplete (TestState ()) = asksScript $ \s ->
     if scriptSrp s
-      then SrpDoneOk (TestState ())
-      else SrpDone2FA (TestState ())
+      then SrpCompleteOk (TestState ())
+      else SrpComplete2FA (TestState ())
+
+
+  increaseTrust (TestState ()) = pure (TestState ())
 
 
   acctLogin (TestState ()) = asksScript $ \s ->

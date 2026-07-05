@@ -47,7 +47,8 @@ class LoginEvent m where
   mkClientId :: State m MakeClientId -> m (State m ReadyToAuth)
   loadSession :: State m LoadLastSession -> m (AfterLoadLastSession (State m))
   srpInit :: State m ReadyToAuth -> m (State m SrpInitDone)
-  srpDone :: State m SrpInitDone -> m (AfterSrpDone (State m))
+  srpComplete :: State m SrpInitDone -> m (AfterSrpComplete (State m))
+  increaseTrust :: State m IncreaseTrust -> m (State m DoAccountLogin)
   acctLogin :: State m DoAccountLogin -> m (AfterAcctLogin (State m))
   end :: BeforeEnd (State m) -> m AtEnd
 
@@ -93,10 +94,10 @@ onReadyToAuth
   => State m ReadyToAuth
   -> m (BeforeEnd (State m))
 onReadyToAuth s =
-  srpInit s >>= srpDone >>= \case
-    SrpDone2FA x -> pure $ EndedNeedsTwoFa x
-    SrpDoneOk x ->
-      acctLogin x >>= \case
+  srpInit s >>= srpComplete >>= \case
+    SrpComplete2FA x -> pure $ EndedNeedsTwoFa x
+    SrpCompleteOk x ->
+      increaseTrust x >>= acctLogin >>= \case
         AcctLoginOk y -> pure $ EndedAuthenticated y
         AcctLogin2SA y -> pure $ EndedNeedsTwoSa y
 
@@ -117,6 +118,7 @@ data LoginFSM s where
   ReadyToAuth :: Credentials -> SavedHeaders -> LoginFSM ReadyToAuth
   SrpInit :: Credentials -> SavedHeaders -> LoginFSM SrpInit
   SrpInitDone :: Credentials -> SrpContext -> LoginFSM SrpInitDone
+  IncreaseTrust :: Credentials -> LoginFSM IncreaseTrust
   DoAccountLogin :: Credentials -> LoginFSM DoAccountLogin
   AuthComplete :: Credentials -> AccountData -> LoginFSM AuthComplete
   NeedsTwoFa :: Credentials -> TrustData -> LoginFSM NeedsTwoFa
@@ -162,6 +164,10 @@ data SrpInit
 
 -- | Phantom type linked to a unique state in 'LoginFSM'
 data SrpInitDone
+
+
+-- | Phantom type linked to a unique state in 'LoginFSM'
+data IncreaseTrust
 
 
 -- | Phantom type linked to a unique state in 'LoginFSM'
@@ -219,10 +225,10 @@ data AfterCredentials f
   | GotCreds (f RatifyArtifactDir)
 
 
--- | The valid states after 'srpDone'
-data AfterSrpDone f
-  = SrpDoneOk (f DoAccountLogin)
-  | SrpDone2FA (f NeedsTwoFa)
+-- | The valid states after 'srpComplete'
+data AfterSrpComplete f
+  = SrpCompleteOk (f IncreaseTrust)
+  | SrpComplete2FA (f NeedsTwoFa)
 
 
 -- | The valid states after 'acctLogin'

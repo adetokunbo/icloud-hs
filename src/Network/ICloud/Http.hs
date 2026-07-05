@@ -38,7 +38,7 @@ module Network.ICloud.Http
   )
 where
 
-import Control.Exception (Exception, throwIO, try)
+import Control.Exception (Exception, throwIO)
 import Control.Monad (unless)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Reader (ReaderT, ask, asks, runReaderT)
@@ -123,7 +123,7 @@ import Network.ICloud.Internal.LoginFSM
   , AfterCredentials (..)
   , AfterLoadLastSession (..)
   , AfterMkArtifactDir (..)
-  , AfterSrpDone (..)
+  , AfterSrpComplete (..)
   , AtEnd (..)
   , BeforeEnd (..)
   , LoginEvent (..)
@@ -225,13 +225,6 @@ instance Show AuthState where
   show (Requires2SA _ ds) = "Requires2SA <session> " ++ show ds
 
 
-newtype TwoFARequired = TwoFARequired TrustData
-  deriving (Show)
-
-
-instance Exception TwoFARequired
-
-
 -- | Logs into ICloud, returning the resulting @AuthState@
 login :: Api -> IO AuthState
 login api = do
@@ -293,14 +286,20 @@ instance LoginEvent (ReaderT Api IO) where
     pure $ SrpInitDone creds (SrpContext fc fs kd)
 
 
-  srpDone (SrpInitDone creds ctx) = do
+  srpComplete (SrpInitDone creds ctx) = do
     api <- ask
     let SrpContext{srpFromClient = fc, srpFromServer = fs, srpKeyDeriver = kd} = ctx
         mbResults = calcResults kd fc fs
-    result <- liftIO $ try $ runSigninComplete api kd mbResults
+    result <- liftIO $ runSigninComplete api kd mbResults
     pure $ case result of
-      Left (TwoFARequired td) -> SrpDone2FA $ NeedsTwoFa creds td
-      Right () -> SrpDoneOk $ DoAccountLogin creds
+      Left td -> SrpComplete2FA $ NeedsTwoFa creds td
+      Right () -> SrpCompleteOk $ IncreaseTrust creds
+
+
+  increaseTrust (IncreaseTrust creds) = do
+    api <- ask
+    liftIO (callRequiredHeaders api (twoSvTrust (apiEndpoints api)) :: IO ())
+    pure $ DoAccountLogin creds
 
 
   acctLogin (DoAccountLogin creds) = do
@@ -596,7 +595,7 @@ data SigninCompletion = SigninCompletion
   }
 
 
-runSigninComplete :: Api -> KeyDeriver -> Maybe Results -> IO ()
+runSigninComplete :: Api -> KeyDeriver -> Maybe Results -> IO (Either TrustData ())
 runSigninComplete api@Api{apiSession = session} kd mbResults = do
   siSavedHeaders <- loadSavedHeaders session
   let siAccountName = credAccountName $ sessionCreds session
@@ -609,11 +608,12 @@ runSigninComplete api@Api{apiSession = session} kd mbResults = do
           }
       onFail = throwIO $ UnexpectedResponse "the server public value was invalid"
   maybe onFail (signinComplete api . completion) mbResults
-  increaseTrust api
 
 
-signinComplete :: Api -> SigninCompletion -> IO ()
-signinComplete api = callHandlingResponse signinCompleteReq id (handleSigninComplete api) api
+signinComplete :: Api -> SigninCompletion -> IO (Either TrustData ())
+signinComplete api sc = do
+  resp <- callApi api (signinCompleteReq (apiEndpoints api) sc) :: IO (Response (ApiResponse ()))
+  handleSigninComplete api resp
 
 
 signinCompleteReq :: Endpoints -> SigninCompletion -> Request
@@ -636,7 +636,7 @@ signinCompleteValue sc =
         ]
 
 
-handleSigninComplete :: Api -> Response (ApiResponse ()) -> IO ()
+handleSigninComplete :: Api -> Response (ApiResponse ()) -> IO (Either TrustData ())
 handleSigninComplete api resp = do
   let code = statusCode $ responseStatus resp
       body = responseBody resp
@@ -644,9 +644,9 @@ handleSigninComplete api resp = do
     | code == 401 -> throwIO InvalidCredentials
     | code == 403 -> throwIO AccountLocked
     | code == 412 -> throwIO PrivacyAgreementRequired
-    | code == 409 -> chooseTrustType api >>= throwIO . TwoFARequired
+    | code == 409 -> Left <$> chooseTrustType api
     | code >= 400 -> throwIO $ UnexpectedResponse $ showStatusOf resp
-    | otherwise -> extractOr body
+    | otherwise -> Right <$> extractOr body
 
 
 checkAuthCode'
@@ -695,10 +695,6 @@ accountLoginReq = mkJsonRequest accountLoginBase accountLoginValue
 
 chooseTrustType :: Api -> IO TrustData
 chooseTrustType api@Api{apiEndpoints = ep} = callRequiredHeaders api (epAuth ep)
-
-
-increaseTrust :: Api -> IO ()
-increaseTrust api = callRequiredHeaders api $ twoSvTrust (apiEndpoints api)
 
 
 callRequiredHeaders :: (FromJSON a) => Api -> Request -> IO a
