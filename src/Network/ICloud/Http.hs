@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedLists #-}
@@ -17,6 +18,7 @@ module Network.ICloud.Http
     mkApi
   , mkApiWith
   , login
+  , loginWith
   , completeTwoFactor
   , completeTwoFactorWith
   , complete2SA
@@ -230,14 +232,22 @@ instance Show AuthState where
   show (Requires2SA _ ds) = "Requires2SA <session> " ++ show ds
 
 
--- | Logs into ICloud, returning the resulting @AuthState@
+-- | Logs into ICloud, completing any 2FA or 2SA challenge automatically
 login :: Api -> IO AuthState
-login api = do
-  result <- runReaderT (loginProcess >>= end) api
-  case result of
+login = loginWith pleaseReadCode selectSetupDevice
+
+
+-- | Like 'login' with injectable code prompt and device selector, for testing
+loginWith
+  :: IO AuthCode
+  -> ([Setup2SADevice] -> IO Setup2SADevice)
+  -> Api
+  -> IO AuthState
+loginWith readCode pickDevice api = do
+  runReaderT (loginProcess >>= end) api >>= \case
     Normal _ ad -> pure $ Authenticated (apiSession api) ad
-    Needs2FA _ td -> pure $ Requires2FA (apiSession api) td
-    Needs2SA _ ds -> pure $ Requires2SA (apiSession api) ds
+    Needs2FA _ td -> completeTwoFactorWith readCode api td
+    Needs2SA _ ds -> complete2SAWith pickDevice readCode api ds
     Halted -> throwIO $ UnexpectedResponse "login halted"
 
 
@@ -261,8 +271,7 @@ instance LoginEvent (ReaderT Api IO) where
 
 
   loadSession (LoadLastSession creds) = do
-    api <- ask
-    savedHdrs <- liftIO $ loadSavedHeaders (apiSession api)
+    savedHdrs <- ask >>= liftIO . loadSavedHeaders . apiSession
     pure $
       if savedHdrs == pristine
         then HasClientId $ ReadyToAuth creds savedHdrs
@@ -270,12 +279,11 @@ instance LoginEvent (ReaderT Api IO) where
 
 
   validateSession (HasSavedSession creds savedHdrs) = do
-    api <- ask
-    valid <- liftIO $ validate api
+    valid <- ask >>= liftIO . validate
     if not valid
       then pure $ SessionStale $ ReadyToAuth creds savedHdrs
       else do
-        mbAd <- liftIO $ loadAccountData (apiSession api)
+        mbAd <- ask >>= liftIO . loadAccountData . apiSession
         pure $ case mbAd of
           Just ad | accountDataRequires2FA ad -> SessionStale $ ReadyToAuth creds savedHdrs
           Just ad | accountDataRequires2SA ad -> SessionStale $ ReadyToAuth creds savedHdrs
@@ -387,10 +395,8 @@ completeTwoFactor = completeTwoFactorWith pleaseReadCode
 -- | Like 'completeTwoFactor' with an injectable code prompt, for testing
 completeTwoFactorWith :: IO AuthCode -> Api -> TrustData -> IO AuthState
 completeTwoFactorWith readCode api td = do
-  let creds = sessionCreds (apiSession api)
-      start = ReadyForTwoFa creds td readCode
-  result <- runReaderT (twoFaProcess start >>= end) api
-  case result of
+  let start = ReadyForTwoFa (sessionCreds (apiSession api)) td readCode
+  runReaderT (twoFaProcess start >>= end) api >>= \case
     Normal _ ad -> pure $ Authenticated (apiSession api) ad
     Needs2FA _ td' -> pure $ Requires2FA (apiSession api) td'
     Needs2SA _ ds -> pure $ Requires2SA (apiSession api) ds
@@ -410,10 +416,8 @@ complete2SAWith
   -> [Setup2SADevice]
   -> IO AuthState
 complete2SAWith pickDevice readCode api devices = do
-  let creds = sessionCreds (apiSession api)
-      start = ReadyForTwoSa creds devices pickDevice readCode
-  result <- runReaderT (twoSaProcess start >>= end) api
-  case result of
+  let start = ReadyForTwoSa (sessionCreds (apiSession api)) devices pickDevice readCode
+  runReaderT (twoSaProcess start >>= end) api >>= \case
     Normal _ ad -> pure $ Authenticated (apiSession api) ad
     Needs2FA _ td -> pure $ Requires2FA (apiSession api) td
     Needs2SA _ ds -> pure $ Requires2SA (apiSession api) ds
