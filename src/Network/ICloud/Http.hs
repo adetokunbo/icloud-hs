@@ -508,7 +508,7 @@ instance FromJSON SigninInitReply where
 parseSigninInitReply :: Object -> Parser SigninInitReply
 parseSigninInitReply o =
   let tag = o .: "c"
-      iterations = o .: "iterations"
+      iterations = o .: "iteration"
       protocol = o .: "protocol"
       publicBytes = o .: "b" >>= parseBase64Bytes
       salt = o .: "salt" >>= parseBase64Bytes
