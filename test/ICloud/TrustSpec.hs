@@ -99,10 +99,11 @@ genSetup2SADevice :: Gen Setup2SADevice
 genSetup2SADevice = do
   phone <- genExWordMaybe
   devId <- genExWord
-  let pairs = catMaybes
-        [ Just ("deviceId", String devId)
-        , fmap (\p -> ("phoneNumber", String p)) phone
-        ]
+  let pairs =
+        catMaybes
+          [ Just ("deviceId", String devId)
+          , fmap (\p -> ("phoneNumber", String p)) phone
+          ]
   pure $ Setup2SADevice $ fromList pairs
 
 

@@ -41,8 +41,8 @@ import Data.Aeson
   )
 import Data.Aeson.Casing (aesonPrefix, camelCase)
 import Data.Aeson.KeyMap (filterWithKey, toList)
-import Data.Maybe (fromMaybe)
 import Data.Aeson.Types (Parser)
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text

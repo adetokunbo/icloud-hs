@@ -301,12 +301,13 @@ prop_saveLoadAccountData appRoot = monadicIO $ do
 
 
 mkAccountData :: Int -> Bool -> AccountData
-mkAccountData ver challenged = AccountData
-  { adHsaVersion = ver
-  , adHsaChallengeRequired = challenged
-  , adHsaTrustedBrowser = False
-  , adWebservices = Map.empty
-  }
+mkAccountData ver challenged =
+  AccountData
+    { adHsaVersion = ver
+    , adHsaChallengeRequired = challenged
+    , adHsaTrustedBrowser = False
+    , adWebservices = Map.empty
+    }
 
 
 genAccountData :: Gen AccountData

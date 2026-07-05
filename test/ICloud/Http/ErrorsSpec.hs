@@ -1,15 +1,16 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+
 module ICloud.Http.ErrorsSpec
   ( spec
   )
 where
 
+import Control.Exception (throwIO, try)
 import Data.Aeson (Value (..), decode, encode, object)
 import Data.Aeson.Key (fromText)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
-import Control.Exception (throwIO, try)
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Text (Text)
 import qualified ICloud.Examples as Examples
@@ -118,9 +119,10 @@ catchAuthError e = try (throwIO e)
 
 
 catchAuthError' :: IO a -> IO (Either AuthError AuthError)
-catchAuthError' action = try action >>= \case
-  Left e  -> pure (Right e)
-  Right _ -> pure (Left (UnexpectedResponse "expected AuthError but got success"))
+catchAuthError' action =
+  try action >>= \case
+    Left e -> pure (Right e)
+    Right _ -> pure (Left (UnexpectedResponse "expected AuthError but got success"))
 
 
 nonRetryReply :: SEReply ()
