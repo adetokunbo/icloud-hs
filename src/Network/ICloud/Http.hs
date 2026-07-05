@@ -15,6 +15,7 @@ SPDX-License-Identifier: BSD3
 module Network.ICloud.Http
   ( -- * functions
     mkApi
+  , mkApiWith
   , login
   , completeTwoFactor
   , complete2SA
@@ -179,6 +180,23 @@ mkApi realm = do
       apiEndpoints = realmEndpoints realm
   apiManager <- newTlsManager
   apiSession <- Session.loadSession
+  apiWrappedPseudoRF <- wrapIO SHA256.hmac $ digestSize apiHashAlgorithm
+  pure
+    Api
+      { apiGroup
+      , apiEndpoints
+      , apiManager
+      , apiHashAlgorithm
+      , apiSession
+      , apiWrappedPseudoRF
+      }
+
+
+-- | Constructor of @Api@ with a pre-built @Manager@ and @Endpoints@, for testing
+mkApiWith :: Session -> Endpoints -> Manager -> IO Api
+mkApiWith apiSession apiEndpoints apiManager = do
+  let apiHashAlgorithm = SHA256
+      apiGroup = G2048
   apiWrappedPseudoRF <- wrapIO SHA256.hmac $ digestSize apiHashAlgorithm
   pure
     Api
