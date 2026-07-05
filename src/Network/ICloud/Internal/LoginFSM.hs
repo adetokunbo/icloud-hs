@@ -46,6 +46,7 @@ class LoginEvent m where
   mkArtifactDir :: State m MkArtificatDir -> m (AfterMkArtifactDir (State m))
   mkClientId :: State m MakeClientId -> m (State m ReadyToAuth)
   loadSession :: State m LoadLastSession -> m (AfterLoadLastSession (State m))
+  validateSession :: State m HasSavedSession -> m (AfterValidateSession (State m))
   srpInit :: State m ReadyToAuth -> m (State m SrpInitDone)
   srpComplete :: State m SrpInitDone -> m (AfterSrpComplete (State m))
   increaseTrust :: State m IncreaseTrust -> m (State m DoAccountLogin)
@@ -86,7 +87,10 @@ onArtifactDirPresent s =
   loadSession s >>= \case
     NeedsClientId x -> mkClientId x >>= onReadyToAuth
     HasClientId x -> onReadyToAuth x
-    SessionStillValid x -> pure $ EndedAuthenticated x
+    HasPriorSession x ->
+      validateSession x >>= \case
+        SessionStillValid y -> pure $ EndedAuthenticated y
+        SessionStale y -> onReadyToAuth y
 
 
 onReadyToAuth
@@ -115,6 +119,7 @@ data LoginFSM s where
   HaltCannotMkArtifactDir :: Credentials -> LoginFSM HaltCannotMkArtifactDir
   LoadLastSession :: Credentials -> LoginFSM LoadLastSession
   MakeClientId :: Credentials -> SavedHeaders -> LoginFSM MakeClientId
+  HasSavedSession :: Credentials -> SavedHeaders -> LoginFSM HasSavedSession
   ReadyToAuth :: Credentials -> SavedHeaders -> LoginFSM ReadyToAuth
   SrpInit :: Credentials -> SavedHeaders -> LoginFSM SrpInit
   SrpInitDone :: Credentials -> SrpContext -> LoginFSM SrpInitDone
@@ -152,6 +157,10 @@ data LoadLastSession
 
 -- | Phantom type linked to a unique state in 'LoginFSM'
 data MakeClientId
+
+
+-- | Phantom type linked to a unique state in 'LoginFSM'
+data HasSavedSession
 
 
 -- | Phantom type linked to a unique state in 'LoginFSM'
@@ -204,7 +213,13 @@ data BeforeEnd f
 data AfterLoadLastSession f
   = NeedsClientId (f MakeClientId)
   | HasClientId (f ReadyToAuth)
-  | SessionStillValid (f AuthComplete)
+  | HasPriorSession (f HasSavedSession)
+
+
+-- | The valid states after 'validateSession'
+data AfterValidateSession f
+  = SessionStillValid (f AuthComplete)
+  | SessionStale (f ReadyToAuth)
 
 
 -- | The valid states after 'mkArtifactDir'

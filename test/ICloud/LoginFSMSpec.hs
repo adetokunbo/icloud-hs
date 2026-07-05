@@ -19,6 +19,7 @@ data Script = Script
   , scriptDir :: Bool
   , scriptMkDir :: Bool
   , scriptLoad :: Bool
+  , scriptHasSavedSession :: Bool
   , scriptSessionValid :: Bool
   , scriptSrp :: Bool
   , scriptAcct :: Bool
@@ -32,6 +33,7 @@ allTrue =
     , scriptDir = True
     , scriptMkDir = True
     , scriptLoad = True
+    , scriptHasSavedSession = False
     , scriptSessionValid = False
     , scriptSrp = True
     , scriptAcct = True
@@ -75,9 +77,15 @@ instance LoginEvent TestM where
     if not (scriptLoad s)
       then NeedsClientId (TestState ())
       else
-        if scriptSessionValid s
-          then SessionStillValid (TestState ())
+        if scriptHasSavedSession s
+          then HasPriorSession (TestState ())
           else HasClientId (TestState ())
+
+
+  validateSession (TestState ()) = asksScript $ \s ->
+    if scriptSessionValid s
+      then SessionStillValid (TestState ())
+      else SessionStale (TestState ())
 
 
   mkClientId (TestState ()) = pure (TestState ())
@@ -152,4 +160,7 @@ spec = describe "LoginFSM.loginProcess" $ do
     runScript (allTrue{scriptDir = False}) `shouldBe` Authenticated
 
   it "returns Authenticated immediately when the saved session is still valid" $
-    runScript (allTrue{scriptSessionValid = True}) `shouldBe` Authenticated
+    runScript (allTrue{scriptHasSavedSession = True, scriptSessionValid = True}) `shouldBe` Authenticated
+
+  it "falls through to SRP when the saved session is stale" $
+    runScript (allTrue{scriptHasSavedSession = True, scriptSessionValid = False}) `shouldBe` Authenticated

@@ -38,7 +38,7 @@ module Network.ICloud.Http
   )
 where
 
-import Control.Exception (Exception, throwIO)
+import Control.Exception (throwIO)
 import Control.Monad (unless)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Reader (ReaderT, ask, asks, runReaderT)
@@ -124,6 +124,7 @@ import Network.ICloud.Internal.LoginFSM
   , AfterLoadLastSession (..)
   , AfterMkArtifactDir (..)
   , AfterSrpComplete (..)
+  , AfterValidateSession (..)
   , AtEnd (..)
   , BeforeEnd (..)
   , LoginEvent (..)
@@ -258,19 +259,24 @@ instance LoginEvent (ReaderT Api IO) where
   loadSession (LoadLastSession creds) = do
     api <- ask
     savedHdrs <- liftIO $ loadSavedHeaders (apiSession api)
-    if savedHdrs == pristine
-      then pure $ HasClientId $ ReadyToAuth creds savedHdrs
+    pure $
+      if savedHdrs == pristine
+        then HasClientId $ ReadyToAuth creds savedHdrs
+        else HasPriorSession $ HasSavedSession creds savedHdrs
+
+
+  validateSession (HasSavedSession creds savedHdrs) = do
+    api <- ask
+    valid <- liftIO $ validate api
+    if not valid
+      then pure $ SessionStale $ ReadyToAuth creds savedHdrs
       else do
-        valid <- liftIO $ validate api
-        if not valid
-          then pure $ HasClientId $ ReadyToAuth creds savedHdrs
-          else do
-            mbAd <- liftIO $ loadAccountData (apiSession api)
-            pure $ case mbAd of
-              Just ad | accountDataRequires2FA ad -> HasClientId $ ReadyToAuth creds savedHdrs
-              Just ad | accountDataRequires2SA ad -> HasClientId $ ReadyToAuth creds savedHdrs
-              Just ad -> SessionStillValid $ AuthComplete creds ad
-              Nothing -> SessionStillValid $ AuthComplete creds unknownAccountData
+        mbAd <- liftIO $ loadAccountData (apiSession api)
+        pure $ case mbAd of
+          Just ad | accountDataRequires2FA ad -> SessionStale $ ReadyToAuth creds savedHdrs
+          Just ad | accountDataRequires2SA ad -> SessionStale $ ReadyToAuth creds savedHdrs
+          Just ad -> SessionStillValid $ AuthComplete creds ad
+          Nothing -> SessionStillValid $ AuthComplete creds unknownAccountData
 
 
   mkClientId (MakeClientId creds savedHdrs) =
