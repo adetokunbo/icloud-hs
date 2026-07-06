@@ -39,7 +39,6 @@ class LoginEvent m where
   ratifyCreds :: State m RatifyCredentials -> m (AfterCredentials (State m))
   ratifyArtifactDir :: State m RatifyArtifactDir -> m (AfterArtifactDir (State m))
   mkArtifactDir :: State m MkArtifactDir -> m (AfterMkArtifactDir (State m))
-  mkClientId :: State m MakeClientId -> m (State m ReadyToAuth)
   loadSession :: State m LoadLastSession -> m (AfterLoadLastSession (State m))
   validateSession :: State m HasSavedSession -> m (AfterValidateSession (State m))
   srpInit :: State m ReadyToAuth -> m (State m SrpInitDone)
@@ -100,7 +99,6 @@ onArtifactDirPresent
   -> m (LoginOutcome (State m))
 onArtifactDirPresent s =
   loadSession s >>= \case
-    NeedsClientId x -> mkClientId x >>= onReadyToAuth
     HasClientId x -> onReadyToAuth x
     HasPriorSession x ->
       validateSession x >>= \case
@@ -167,7 +165,6 @@ data LoginFSM s where
   MkArtifactDir :: Credentials -> LoginFSM MkArtifactDir
   HaltCannotMkArtifactDir :: Credentials -> LoginFSM HaltCannotMkArtifactDir
   LoadLastSession :: Credentials -> LoginFSM LoadLastSession
-  MakeClientId :: Credentials -> SavedHeaders -> LoginFSM MakeClientId
   HasSavedSession :: Credentials -> SavedHeaders -> LoginFSM HasSavedSession
   ReadyToAuth :: Credentials -> SavedHeaders -> LoginFSM ReadyToAuth
   SrpInitDone :: Credentials -> SrpContext -> LoginFSM SrpInitDone
@@ -206,10 +203,6 @@ data HaltCannotMkArtifactDir
 
 -- | Phantom type linked to a unique state in 'LoginFSM'
 data LoadLastSession
-
-
--- | Phantom type linked to a unique state in 'LoginFSM'
-data MakeClientId
 
 
 -- | Phantom type linked to a unique state in 'LoginFSM'
@@ -270,8 +263,7 @@ data HaltInvalidSrp
 
 -- | The valid states after 'loadSession'
 data AfterLoadLastSession f
-  = NeedsClientId (f MakeClientId)
-  | HasClientId (f ReadyToAuth)
+  = HasClientId (f ReadyToAuth)
   | HasPriorSession (f HasSavedSession)
 
 

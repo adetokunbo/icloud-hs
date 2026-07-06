@@ -307,10 +307,6 @@ instance LoginEvent (ReaderT Api IO) where
           Nothing -> SessionStillValid $ AuthComplete creds unknownAccountData
 
 
-  mkClientId (MakeClientId creds savedHdrs) =
-    pure $ ReadyToAuth creds savedHdrs
-
-
   srpInit (ReadyToAuth creds _) = do
     api <- ask
     let user = credAccountName creds

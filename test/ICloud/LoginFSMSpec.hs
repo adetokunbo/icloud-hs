@@ -19,7 +19,6 @@ data Script = Script
   { scriptCreds :: !Bool
   , scriptDir :: !Bool
   , scriptMkDir :: !Bool
-  , scriptLoad :: !Bool
   , scriptHasSavedSession :: !Bool
   , scriptSessionValid :: !Bool
   , scriptSrp :: !Bool
@@ -36,7 +35,6 @@ allTrue =
     { scriptCreds = True
     , scriptDir = True
     , scriptMkDir = True
-    , scriptLoad = True
     , scriptHasSavedSession = False
     , scriptSessionValid = False
     , scriptSrp = True
@@ -85,21 +83,15 @@ instance LoginEvent TestM where
 
 
   loadSession (TestState ()) = asksScript $ \s ->
-    if not (scriptLoad s)
-      then NeedsClientId (TestState ())
-      else
-        if scriptHasSavedSession s
-          then HasPriorSession (TestState ())
-          else HasClientId (TestState ())
+    if scriptHasSavedSession s
+      then HasPriorSession (TestState ())
+      else HasClientId (TestState ())
 
 
   validateSession (TestState ()) = asksScript $ \s ->
     if scriptSessionValid s
       then SessionStillValid (TestState ())
       else SessionStale (TestState ())
-
-
-  mkClientId (TestState ()) = pure (TestState ())
 
 
   srpInit (TestState ()) = pure (TestState ())
@@ -200,9 +192,6 @@ spec = do
 
     it "reaches Requires2SA when account login signals 2SA required" $
       runScript (allTrue{scriptAcct = False}) `shouldBe` TwoSa
-
-    it "passes through mkClientId when the session has no client ID" $
-      runScript (allTrue{scriptLoad = False}) `shouldBe` Authenticated
 
     it "creates the artifact directory when absent then reaches Authenticated" $
       runScript (allTrue{scriptDir = False}) `shouldBe` Authenticated
