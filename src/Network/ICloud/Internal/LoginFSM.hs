@@ -106,8 +106,9 @@ onReadyToAuth
   -> m (BeforeEnd (State m))
 onReadyToAuth s =
   srpInit s >>= srpComplete >>= \case
-    SrpComplete2FA x -> pure $ EndedNeedsTwoFa x
     SrpCompleteOk x -> increaseTrust x >>= acctLogin >>= onAcctLoginDone
+    SrpComplete2FA x -> pure $ EndedNeedsTwoFa x
+    SrpCompleteInvalidKey x -> pure $ EndedHaltInvalidSrp x
 
 
 onAcctLoginDone
@@ -304,6 +305,7 @@ data AfterCredentials f
 data AfterSrpComplete f
   = SrpCompleteOk (f IncreaseTrust)
   | SrpComplete2FA (f NeedsTwoFa)
+  | SrpCompleteInvalidKey (f HaltInvalidSrp)
 
 
 -- | The valid states after 'acctLogin'

@@ -307,11 +307,13 @@ instance LoginEvent (ReaderT Api IO) where
   srpComplete (SrpInitDone creds ctx) = do
     api <- ask
     let SrpContext{srpFromClient = fc, srpFromServer = fs, srpKeyDeriver = kd} = ctx
-        mbResults = calcResults kd fc fs
-    result <- liftIO $ runSigninComplete api kd mbResults
-    pure $ case result of
-      Left td -> SrpComplete2FA $ NeedsTwoFa creds td
-      Right () -> SrpCompleteOk $ IncreaseTrust creds
+    case calcResults kd fc fs of
+      Nothing -> pure $ SrpCompleteInvalidKey $ HaltInvalidSrp creds
+      Just results -> do
+        result <- liftIO $ runSigninComplete api kd results
+        pure $ case result of
+          Left td -> SrpComplete2FA $ NeedsTwoFa creds td
+          Right () -> SrpCompleteOk $ IncreaseTrust creds
 
 
   increaseTrust (IncreaseTrust creds) = do
@@ -647,19 +649,18 @@ data SigninCompletion = SigninCompletion
   }
 
 
-runSigninComplete :: Api -> KeyDeriver -> Maybe Results -> IO (Either TrustData ())
-runSigninComplete api@Api{apiSession = session} kd mbResults = do
+runSigninComplete :: Api -> KeyDeriver -> Results -> IO (Either TrustData ())
+runSigninComplete api@Api{apiSession = session} kd results = do
   siSavedHeaders <- loadSavedHeaders session
   let siAccountName = credAccountName $ sessionCreds session
-      completion siResults =
+      completion =
         SigninCompletion
           { siTag = kdTag kd
           , siAccountName
-          , siResults
+          , siResults = results
           , siSavedHeaders
           }
-      onFail = throwIO $ UnexpectedResponse "the server public value was invalid"
-  maybe onFail (signinComplete api . completion) mbResults
+  signinComplete api completion
 
 
 signinComplete :: Api -> SigninCompletion -> IO (Either TrustData ())

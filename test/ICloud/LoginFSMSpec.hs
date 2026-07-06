@@ -1,6 +1,8 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TypeFamilies #-}
 
+{- HLINT ignore "Use tuple-section" -}
+
 module ICloud.LoginFSMSpec
   ( spec
   )
@@ -14,16 +16,17 @@ newtype TestState s = TestState ()
 
 
 data Script = Script
-  { scriptCreds :: Bool
-  , scriptDir :: Bool
-  , scriptMkDir :: Bool
-  , scriptLoad :: Bool
-  , scriptHasSavedSession :: Bool
-  , scriptSessionValid :: Bool
-  , scriptSrp :: Bool
-  , scriptAcct :: Bool
-  , scriptTwoFa :: [Bool]
-  , scriptTwoSa :: [Bool]
+  { scriptCreds :: !Bool
+  , scriptDir :: !Bool
+  , scriptMkDir :: !Bool
+  , scriptLoad :: !Bool
+  , scriptHasSavedSession :: !Bool
+  , scriptSessionValid :: !Bool
+  , scriptSrp :: !Bool
+  , scriptSrpInvalidKey :: !Bool
+  , scriptAcct :: !Bool
+  , scriptTwoFa :: ![Bool]
+  , scriptTwoSa :: ![Bool]
   }
 
 
@@ -37,41 +40,11 @@ allTrue =
     , scriptHasSavedSession = False
     , scriptSessionValid = False
     , scriptSrp = True
+    , scriptSrpInvalidKey = False
     , scriptAcct = True
     , scriptTwoFa = [True]
     , scriptTwoSa = [True]
     }
-
-
-newtype TestM a = TestM {unTestM :: Script -> (a, Script)}
-
-
-instance Functor TestM where
-  fmap f (TestM m) = TestM $ \s -> let (a, s') = m s in (f a, s')
-
-
-instance Applicative TestM where
-  pure a = TestM $ \s -> (a, s)
-  TestM mf <*> TestM ma = TestM $ \s ->
-    let (f, s') = mf s
-        (a, s'') = ma s'
-     in (f a, s'')
-
-
-instance Monad TestM where
-  return = pure
-  TestM ma >>= f = TestM $ \s ->
-    let (a, s') = ma s
-        TestM mb = f a
-     in mb s'
-
-
-runTestM :: TestM a -> Script -> a
-runTestM (TestM m) s = fst (m s)
-
-
-asksScript :: (Script -> a) -> TestM a
-asksScript f = TestM $ \s -> (f s, s)
 
 
 popTwoFa :: TestM Bool
@@ -133,9 +106,12 @@ instance LoginEvent TestM where
 
 
   srpComplete (TestState ()) = asksScript $ \s ->
-    if scriptSrp s
-      then SrpCompleteOk (TestState ())
-      else SrpComplete2FA (TestState ())
+    if scriptSrpInvalidKey s
+      then SrpCompleteInvalidKey (TestState ())
+      else
+        if scriptSrp s
+          then SrpCompleteOk (TestState ())
+          else SrpComplete2FA (TestState ())
 
 
   increaseTrust (TestState ()) = pure (TestState ())
@@ -213,6 +189,9 @@ spec = do
     it "reaches Requires2FA when SRP completes with a 2FA challenge" $
       runScript (allTrue{scriptSrp = False}) `shouldBe` TwoFa
 
+    it "halts with invalid SRP key when the server public value is bad" $
+      runScript (allTrue{scriptSrpInvalidKey = True}) `shouldBe` HaltSrp
+
     it "reaches Authenticated on the happy path" $
       runScript allTrue `shouldBe` Authenticated
 
@@ -250,3 +229,34 @@ spec = do
 
     it "reaches Requires2SA when account login signals 2SA required after 2SA" $
       runTwoSaScript (allTrue{scriptAcct = False}) `shouldBe` TwoSa
+
+
+newtype TestM a = TestM (Script -> (a, Script))
+
+
+instance Functor TestM where
+  fmap f (TestM m) = TestM $ \s -> let (a, s') = m s in (f a, s')
+
+
+instance Applicative TestM where
+  pure a = TestM $ \s -> (a, s)
+  TestM mf <*> TestM ma = TestM $ \s ->
+    let (f, s') = mf s
+        (a, s'') = ma s'
+     in (f a, s'')
+
+
+instance Monad TestM where
+  return = pure
+  TestM ma >>= f = TestM $ \s ->
+    let (a, s') = ma s
+        TestM mb = f a
+     in mb s'
+
+
+runTestM :: TestM a -> Script -> a
+runTestM (TestM m) s = fst (m s)
+
+
+asksScript :: (Script -> a) -> TestM a
+asksScript f = TestM $ \s -> (f s, s)
