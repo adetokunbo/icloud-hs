@@ -142,9 +142,6 @@ instance LoginEvent TestM where
     pure $ if result then TwoSaOk (TestState ()) else TwoSaRetry (TestState ())
 
 
-  end _ = pure Halted
-
-
 data Outcome
   = Authenticated
   | TwoFa
@@ -155,14 +152,20 @@ data Outcome
   deriving (Eq, Show)
 
 
-outcomeOf :: BeforeEnd TestState -> Outcome
+outcomeOf :: LoginOutcome TestState -> Outcome
 outcomeOf = \case
-  EndedAuthenticated _ -> Authenticated
-  EndedNeedsTwoFa _ -> TwoFa
-  EndedNeedsTwoSa _ -> TwoSa
-  EndedAfterCredentials _ -> HaltCreds
-  EndedAfterMkArtifactDir _ -> HaltMkDir
-  EndedHaltInvalidSrp _ -> HaltSrp
+  LoginAuthenticated _ -> Authenticated
+  LoginNeedsTwoFa _ -> TwoFa
+  LoginNeedsTwoSa _ -> TwoSa
+  LoginHaltCreds _ -> HaltCreds
+  LoginHaltDir _ -> HaltMkDir
+  LoginHaltSrp _ -> HaltSrp
+
+
+completionOutcomeOf :: CompletionOutcome TestState -> Outcome
+completionOutcomeOf = \case
+  CompletionAuthenticated _ -> Authenticated
+  CompletionNeedsTwoSa _ -> TwoSa
 
 
 runScript :: Script -> Outcome
@@ -170,11 +173,11 @@ runScript s = outcomeOf $ runTestM loginProcess s
 
 
 runTwoFaScript :: Script -> Outcome
-runTwoFaScript s = outcomeOf $ runTestM (twoFaProcess (TestState ())) s
+runTwoFaScript s = completionOutcomeOf $ runTestM (twoFaProcess (TestState ())) s
 
 
 runTwoSaScript :: Script -> Outcome
-runTwoSaScript s = outcomeOf $ runTestM (twoSaProcess (TestState ())) s
+runTwoSaScript s = completionOutcomeOf $ runTestM (twoSaProcess (TestState ())) s
 
 
 spec :: Spec

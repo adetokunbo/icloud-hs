@@ -3,6 +3,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -22,14 +23,6 @@ import Data.Kind (Type)
 import Data.Text (Text)
 import Network.ICloud.Session (AccountData, Credentials, SavedHeaders, SrpContext)
 import Network.ICloud.Trust (Setup2SADevice, TrustData)
-
-
--- | Represents different outcomes of the login process.
-data AtEnd
-  = Normal Credentials AccountData
-  | Needs2FA Credentials TrustData
-  | Needs2SA Credentials [Setup2SADevice]
-  | Halted
 
 
 {- | @LoginEvent@ represents the valid events of the Login FSM.
@@ -58,7 +51,22 @@ class LoginEvent m where
   verifyTwoFa :: State m TwoFaVerifying -> m (AfterTwoFaVerify (State m))
   beginTwoSa :: State m ReadyForTwoSa -> m (State m TwoSaVerifying)
   verifyTwoSa :: State m TwoSaVerifying -> m (AfterTwoSaVerify (State m))
-  end :: BeforeEnd (State m) -> m AtEnd
+
+
+-- | The outcome of 'loginProcess'.
+data LoginOutcome f
+  = LoginAuthenticated (f AuthComplete)
+  | LoginNeedsTwoFa (f NeedsTwoFa)
+  | LoginNeedsTwoSa (f TwoSaReady)
+  | LoginHaltCreds (f HaltMissingCredentials)
+  | LoginHaltDir (f HaltCannotMkArtifactDir)
+  | LoginHaltSrp (f HaltInvalidSrp)
+
+
+-- | The outcome of 'twoFaProcess' and 'twoSaProcess'.
+data CompletionOutcome f
+  = CompletionAuthenticated (f AuthComplete)
+  | CompletionNeedsTwoSa (f TwoSaReady)
 
 
 -- | The canonical login process using events from 'LoginEvent'.
@@ -66,65 +74,70 @@ loginProcess
   :: ( LoginEvent m
      , Monad m
      )
-  => m (BeforeEnd (State m))
+  => m (LoginOutcome (State m))
 loginProcess =
   initial >>= ratifyCreds >>= \case
-    NoCreds e -> pure $ EndedAfterCredentials e
+    NoCreds e -> pure $ LoginHaltCreds e
     GotCreds x -> onCredsLoaded x
 
 
 onCredsLoaded
   :: (Monad m, LoginEvent m)
   => State m RatifyArtifactDir
-  -> m (BeforeEnd (State m))
+  -> m (LoginOutcome (State m))
 onCredsLoaded s =
   ratifyArtifactDir s >>= \case
     DirPresent x -> onArtifactDirPresent x
     DirAbsent a ->
       mkArtifactDir a >>= \case
-        NotMade e -> pure $ EndedAfterMkArtifactDir e
+        NotMade e -> pure $ LoginHaltDir e
         DirMade x -> onArtifactDirPresent x
 
 
 onArtifactDirPresent
   :: (Monad m, LoginEvent m)
   => State m LoadLastSession
-  -> m (BeforeEnd (State m))
+  -> m (LoginOutcome (State m))
 onArtifactDirPresent s =
   loadSession s >>= \case
     NeedsClientId x -> mkClientId x >>= onReadyToAuth
     HasClientId x -> onReadyToAuth x
     HasPriorSession x ->
       validateSession x >>= \case
-        SessionStillValid y -> pure $ EndedAuthenticated y
+        SessionStillValid y -> pure $ LoginAuthenticated y
         SessionStale y -> onReadyToAuth y
 
 
 onReadyToAuth
   :: (Monad m, LoginEvent m)
   => State m ReadyToAuth
-  -> m (BeforeEnd (State m))
+  -> m (LoginOutcome (State m))
 onReadyToAuth s =
   srpInit s >>= srpComplete >>= \case
-    SrpCompleteOk x -> increaseTrust x >>= acctLogin >>= onAcctLoginDone
-    SrpComplete2FA x -> pure $ EndedNeedsTwoFa x
-    SrpCompleteInvalidKey x -> pure $ EndedHaltInvalidSrp x
+    SrpCompleteOk x -> increaseTrust x >>= acctLogin >>= fmap completionToLogin . onAcctLoginDone
+    SrpComplete2FA x -> pure $ LoginNeedsTwoFa x
+    SrpCompleteInvalidKey x -> pure $ LoginHaltSrp x
 
 
 onAcctLoginDone
   :: (Monad m, LoginEvent m)
   => AfterAcctLogin (State m)
-  -> m (BeforeEnd (State m))
+  -> m (CompletionOutcome (State m))
 onAcctLoginDone = \case
-  AcctLoginOk y -> pure $ EndedAuthenticated y
-  AcctLogin2SA y -> listTwoSaDevices y <&> EndedNeedsTwoSa
+  AcctLoginOk y -> pure $ CompletionAuthenticated y
+  AcctLogin2SA y -> listTwoSaDevices y <&> CompletionNeedsTwoSa
+
+
+completionToLogin :: CompletionOutcome f -> LoginOutcome f
+completionToLogin (CompletionAuthenticated x) = LoginAuthenticated x
+completionToLogin (CompletionNeedsTwoSa x) = LoginNeedsTwoSa x
 
 
 -- | The 2FA completion process using events from 'LoginEvent'.
 twoFaProcess
   :: (LoginEvent m, Monad m)
   => State m ReadyForTwoFa
-  -> m (BeforeEnd (State m))
+  -> m (CompletionOutcome (State m))
 twoFaProcess s =
   beginTwoFa s >>= verifyTwoFa >>= \case
     TwoFaOk x -> acctLogin x >>= onAcctLoginDone
@@ -135,7 +148,7 @@ twoFaProcess s =
 twoSaProcess
   :: (LoginEvent m, Monad m)
   => State m ReadyForTwoSa
-  -> m (BeforeEnd (State m))
+  -> m (CompletionOutcome (State m))
 twoSaProcess s =
   beginTwoSa s >>= verifyTwoSa >>= \case
     TwoSaOk x -> acctLogin x >>= onAcctLoginDone
@@ -253,16 +266,6 @@ data TwoSaVerifying
 
 -- | Phantom type linked to a unique state in 'LoginFSM'
 data HaltInvalidSrp
-
-
--- | The valid states to end from
-data BeforeEnd f
-  = EndedAfterCredentials (f HaltMissingCredentials)
-  | EndedAfterMkArtifactDir (f HaltCannotMkArtifactDir)
-  | EndedAuthenticated (f AuthComplete)
-  | EndedNeedsTwoFa (f NeedsTwoFa)
-  | EndedNeedsTwoSa (f TwoSaReady)
-  | EndedHaltInvalidSrp (f HaltInvalidSrp)
 
 
 -- | The valid states after 'loadSession'

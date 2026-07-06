@@ -129,10 +129,10 @@ import Network.ICloud.Internal.LoginFSM
   , AfterTwoFaVerify (..)
   , AfterTwoSaVerify (..)
   , AfterValidateSession (..)
-  , AtEnd (..)
-  , BeforeEnd (..)
+  , CompletionOutcome (..)
   , LoginEvent (..)
   , LoginFSM (..)
+  , LoginOutcome (..)
   , loginProcess
   , twoFaProcess
   , twoSaProcess
@@ -243,12 +243,14 @@ loginWith
   -> ([Setup2SADevice] -> IO Setup2SADevice)
   -> Api
   -> IO AuthState
-loginWith readCode pickDevice api = do
-  runReaderT (loginProcess >>= end) api >>= \case
-    Normal _ ad -> pure $ Authenticated (apiSession api) ad
-    Needs2FA _ td -> completeTwoFactorWith readCode api td
-    Needs2SA _ ds -> complete2SAWith pickDevice readCode api ds
-    Halted -> throwIO $ UnexpectedResponse "login halted"
+loginWith readCode pickDevice api =
+  runReaderT loginProcess api >>= \case
+    LoginAuthenticated (AuthComplete _ ad) -> pure $ Authenticated (apiSession api) ad
+    LoginNeedsTwoFa (NeedsTwoFa _ td) -> completeTwoFactorWith readCode api td
+    LoginNeedsTwoSa (TwoSaReady _ ds) -> complete2SAWith pickDevice readCode api ds
+    LoginHaltCreds _ -> throwIO $ UnexpectedResponse "login halted: missing credentials"
+    LoginHaltDir _ -> throwIO $ UnexpectedResponse "login halted: cannot create artifact directory"
+    LoginHaltSrp _ -> throwIO $ UnexpectedResponse "login halted: invalid SRP server public value"
 
 
 instance LoginEvent (ReaderT Api IO) where
@@ -377,14 +379,6 @@ instance LoginEvent (ReaderT Api IO) where
         else TwoSaRetry $ ReadyForTwoSa creds devices pickDevice readCode
 
 
-  end (EndedAuthenticated (AuthComplete creds ad)) = pure $ Normal creds ad
-  end (EndedNeedsTwoFa (NeedsTwoFa creds td)) = pure $ Needs2FA creds td
-  end (EndedNeedsTwoSa (TwoSaReady creds ds)) = pure $ Needs2SA creds ds
-  end (EndedAfterCredentials _) = pure Halted
-  end (EndedAfterMkArtifactDir _) = pure Halted
-  end (EndedHaltInvalidSrp _) = pure Halted
-
-
 parseAccountData :: Value -> AccountData
 parseAccountData v = fromMaybe unknownAccountData $ parseMaybe parseJSON v
 
@@ -398,11 +392,9 @@ completeTwoFactor = completeTwoFactorWith pleaseReadCode
 completeTwoFactorWith :: IO AuthCode -> Api -> TrustData -> IO AuthState
 completeTwoFactorWith readCode api td = do
   let start = ReadyForTwoFa (sessionCreds (apiSession api)) td readCode
-  runReaderT (twoFaProcess start >>= end) api >>= \case
-    Normal _ ad -> pure $ Authenticated (apiSession api) ad
-    Needs2FA _ td' -> pure $ Requires2FA (apiSession api) td'
-    Needs2SA _ ds -> pure $ Requires2SA (apiSession api) ds
-    Halted -> throwIO $ UnexpectedResponse "completeTwoFactor halted"
+  runReaderT (twoFaProcess start) api >>= \case
+    CompletionAuthenticated (AuthComplete _ ad) -> pure $ Authenticated (apiSession api) ad
+    CompletionNeedsTwoSa (TwoSaReady _ ds) -> pure $ Requires2SA (apiSession api) ds
 
 
 -- | Complete a 2SA (setup-endpoint) challenge after a @Requires2SA@ result
@@ -419,11 +411,9 @@ complete2SAWith
   -> IO AuthState
 complete2SAWith pickDevice readCode api devices = do
   let start = ReadyForTwoSa (sessionCreds (apiSession api)) devices pickDevice readCode
-  runReaderT (twoSaProcess start >>= end) api >>= \case
-    Normal _ ad -> pure $ Authenticated (apiSession api) ad
-    Needs2FA _ td -> pure $ Requires2FA (apiSession api) td
-    Needs2SA _ ds -> pure $ Requires2SA (apiSession api) ds
-    Halted -> throwIO $ UnexpectedResponse "complete2SA halted"
+  runReaderT (twoSaProcess start) api >>= \case
+    CompletionAuthenticated (AuthComplete _ ad) -> pure $ Authenticated (apiSession api) ad
+    CompletionNeedsTwoSa (TwoSaReady _ ds) -> pure $ Requires2SA (apiSession api) ds
 
 
 -- | Make a session request and obtain the raw byte results
