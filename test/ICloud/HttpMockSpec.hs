@@ -25,6 +25,7 @@ import Network.ICloud.Session
   , savedHeadersPath
   )
 import Network.ICloud.Trust (Setup2SADevice)
+import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
 import Test.Hspec (Spec, describe, it, shouldBe)
 
@@ -34,6 +35,10 @@ spec = describe "Network.ICloud.Http.login" $ do
   it "returns Authenticated on fresh login" $
     withSystemTempDirectory "icloud-auth-mock" $ \tmpDir ->
       loginShouldAuthenticate tmpDir defaultScenario
+
+  it "creates the session directory when absent then returns Authenticated" $
+    withSystemTempDirectory "icloud-auth-mock" $ \tmpDir ->
+      loginShouldAuthenticate (tmpDir </> "session") defaultScenario
 
   it "returns Authenticated when saved headers are valid" $
     withSystemTempDirectory "icloud-auth-mock" $ \tmpDir -> do

@@ -87,6 +87,7 @@ test-suite test
     , cryptohash-sha512    >=0.11 && <0.12
     , crypto-srp           >=0.1 && <0.2
     , directory            >=1.3.6  && <1.5
+    , filepath             >=1.4 && <1.6
     , hspec                >=2.1 && < 3.0
     , http-client          >=0.5 && <0.8
     , http-types

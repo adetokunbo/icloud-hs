@@ -5,6 +5,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 
 {- |
@@ -40,7 +41,7 @@ module Network.ICloud.Http
   )
 where
 
-import Control.Exception (throwIO)
+import Control.Exception (IOException, catch, throwIO)
 import Control.Monad (unless)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Reader (ReaderT, ask, asks, runReaderT)
@@ -168,6 +169,7 @@ import Network.ICloud.Trust
   , selectSetupDevice
   , withSelectedPhoneOrDevice
   )
+import System.Directory (createDirectoryIfMissing, doesDirectoryExist)
 import Web.Cookie.Jar (usingCookiesFromFile)
 
 
@@ -264,12 +266,24 @@ instance LoginEvent (ReaderT Api IO) where
     asks (GotCreds . RatifyArtifactDir . sessionCreds . apiSession)
 
 
-  ratifyArtifactDir (RatifyArtifactDir creds) =
-    pure $ DirPresent $ LoadLastSession creds
+  ratifyArtifactDir (RatifyArtifactDir creds) = do
+    api <- ask
+    let dir = sessionTopDir (apiSession api)
+    exists <- liftIO $ doesDirectoryExist dir
+    pure $
+      if exists
+        then DirPresent $ LoadLastSession creds
+        else DirAbsent $ MkArtifactDir creds
 
 
-  mkArtifactDir (MkArtifactDir creds) =
-    pure $ DirMade $ LoadLastSession creds
+  mkArtifactDir (MkArtifactDir creds) = do
+    api <- ask
+    let dir = sessionTopDir (apiSession api)
+    ok <- liftIO $ (createDirectoryIfMissing True dir >> pure True) `catch` (\(_ :: IOException) -> pure False)
+    pure $
+      if ok
+        then DirMade $ LoadLastSession creds
+        else NotMade $ HaltCannotMkArtifactDir creds
 
 
   loadSession (LoadLastSession creds) = do
