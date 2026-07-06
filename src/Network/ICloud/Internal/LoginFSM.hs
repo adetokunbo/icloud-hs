@@ -157,7 +157,6 @@ data LoginFSM s where
   MakeClientId :: Credentials -> SavedHeaders -> LoginFSM MakeClientId
   HasSavedSession :: Credentials -> SavedHeaders -> LoginFSM HasSavedSession
   ReadyToAuth :: Credentials -> SavedHeaders -> LoginFSM ReadyToAuth
-  SrpInit :: Credentials -> SavedHeaders -> LoginFSM SrpInit
   SrpInitDone :: Credentials -> SrpContext -> LoginFSM SrpInitDone
   IncreaseTrust :: Credentials -> LoginFSM IncreaseTrust
   DoAccountLogin :: Credentials -> LoginFSM DoAccountLogin
@@ -206,10 +205,6 @@ data HasSavedSession
 
 -- | Phantom type linked to a unique state in 'LoginFSM'
 data ReadyToAuth
-
-
--- | Phantom type linked to a unique state in 'LoginFSM'
-data SrpInit
 
 
 -- | Phantom type linked to a unique state in 'LoginFSM'
