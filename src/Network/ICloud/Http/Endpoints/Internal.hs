@@ -57,19 +57,31 @@ toPut :: Request -> Request
 toPut req = req{method = methodPut}
 
 
--- | Base URL roots and default Requests used to construct API service Requests
+{- | Base URLs and default request templates for the iCloud HTTP API.
+
+Passed to the request-building functions inside 'Network.ICloud.Http' to
+construct properly-targeted API calls.
+-}
 data Endpoints = Endpoints
   { epHome :: !ByteString
+  -- ^ home origin, e.g. @https://www.icloud.com@; used in @Origin@ and @Referer@ headers
   , epAuth :: !Request
+  -- ^ base request for the authentication endpoint (@idmsa.apple.com@)
   , epSetup :: !Request
+  -- ^ base request for the setup\/account endpoint (@setup.icloud.com@)
   }
 
 
--- | The known "realms" that have with different API endpoints.
+{- | The two regional iCloud endpoint sets.
+
+* 'Usual' — @icloud.com@ family; for users outside mainland China.
+* 'China' — @icloud.com.cn@ family; required for mainland China accounts.
+-}
 data Realm = China | Usual
   deriving (Eq, Show)
 
 
+-- | Return the 'Endpoints' for the given 'Realm'.
 realmEndpoints :: Realm -> Endpoints
 realmEndpoints China = chinaEndpoints
 realmEndpoints Usual = usualEndpoints
