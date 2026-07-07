@@ -27,8 +27,6 @@ module Network.ICloud.Session
   , SavedHeaders (..)
   , loadSession
   , loadSavedHeaders
-  , runSrpAuth
-  , newClientId
   , updateSessionSavedHeaders
   , updateSavedHeaders
   , pristine
@@ -54,7 +52,6 @@ module Network.ICloud.Session
   , hSessionId
   , hSessionToken
   , hTrustToken
-  , hOrigin
 
     -- * path components
   , appBase
@@ -67,9 +64,7 @@ import Control.Monad (forM, (>=>))
 import Crypto.SRP
   ( FromClient (..)
   , FromServer (..)
-  , Results
   , XCalculator (..)
-  , calcResults
   , hashMany
   , hashText
   )
@@ -123,14 +118,12 @@ hCountry
   , hSessionToken
   , hTrustToken
   , hCounter
-  , hOrigin
     :: HeaderName
 hCountry = mk "X-Apple-ID-Account-Country"
 hSessionId = mk "X-Apple-ID-Session-Id"
 hSessionToken = mk "X-Apple-Session-Token"
 hTrustToken = mk "X-Apple-TwoSV-Trust-Token"
 hCounter = mk "scnt"
-hOrigin = mk "Origin"
 
 
 -- | Update the @SavedHeaders@ using some response headers
@@ -397,20 +390,7 @@ loadSession = do
   loadSessionOr sessionTopDir >>= either fail pure
 
 
--- | Implements the SRP authentiction sequence
-runSrpAuth
-  :: (XCalculator b)
-  => IO FromClient
-  -> (FromClient -> IO (FromServer, b))
-  -> (b -> Maybe Results -> IO a)
-  -> IO a
-runSrpAuth mkClientSide stepOne stepTwo = do
-  clientSide <- mkClientSide
-  (serverSide, extra) <- stepOne clientSide
-  stepTwo extra (calcResults extra clientSide serverSide)
-
-
--- | Save's a JSON @Value@ to @filepath@
+-- | Saves a JSON @Value@ to @filepath@
 saveValue :: FilePath -> Value -> IO ()
 saveValue fp v = LBS.writeFile fp $ encode v
 
