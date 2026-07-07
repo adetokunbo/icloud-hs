@@ -22,6 +22,7 @@ source-repository head
 
 library icloud-auth-internal
   exposed-modules:  Network.ICloud.Http.Errors
+                    Network.ICloud.Http.Internal
                     Network.ICloud.PBKDF2
                     Network.ICloud.Trust.Internal
   hs-source-dirs:   src-internal

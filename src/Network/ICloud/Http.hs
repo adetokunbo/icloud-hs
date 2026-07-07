@@ -25,7 +25,6 @@ module Network.ICloud.Http
   , completeTwoFactorWith
   , complete2SA
   , complete2SAWith
-  , validateSetupBody
 
     -- * types
   , Api
@@ -115,6 +114,7 @@ import Network.ICloud.Http.Errors
   , ExtractOr (..)
   , extractOrRetry
   )
+import Network.ICloud.Http.Internal (validateSetupBody)
 import Network.ICloud.Internal.LoginFSM
   ( AfterAcctLogin (..)
   , AfterArtifactDir (..)
@@ -799,11 +799,6 @@ sendSetupVerification api@Api{apiSession = s, apiEndpoints = ep} device = do
             sendVerification ep
   resp <- rawRequest api req
   unless (statusCode (responseStatus resp) < 400) $ throwIO $ UnexpectedResponse $ showStatusOf resp
-
-
-validateSetupBody :: Setup2SADevice -> AuthCode -> Value
-validateSetupBody (Setup2SADevice fields) code =
-  Object $ fields <> fromList [("verificationCode", String code), ("trustBrowser", Bool True)]
 
 
 validateSetupVerification :: Api -> Setup2SADevice -> AuthCode -> IO Bool
