@@ -2,6 +2,7 @@
 
 module Main where
 
+import qualified ICloud.ApiLoggerSpec as ApiLogger
 import qualified ICloud.Http.ErrorsSpec as HttpErrors
 import qualified ICloud.HttpMockSpec as HttpMock
 import qualified ICloud.HttpSpec as Http
@@ -25,6 +26,7 @@ main = do
   hspec $ do
     Session.spec
     Http.spec
+    ApiLogger.spec
     HttpErrors.spec
     HttpMock.spec
     PBKDF2.spec

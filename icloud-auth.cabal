@@ -94,7 +94,8 @@ test-suite test
   main-is:          Spec.hs
   hs-source-dirs:   test
   autogen-modules:  Paths_icloud_auth
-  other-modules:    ICloud.Examples
+  other-modules:    ICloud.ApiLoggerSpec
+                    ICloud.Examples
                     ICloud.HttpMockSpec
                     ICloud.HttpSpec
                     ICloud.Http.ErrorsSpec
