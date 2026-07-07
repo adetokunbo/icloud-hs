@@ -4,12 +4,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 {- |
-Module      : Network.ICloud.Http.Errors
+Module      : Network.ICloud.Internal.HttpErrors
 Copyright   : (c) 2022 Tim Emiola
 Maintainer  : Tim Emiola <adetokunbo@emio.la>
 SPDX-License-Identifier: BSD3
 
-Datatypes that model the structured errors returned by the ICloud API.
+Datatypes that model the structured errors returned by the iCloud API.
 -}
 module Network.ICloud.Internal.HttpErrors
   ( -- * data types
@@ -64,13 +64,18 @@ instance FromJSON ApiError where
   parseJSON = withObject "ApiError" parseApiError
 
 
--- | Structured errors thrown by the ICloud authentication layer
+-- | Structured errors thrown by the iCloud authentication layer
 data AuthError
-  = InvalidCredentials
-  | AccountLocked
-  | PrivacyAgreementRequired
-  | ServiceError !Text !(Maybe Text)
-  | UnexpectedResponse !Text
+  = -- | The supplied Apple ID or password was rejected.
+    InvalidCredentials
+  | -- | The account has been locked due to too many failed sign-in attempts.
+    AccountLocked
+  | -- | Apple requires the user to accept updated privacy terms before continuing.
+    PrivacyAgreementRequired
+  | -- | The API returned a structured service error with a reason and an optional error code.
+    ServiceError !Text !(Maybe Text)
+  | -- | An HTTP response that could not be interpreted; the 'Text' describes the failure.
+    UnexpectedResponse !Text
   deriving (Eq, Show)
 
 
