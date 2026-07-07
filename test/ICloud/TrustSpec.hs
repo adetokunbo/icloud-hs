@@ -15,7 +15,7 @@ import Data.Maybe (catMaybes)
 import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified ICloud.Examples as Examples
-import Network.ICloud.Trust
+import Network.ICloud.Trust.Internal
 import System.IO.Silently (silence)
 import Test.Hspec
   ( Spec

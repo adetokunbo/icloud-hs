@@ -155,10 +155,9 @@ import Network.ICloud.Session
   , updateSessionSavedHeaders
   )
 import qualified Network.ICloud.Session as Session
-import Network.ICloud.Trust
-  ( Setup2SADevice (..)
-  , TrustData
-  , TrustedDevice (..)
+import Network.ICloud.Trust (Setup2SADevice (..), TrustData)
+import Network.ICloud.Trust.Internal
+  ( TrustedDevice (..)
   , TrustedPhone (..)
   , pleaseReadCode
   , selectSetupDevice
