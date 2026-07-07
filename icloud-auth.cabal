@@ -28,6 +28,7 @@ library
                     Network.ICloud.PBKDF2
                     Network.ICloud.Session
                     Network.ICloud.Trust
+  other-modules:    Network.ICloud.Http.Endpoints.Internal
   hs-source-dirs:   src
   build-depends:
     , aeson                >=1.5.1 && <2.3 

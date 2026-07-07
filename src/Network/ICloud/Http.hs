@@ -92,14 +92,12 @@ import Network.HTTP.Types
   , Status (..)
   , hContentType
   )
-import Network.ICloud.Http.Endpoints
-  ( Endpoints (..)
-  , Realm
-  , accountLoginBase
+import Network.ICloud.Http.Endpoints (Endpoints (..), Realm, realmEndpoints)
+import Network.ICloud.Http.Endpoints.Internal
+  ( accountLoginBase
   , extendPath
   , homeHeaders
   , listDevices
-  , realmEndpoints
   , sendVerification
   , signinCompleteBase
   , signinInitBase
