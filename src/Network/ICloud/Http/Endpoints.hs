@@ -17,7 +17,7 @@ then pass the result to 'Network.ICloud.Http.mkApi' or supply it directly to
 -}
 module Network.ICloud.Http.Endpoints
   ( -- * Region selection
-    Realm
+    Realm (..)
   , realmEndpoints
 
     -- * Endpoint bundle
@@ -25,5 +25,5 @@ module Network.ICloud.Http.Endpoints
   )
 where
 
-import Network.ICloud.Internal.Endpoints (Endpoints (..), Realm, realmEndpoints)
+import Network.ICloud.Internal.Endpoints (Endpoints (..), Realm (..), realmEndpoints)
 

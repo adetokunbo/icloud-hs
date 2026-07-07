@@ -233,7 +233,7 @@ mkApi realm = do
       }
 
 
--- | Constructor of @Api@ with a pre-built @Manager@ and @Endpoints@, for testing
+-- | Create an 'Api' from a pre-built 'Session', 'Endpoints', and 'Manager'. Use this when you need to supply your own HTTP manager or a custom endpoint set — for example in tests.
 mkApiWith :: Session -> Endpoints -> Manager -> IO Api
 mkApiWith apiSession apiEndpoints apiManager = do
   let apiHashAlgorithm = SHA256

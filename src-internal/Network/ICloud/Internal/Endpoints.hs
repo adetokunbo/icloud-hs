@@ -7,7 +7,38 @@ Copyright   : (c) 2025 Tim Emiola
 Maintainer  : Tim Emiola <adetokunbo@emio.la>
 SPDX-License-Identifier: BSD3
 -}
-module Network.ICloud.Internal.Endpoints where
+module Network.ICloud.Internal.Endpoints
+  ( -- * Types
+    Endpoints (..)
+  , Realm (..)
+
+    -- * Region selection
+  , realmEndpoints
+
+    -- * Request builders
+  , signinInitBase
+  , signinCompleteBase
+  , validateBase
+  , accountLoginBase
+  , twoSvTrust
+  , verifySecurityCodeReq
+  , validateVerification
+  , sendVerification
+  , listDevices
+
+    -- * Request modifiers
+  , extendPath
+  , toPut
+  , withHeaders
+  , withBody
+  , withAcceptJson
+  , withICloudWidgetKey
+  , withAppleOauthHeaders
+
+    -- * Header helpers
+  , homeHeaders
+  )
+where
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS

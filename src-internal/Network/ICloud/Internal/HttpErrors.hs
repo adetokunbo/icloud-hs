@@ -12,14 +12,24 @@ SPDX-License-Identifier: BSD3
 Datatypes that model the structured errors returned by the iCloud API.
 -}
 module Network.ICloud.Internal.HttpErrors
-  ( -- * data types
+  ( -- * API response wrapper
     ApiResponse (..)
+
+    -- * API error embedded in 'ApiResponse'
   , ApiError (..)
+
+    -- * Public exception type
   , AuthError (..)
+
+    -- * Service-error reply
+
+    {- | 'SEReply' is the result type of 'extractOrRetry'; its type name must be
+    in scope for callers that construct or annotate values of this type.
+    -}
   , SEReply
   , extractOrRetry
 
-    -- * classes
+    -- * Extraction class
   , ExtractOr (..)
   )
 where

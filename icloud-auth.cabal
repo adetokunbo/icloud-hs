@@ -1,16 +1,17 @@
 cabal-version:      3.0
 name:               icloud-auth
 version:            0.1.0.0
-synopsis:           `icloud-auth` allows logon to iCloud servers
+synopsis:           Authenticate with iCloud (unofficial)
 description:
-  `icloud-auth` allows logon to iCloud servers
+  Authenticate with iCloud using Apple ID credentials stored on disk.
 
-  Upon provision of a username and password, it retrieves and stores an
-  authorization token, for use in programmatic sessions with other iCloud
-  services.
+  The full sign-in flow — SRP credential exchange followed by any required
+  two-factor (2FA) or legacy two-step (2SA) challenge — is handled by a
+  single login call. On success the library caches a session token for use
+  with other iCloud services.
 
-  It is unofficial, i.e, *not* supported by Apple, and not guaranteed to work -
-  use at your own risk
+  This library is unofficial and not supported by Apple. It may break
+  without warning if Apple changes their authentication protocol.
 build-type:         Simple
 extra-source-files:
   ChangeLog.md
@@ -86,7 +87,7 @@ library
     , icloud-auth:icloud-auth-internal
 
   default-language: Haskell2010
-  ghc-options:      -Wall -Wincomplete-uni-patterns -Wpartial-fields -fwarn-tabs -Wno-missing-home-modules
+  ghc-options:      -Wall -Wincomplete-uni-patterns -Wpartial-fields -fwarn-tabs
 
 test-suite test
   type:             exitcode-stdio-1.0
