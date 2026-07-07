@@ -55,6 +55,11 @@ module Network.ICloud.Http
     -- * Types
   , Api
   , AuthState (..)
+  , ApiLogger
+
+    -- * Logging
+  , withLogger
+  , fileLogger
 
     -- * Errors
   , AuthError (..)
@@ -99,6 +104,7 @@ import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
+import Data.Time (getCurrentTime)
 import Data.Word (Word64)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import Network.HTTP.Client
@@ -192,7 +198,12 @@ import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..))
 import qualified Network.ICloud.Session as Session
 import Network.ICloud.Trust (Setup2SADevice (..), TrustData)
 import System.Directory (createDirectoryIfMissing, doesDirectoryExist)
+import System.IO (Handle, hPutStrLn)
 import Web.Cookie.Jar (usingCookiesFromFile)
+
+
+-- | A hook called after every HTTP response; receives the outgoing 'Request' and the 'Response'.
+newtype ApiLogger = ApiLogger (Request -> Response LBS.ByteString -> IO ())
 
 
 {- | Bundles the HTTP manager, session state, and endpoint configuration
@@ -205,6 +216,7 @@ data Api = Api
   , apiHashAlgorithm :: !KnownAlgorithm
   , apiWrappedPseudoRF :: !FancyPseudoRandomF
   , apiGroup :: !PrimeGroup
+  , apiLogger :: !(Maybe ApiLogger)
   }
 
 
@@ -219,6 +231,7 @@ mkApi realm = do
   let apiHashAlgorithm = SHA256
       apiGroup = G2048
       apiEndpoints = realmEndpoints realm
+      apiLogger = Nothing
   apiManager <- newTlsManager
   apiSession <- Session.loadSession
   apiWrappedPseudoRF <- wrapIO SHA256.hmac $ digestSize apiHashAlgorithm
@@ -230,6 +243,7 @@ mkApi realm = do
       , apiHashAlgorithm
       , apiSession
       , apiWrappedPseudoRF
+      , apiLogger
       }
 
 
@@ -238,6 +252,7 @@ mkApiWith :: Session -> Endpoints -> Manager -> IO Api
 mkApiWith apiSession apiEndpoints apiManager = do
   let apiHashAlgorithm = SHA256
       apiGroup = G2048
+      apiLogger = Nothing
   apiWrappedPseudoRF <- wrapIO SHA256.hmac $ digestSize apiHashAlgorithm
   pure
     Api
@@ -247,7 +262,32 @@ mkApiWith apiSession apiEndpoints apiManager = do
       , apiHashAlgorithm
       , apiSession
       , apiWrappedPseudoRF
+      , apiLogger
       }
+
+
+-- | Attach a logger to an 'Api'; it is called after every HTTP response.
+withLogger :: ApiLogger -> Api -> Api
+withLogger logger api = api{apiLogger = Just logger}
+
+
+{- | Build an 'ApiLogger' that appends one entry per response to a 'Handle'.
+
+Each entry is a header line (@TIMESTAMP METHOD URL STATUS@) followed by the
+raw response body and a @---@ separator.
+
+Not safe for concurrent use from multiple threads against the same handle.
+-}
+fileLogger :: Handle -> ApiLogger
+fileLogger h = ApiLogger $ \req resp -> do
+  now <- getCurrentTime
+  let scheme = if secure req then "https" else "http" :: String
+      uri = scheme <> "://" <> toS (host req) <> toS (path req)
+      status = statusCode (responseStatus resp)
+      header = show now <> " " <> toS (method req) <> " " <> uri <> " " <> show status
+  hPutStrLn h header
+  LBS.hPutStr h (responseBody resp)
+  hPutStrLn h "\n---"
 
 
 {- | The result of a login attempt.
@@ -471,10 +511,11 @@ rawRequest = rawRequest' True
 -- | Make a session request and obtain the raw byte results
 rawRequest' :: Bool -> Api -> Request -> IO (Response LBS.ByteString)
 rawRequest' mayRetry api req = do
-  let Api{apiManager = mgr, apiSession = s} = api
+  let Api{apiManager = mgr, apiSession = s, apiLogger = mbLogger} = api
       jarPath = cookiePath (sessionTopDir s) (sessionCreds s)
   resp <- usingCookiesFromFile jarPath req $ flip httpLbs mgr
   updateSessionSavedHeaders s $ updateSavedHeaders $ responseHeaders resp
+  mapM_ (\(ApiLogger logFn) -> logFn req resp) mbLogger
   if mayRetry && needsRetry resp
     then rawRequest' False api req
     else pure resp
