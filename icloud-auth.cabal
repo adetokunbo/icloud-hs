@@ -89,6 +89,17 @@ library
   default-language: Haskell2010
   ghc-options:      -Wall -Wincomplete-uni-patterns -Wpartial-fields -fwarn-tabs
 
+executable icloud-auth
+  main-is:          CmdLine.hs
+  hs-source-dirs:   app
+  default-language: Haskell2010
+  ghc-options:      -Wall -fwarn-tabs
+  build-depends:
+    , base                 >=4.12 && <5
+    , http-client-tls      >=0.3 && <0.4
+    , icloud-auth
+    , optparse-applicative >=0.18 && <0.19
+
 test-suite test
   type:             exitcode-stdio-1.0
   main-is:          Spec.hs
