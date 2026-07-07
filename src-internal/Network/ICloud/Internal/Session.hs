@@ -19,6 +19,8 @@ module Network.ICloud.Internal.Session
   , Session (..)
   , SavedHeaders (..)
   , loadSession
+  , saveCredentials
+  , saveCredentialsTo
   , loadSavedHeaders
   , updateSessionSavedHeaders
   , updateSavedHeaders
@@ -253,6 +255,20 @@ loadAccountData Session{sessionCreds = creds, sessionTopDir = topDir} = do
 -}
 credentialsPath :: FilePath -> FilePath
 credentialsPath topDir = topDir </> "credentials.json"
+
+
+{- | Write 'Credentials' to @$XDG_CONFIG_HOME\/hs-icloud-auth\/credentials.json@,
+creating the directory if it does not exist.
+-}
+saveCredentials :: Credentials -> IO ()
+saveCredentials creds = getUserConfigDir appBase >>= (`saveCredentialsTo` creds)
+
+
+-- | Write 'Credentials' to @credentials.json@ inside @topDir@, creating @topDir@ if absent.
+saveCredentialsTo :: FilePath -> Credentials -> IO ()
+saveCredentialsTo topDir creds = do
+  createDirectoryIfMissing True topDir
+  encodeFile (credentialsPath topDir) creds
 
 
 {- | The Apple ID and password used to sign in to iCloud.

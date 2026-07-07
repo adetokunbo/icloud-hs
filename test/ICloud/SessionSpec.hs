@@ -11,7 +11,7 @@ SPDX-License-Identifier: BSD3
 module ICloud.SessionSpec (spec) where
 
 import Control.Monad (when)
-import Data.Aeson (decode, encode, encodeFile)
+import Data.Aeson (decode, eitherDecodeFileStrict, encode, encodeFile)
 import qualified Data.Map.Strict as Map
 import Data.String (IsString (..))
 import Data.Text (Text)
@@ -28,12 +28,13 @@ import Network.ICloud.Internal.Session
   , loadAccountData
   , loadSavedHeaders
   , saveAccountData
+  , saveCredentialsTo
   , savedHeadersPath
   , updateSessionSavedHeaders
   , (</>)
   )
 import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..), loadSession)
-import System.Directory (createDirectory)
+import System.Directory (createDirectory, doesFileExist)
 import System.Environment (setEnv)
 import System.IO.Temp (withSystemTempDirectory)
 import Test.Hspec
@@ -44,6 +45,7 @@ import Test.Hspec
   , describe
   , it
   , shouldBe
+  , shouldReturn
   , shouldThrow
   )
 import Test.QuickCheck
@@ -60,6 +62,7 @@ import Test.QuickCheck.Monadic (assert, monadicIO, pick, run)
 spec :: Spec
 spec = do
   sessionSpec
+  saveCredentialsSpec
   accountDataSpec
 
 
@@ -204,6 +207,46 @@ prop_updatesSavedHeaders storeInitial appRoot = monadicIO $ do
     updateSessionSavedHeaders s (const newHdrs)
     loadSavedHeaders s
   assert $ newHdrs == loadedHdrs
+
+
+saveCredentialsSpec :: Spec
+saveCredentialsSpec = describe "saveCredentialsTo" $ do
+  context "in a pre-existing directory" $ around withTmpDir $ do
+    it "creates the credentials file" $ \tmpDir -> do
+      saveCredentialsTo tmpDir exampleCred
+      doesFileExist (credentialsPath tmpDir) `shouldReturn` True
+    it "round-trips credentials through JSON" prop_saveLoadCredentials
+    it "overwrites when called a second time" prop_overwritesCredentials
+  context "when the target directory does not exist" $ do
+    it "creates the directory and the file" $
+      withSystemTempDirectory "icloud-auth-creds" $ \tmp -> do
+        let target = tmp </> "new-subdir"
+        saveCredentialsTo target exampleCred
+        doesFileExist (credentialsPath target) `shouldReturn` True
+
+
+withTmpDir :: (FilePath -> IO a) -> IO a
+withTmpDir = withSystemTempDirectory "icloud-auth-creds"
+
+
+prop_saveLoadCredentials :: FilePath -> Property
+prop_saveLoadCredentials tmpDir = monadicIO $ do
+  creds <- asCreds <$> pick genPreCredentials
+  result <- run $ do
+    saveCredentialsTo tmpDir creds
+    eitherDecodeFileStrict (credentialsPath tmpDir)
+  assert $ result == Right creds
+
+
+prop_overwritesCredentials :: FilePath -> Property
+prop_overwritesCredentials tmpDir = monadicIO $ do
+  creds1 <- asCreds <$> pick genPreCredentials
+  creds2 <- asCreds <$> pick genPreCredentials
+  result <- run $ do
+    saveCredentialsTo tmpDir creds1
+    saveCredentialsTo tmpDir creds2
+    eitherDecodeFileStrict (credentialsPath tmpDir)
+  assert $ result == Right creds2
 
 
 exampleCred :: Credentials

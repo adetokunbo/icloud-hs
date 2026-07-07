@@ -35,6 +35,9 @@ module Network.ICloud.Session
 
     -- * Loading a session
   , loadSession
+
+    -- * Saving credentials
+  , saveCredentials
   )
 where
 
@@ -43,5 +46,6 @@ import Network.ICloud.Internal.Session
   , Credentials (..)
   , Session (..)
   , loadSession
+  , saveCredentials
   )
 
