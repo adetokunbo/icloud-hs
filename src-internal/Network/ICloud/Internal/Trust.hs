@@ -88,6 +88,12 @@ pleaseChooseN low high = do
     Just x -> pure x
 
 
+{- | Interactively prompt the user to enter the verification code sent to their
+trusted phone or device.
+
+Used as the default code-reading action in 'Network.ICloud.Http.login'. Supply
+an alternative via 'Network.ICloud.Http.loginWith' for testing or automation.
+-}
 pleaseReadCode :: IO Text
 pleaseReadCode = do
   let prefix = "Please enter the n-digit code you just received"
@@ -175,11 +181,19 @@ trustedListOptions =
   )
 
 
--- | Information used to specify a code check
+{- | The two-factor challenge data returned by the auth endpoint after SRP sign-in.
+
+Describes which trusted contacts are available to receive a verification code
+('tdList'), the current state of the security-code gate ('tdSecurityCode'),
+and whether any trusted devices are registered ('tdNoTrustedDevices').
+-}
 data TrustData = TrustData
   { tdList :: !TrustedList
+  -- ^ trusted phones or devices that can receive a verification code
   , tdSecurityCode :: !CodeStatus
+  -- ^ current status of the security-code gate (length, lockout flags)
   , tdNoTrustedDevices :: !Bool
+  -- ^ @True@ when no trusted devices are registered; only phone numbers available
   }
   deriving (Eq, Show)
 
@@ -251,6 +265,12 @@ setup2SADeviceLabel (Setup2SADevice o) = fromMaybe "(unknown)" $ do
   pairs = toList o
 
 
+{- | Interactively prompt the user to select a device from a list of 2SA setup devices.
+
+Used as the default device-selection action in 'Network.ICloud.Http.complete2SA'.
+Supply an alternative via 'Network.ICloud.Http.complete2SAWith' for testing or
+automation.
+-}
 selectSetupDevice :: [Setup2SADevice] -> IO Setup2SADevice
 selectSetupDevice xs = do
   when (null xs) $ fail "no 2SA devices available"
