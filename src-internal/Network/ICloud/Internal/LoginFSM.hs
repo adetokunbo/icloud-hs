@@ -6,6 +6,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_HADDOCK prune not-home #-}
 
 {- |
 Module      : Network.ICloud.Internal.LoginFSM
@@ -22,9 +23,8 @@ import Data.Functor ((<&>))
 import Data.Kind (Type)
 import Data.Text (Text)
 import Network.ICloud.Http.Internal (SrpContext (..))
-import Network.ICloud.Session (AccountData, Credentials)
-import Network.ICloud.Session.Internal (SavedHeaders)
-import Network.ICloud.Trust (Setup2SADevice, TrustData)
+import Network.ICloud.Session.Internal (AccountData, Credentials, SavedHeaders)
+import Network.ICloud.Trust.Internal (Setup2SADevice, TrustData)
 
 
 {- | @LoginEvent@ represents the valid events of the Login FSM.

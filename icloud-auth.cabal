@@ -23,6 +23,7 @@ source-repository head
 library icloud-auth-internal
   exposed-modules:  Network.ICloud.Http.Errors
                     Network.ICloud.Http.Internal
+                    Network.ICloud.Internal.LoginFSM
                     Network.ICloud.PBKDF2
                     Network.ICloud.Session.Internal
                     Network.ICloud.Trust.Internal
@@ -51,7 +52,6 @@ library icloud-auth-internal
 library
   exposed-modules:  Network.ICloud.Http
                     Network.ICloud.Http.Endpoints
-                    Network.ICloud.Internal.LoginFSM
                     Network.ICloud.Session
                     Network.ICloud.Trust
   other-modules:    Network.ICloud.Http.Endpoints.Internal
