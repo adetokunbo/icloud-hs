@@ -14,7 +14,7 @@ import qualified Data.ByteString as BS
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Text (Text)
 import qualified ICloud.Examples as Examples
-import Network.ICloud.Http.Errors
+import Network.ICloud.Internal.HttpErrors
   ( ApiError (..)
   , ApiResponse (..)
   , AuthError (..)

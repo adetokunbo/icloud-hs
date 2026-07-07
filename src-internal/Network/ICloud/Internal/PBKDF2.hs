@@ -16,7 +16,7 @@ Re-implemented here rather than making it direct dependency, because:
     - faster route for this package to stackage
         - as of (2025/04/01, ppad-ppbkdf was not on stackage)
 -}
-module Network.ICloud.PBKDF2
+module Network.ICloud.Internal.PBKDF2
   ( -- * specify a pseudorandom function and derived key length
     FancyPseudoRandomF
   , wrap

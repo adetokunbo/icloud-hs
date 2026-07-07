@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_HADDOCK prune not-home #-}
 
-module Network.ICloud.Trust.Internal
+module Network.ICloud.Internal.Trust
   ( -- * data types
     CodeStatus (..)
   , TrustedPhone (..)

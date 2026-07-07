@@ -4,7 +4,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# OPTIONS_HADDOCK prune not-home #-}
 
-module Network.ICloud.Session.Internal
+module Network.ICloud.Internal.Session
   ( -- * Credentials
     Credentials (..)
 
@@ -75,7 +75,7 @@ import Data.UUID (toText)
 import Data.UUID.V4 (nextRandom)
 import GHC.Generics (Generic)
 import Network.HTTP.Types.Header (Header)
-import Network.ICloud.Http.Internal
+import Network.ICloud.Internal.Http
   ( hCounter
   , hCountry
   , hSessionId

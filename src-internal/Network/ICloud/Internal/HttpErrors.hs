@@ -11,7 +11,7 @@ SPDX-License-Identifier: BSD3
 
 Datatypes that model the structured errors returned by the ICloud API.
 -}
-module Network.ICloud.Http.Errors
+module Network.ICloud.Internal.HttpErrors
   ( -- * data types
     ApiResponse (..)
   , ApiError (..)

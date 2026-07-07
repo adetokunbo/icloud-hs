@@ -18,7 +18,7 @@ module Network.ICloud.Trust
   )
 where
 
-import Network.ICloud.Trust.Internal
+import Network.ICloud.Internal.Trust
   ( Setup2SADevice (..)
   , TrustData (..)
   , pleaseReadCode

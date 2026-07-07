@@ -23,7 +23,7 @@ module Network.ICloud.Session
   )
 where
 
-import Network.ICloud.Session.Internal
+import Network.ICloud.Internal.Session
   ( AccountData (..)
   , Credentials (..)
   , Session (..)

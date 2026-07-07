@@ -22,9 +22,9 @@ module Network.ICloud.Internal.LoginFSM where
 import Data.Functor ((<&>))
 import Data.Kind (Type)
 import Data.Text (Text)
-import Network.ICloud.Http.Internal (SrpContext (..))
-import Network.ICloud.Session.Internal (AccountData, Credentials, SavedHeaders)
-import Network.ICloud.Trust.Internal (Setup2SADevice, TrustData)
+import Network.ICloud.Internal.Http (SrpContext (..))
+import Network.ICloud.Internal.Session (AccountData, Credentials, SavedHeaders)
+import Network.ICloud.Internal.Trust (Setup2SADevice, TrustData)
 
 
 {- | @LoginEvent@ represents the valid events of the Login FSM.

@@ -21,12 +21,12 @@ source-repository head
   location: https://github.com/adetokunbo/icloud-auth.git
 
 library icloud-auth-internal
-  exposed-modules:  Network.ICloud.Http.Errors
-                    Network.ICloud.Http.Internal
+  exposed-modules:  Network.ICloud.Internal.Http
+                    Network.ICloud.Internal.HttpErrors
                     Network.ICloud.Internal.LoginFSM
-                    Network.ICloud.PBKDF2
-                    Network.ICloud.Session.Internal
-                    Network.ICloud.Trust.Internal
+                    Network.ICloud.Internal.PBKDF2
+                    Network.ICloud.Internal.Session
+                    Network.ICloud.Internal.Trust
   hs-source-dirs:   src-internal
   build-depends:
     , aeson                >=1.5.1 && <2.3

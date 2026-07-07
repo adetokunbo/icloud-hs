@@ -108,19 +108,19 @@ import Network.ICloud.Http.Endpoints.Internal
   , withHeaders
   , withICloudWidgetKey
   )
-import Network.ICloud.Http.Errors
-  ( ApiResponse
-  , AuthError (..)
-  , ExtractOr (..)
-  , extractOrRetry
-  )
-import Network.ICloud.Http.Internal
+import Network.ICloud.Internal.Http
   ( KeyDeriver (..)
   , PasswordProtocol (..)
   , SrpContext (..)
   , hCounter
   , hSessionId
   , validateSetupBody
+  )
+import Network.ICloud.Internal.HttpErrors
+  ( ApiResponse
+  , AuthError (..)
+  , ExtractOr (..)
+  , extractOrRetry
   )
 import Network.ICloud.Internal.LoginFSM
   ( AfterAcctLogin (..)
@@ -140,10 +140,8 @@ import Network.ICloud.Internal.LoginFSM
   , twoFaProcess
   , twoSaProcess
   )
-import Network.ICloud.PBKDF2 (FancyPseudoRandomF, wrapIO)
-import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..))
-import qualified Network.ICloud.Session as Session
-import Network.ICloud.Session.Internal
+import Network.ICloud.Internal.PBKDF2 (FancyPseudoRandomF, wrapIO)
+import Network.ICloud.Internal.Session
   ( SavedHeaders (..)
   , accountDataRequires2FA
   , accountDataRequires2SA
@@ -157,14 +155,16 @@ import Network.ICloud.Session.Internal
   , updateSavedHeaders
   , updateSessionSavedHeaders
   )
-import Network.ICloud.Trust (Setup2SADevice (..), TrustData)
-import Network.ICloud.Trust.Internal
+import Network.ICloud.Internal.Trust
   ( TrustedDevice (..)
   , TrustedPhone (..)
   , pleaseReadCode
   , selectSetupDevice
   , withSelectedPhoneOrDevice
   )
+import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..))
+import qualified Network.ICloud.Session as Session
+import Network.ICloud.Trust (Setup2SADevice (..), TrustData)
 import System.Directory (createDirectoryIfMissing, doesDirectoryExist)
 import Web.Cookie.Jar (usingCookiesFromFile)
 

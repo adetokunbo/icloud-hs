@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_HADDOCK prune not-home #-}
 
-module Network.ICloud.Http.Internal
+module Network.ICloud.Internal.Http
   ( validateSetupBody
   , PasswordProtocol (..)
   , KeyDeriver (..)
@@ -30,8 +30,8 @@ import Data.CaseInsensitive (mk)
 import Data.Text (Text)
 import Data.Word (Word64)
 import Network.HTTP.Types.Header (HeaderName)
-import Network.ICloud.PBKDF2 (FancyPseudoRandomF, deriveKey)
-import Network.ICloud.Trust.Internal (Setup2SADevice (..))
+import Network.ICloud.Internal.PBKDF2 (FancyPseudoRandomF, deriveKey)
+import Network.ICloud.Internal.Trust (Setup2SADevice (..))
 
 
 -- | Models the known values of password protocol

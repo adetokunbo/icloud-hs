@@ -18,8 +18,8 @@ import Network.ICloud.Http
   , mkApiWith
   )
 import Network.ICloud.Http.Endpoints (Endpoints (..))
+import Network.ICloud.Internal.Session (SavedHeaders (..), savedHeadersPath)
 import Network.ICloud.Session (Credentials (..), Session (..))
-import Network.ICloud.Session.Internal (SavedHeaders (..), savedHeadersPath)
 import Network.ICloud.Trust (Setup2SADevice)
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
