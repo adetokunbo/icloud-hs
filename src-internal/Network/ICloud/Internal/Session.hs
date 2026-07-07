@@ -99,11 +99,19 @@ updateSavedHeaders hs sd =
     }
 
 
--- | Persistent data that identifies a user and their authentication state.
+{- | Persistent data identifying a user and their local authentication state.
+
+Holds the credentials used to authenticate, the directory where session files
+are stored (cookies, saved headers, account data), and the per-client OAuth
+state identifier.
+-}
 data Session = Session
   { sessionCreds :: !Credentials
+  -- ^ the credentials used to authenticate
   , sessionTopDir :: !FilePath
+  -- ^ directory where session files (cookies, headers, account data) are stored
   , sessionClientId :: !Text
+  -- ^ per-client OAuth state identifier sent with each request
   }
   deriving
     ( Eq
@@ -145,12 +153,23 @@ saveLoginMsg :: Session -> Value -> IO ()
 saveLoginMsg Session{sessionCreds = creds, sessionTopDir = topDir} = saveValue (loginMsgPath topDir creds)
 
 
--- | Structured account information obtained from the accountLogin API response
+{- | Structured account information returned by the account-login endpoint.
+
+The 'adHsaVersion' field determines which two-factor flow applies:
+
+* @0@ — unknown (used as a sentinel when no account data is available)
+* @1@ — legacy two-step authentication (2SA); handled via the setup endpoint
+* @≥ 2@ — modern two-factor authentication (2FA); handled via the auth endpoint
+-}
 data AccountData = AccountData
   { adHsaVersion :: !Int
+  -- ^ HSA protocol version; drives the two-factor flow selection
   , adHsaChallengeRequired :: !Bool
+  -- ^ @True@ when a 2FA challenge must be completed before access is granted
   , adHsaTrustedBrowser :: !Bool
+  -- ^ @True@ when this session is already trusted and no challenge is needed
   , adWebservices :: !(Map Text Text)
+  -- ^ map of webservice name to base URL, e.g. @"findme" -> "https://…"@
   }
   deriving (Eq, Show, Generic)
 
@@ -236,12 +255,17 @@ credentialsPath :: FilePath -> FilePath
 credentialsPath topDir = topDir </> "credentials.json"
 
 
--- | The name and password of a user
+{- | The Apple ID and password used to sign in to iCloud.
+
+Expected to be read from
+@$XDG_CONFIG_HOME\/hs-icloud-auth\/credentials.json@ with the fields
+@accountName@ and @password@.
+-}
 data Credentials = Credentials
   { credAccountName :: !Text
-  -- ^ the account name is the user's AppleId, usually an email address
+  -- ^ the Apple ID; typically an email address
   , credPassword :: !Text
-  -- ^ the password used to logon to ICloud
+  -- ^ the iCloud account password
   }
   deriving
     ( Eq
@@ -343,7 +367,15 @@ updateSessionSavedHeaders s modSavedHeaders = do
   doesFileExist dataPath >>= loadLast >>= updateAndSave
 
 
--- | Loads a @Session@ from state on the filesystem
+{- | Load a 'Session' from the local filesystem.
+
+Reads 'Credentials' from
+@$XDG_CONFIG_HOME\/hs-icloud-auth\/credentials.json@ and initialises the
+session working directory (creating it if absent). A per-client ID is read
+from disk if one exists, or generated and saved for future runs.
+
+Throws an 'IOError' if the credentials file is absent or cannot be parsed.
+-}
 loadSession :: IO Session
 loadSession = do
   sessionTopDir <- getUserConfigDir appBase
