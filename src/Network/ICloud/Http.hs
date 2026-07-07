@@ -221,7 +221,12 @@ mkApiWith apiSession apiEndpoints apiManager = do
       }
 
 
--- | The result of a login attempt
+{- | The result of a login attempt.
+
+'login' and 'loginWith' produce only 'Authenticated'; 2FA and 2SA challenges
+are resolved internally. 'Requires2SA' is only reachable via 'completeTwoFactor',
+'completeTwoFactorWith', 'complete2SA', and 'complete2SAWith'.
+-}
 data AuthState
   = Authenticated Session AccountData
   | Requires2FA Session TrustData
@@ -393,7 +398,7 @@ parseAccountData :: Value -> AccountData
 parseAccountData v = fromMaybe unknownAccountData $ parseMaybe parseJSON v
 
 
--- | Complete a 2FA (auth-endpoint) challenge after a @Requires2FA@ result
+-- | Complete a 2FA (auth-endpoint) challenge using 'TrustData' obtained outside the normal 'login' flow
 completeTwoFactor :: Api -> TrustData -> IO AuthState
 completeTwoFactor = completeTwoFactorWith pleaseReadCode
 
@@ -407,7 +412,7 @@ completeTwoFactorWith readCode api td = do
     CompletionNeedsTwoSa (TwoSaReady _ ds) -> pure $ Requires2SA (apiSession api) ds
 
 
--- | Complete a 2SA (setup-endpoint) challenge after a @Requires2SA@ result
+-- | Used when already holding a 'Requires2SA' result from 'completeTwoFactor' or 'completeTwoFactorWith'
 complete2SA :: Api -> [Setup2SADevice] -> IO AuthState
 complete2SA = complete2SAWith selectSetupDevice pleaseReadCode
 
