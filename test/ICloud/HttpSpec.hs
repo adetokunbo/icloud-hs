@@ -15,9 +15,10 @@ import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified ICloud.Examples as Examples
 import Network.HTTP.Types (HeaderName)
-import Network.ICloud.Http (AsVerifyRequest (..), PasswordProtocol (..), validateSetupBody)
+import Network.ICloud.Http (validateSetupBody)
 import Network.ICloud.Session
-  ( SavedHeaders (..)
+  ( PasswordProtocol (..)
+  , SavedHeaders (..)
   , hCounter
   , hCountry
   , hSessionId
@@ -26,7 +27,7 @@ import Network.ICloud.Session
   , pristine
   , updateSavedHeaders
   )
-import Network.ICloud.Trust (Setup2SADevice (..), TrustedDevice (..), TrustedPhone (..))
+import Network.ICloud.Trust (Setup2SADevice (..))
 import Test.Hspec (Spec, context, describe, it, shouldBe)
 import Test.QuickCheck
   ( Gen
@@ -42,7 +43,6 @@ import Test.QuickCheck
 spec :: Spec
 spec = describe "module Network.ICloud.Http" $ do
   updateSavedHeadersSpec
-  verifyCodeTypeSpec
   passwordProtocolSpec
   validateSetupBodySpec
 
@@ -77,16 +77,6 @@ sdChecks =
   , (hTrustToken, shTrustToken)
   , (hCounter, shCounter)
   ]
-
-
-verifyCodeTypeSpec :: Spec
-verifyCodeTypeSpec = describe "verifyCodeType" $ do
-  let phone = TrustedPhone 1 "+1234" Nothing
-      device = TrustedDevice "dev-id" "MacBook" "Mac"
-  it "is 'phone' for TrustedPhone" $
-    verifyCodeType phone `shouldBe` "phone"
-  it "is 'trusteddevice' for TrustedDevice" $
-    verifyCodeType device `shouldBe` "trusteddevice"
 
 
 passwordProtocolSpec :: Spec

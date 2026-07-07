@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
@@ -29,12 +30,6 @@ module Network.ICloud.Http
     -- * types
   , Api
   , AuthState (..)
-
-    -- * types
-  , PasswordProtocol (..)
-
-    -- * classes
-  , AsVerifyRequest (..)
 
     -- * errors
   , AuthError (..)
@@ -74,11 +69,13 @@ import Data.ByteString.Base64 (decodeBase64Untyped, encodeBase64)
 import qualified Data.ByteString.Lazy as LBS
 import Data.CaseInsensitive (mk)
 import Data.Maybe (catMaybes, fromMaybe)
+import Data.Proxy (Proxy (..))
 import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
 import Data.Word (Word64)
+import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import Network.HTTP.Client
   ( Manager
   , Request (..)
@@ -705,9 +702,10 @@ handleSigninComplete api resp = do
     | otherwise -> Right <$> extractOr body
 
 
-verifyCodeOrRetry :: (FromJSON a, AsVerifyRequest b) => Api -> b -> AuthCode -> IO (Maybe a)
+verifyCodeOrRetry :: forall b a. (FromJSON a, AsVerifyRequest b) => Api -> b -> AuthCode -> IO (Maybe a)
 verifyCodeOrRetry api x code =
-  let req' = verifySecurityCodeReq (verifyCodeType x) $ apiEndpoints api
+  let codeType = Text.pack $ symbolVal (Proxy :: Proxy (VerifyCodeType b))
+      req' = verifySecurityCodeReq codeType $ apiEndpoints api
       req = withBody (encode $ asVerifyRequest x code) req'
    in callSEReply api req
 
@@ -826,13 +824,13 @@ authenticity
 type AuthCode = Text
 
 
-class AsVerifyRequest a where
+class (KnownSymbol (VerifyCodeType a)) => AsVerifyRequest a where
+  type VerifyCodeType a :: Symbol
   asVerifyRequest :: a -> AuthCode -> Value
-  verifyCodeType :: a -> Text
 
 
 instance AsVerifyRequest TrustedPhone where
-  verifyCodeType _ = "phone"
+  type VerifyCodeType TrustedPhone = "phone"
   asVerifyRequest tpn code =
     Object
       [ ("securityCode", String code)
@@ -842,7 +840,7 @@ instance AsVerifyRequest TrustedPhone where
 
 
 instance AsVerifyRequest TrustedDevice where
-  verifyCodeType _ = "trusteddevice"
+  type VerifyCodeType TrustedDevice = "trusteddevice"
   asVerifyRequest td code =
     Object
       [ ("securityCode", String code)
