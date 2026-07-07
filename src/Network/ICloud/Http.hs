@@ -114,7 +114,12 @@ import Network.ICloud.Http.Errors
   , ExtractOr (..)
   , extractOrRetry
   )
-import Network.ICloud.Http.Internal (validateSetupBody)
+import Network.ICloud.Http.Internal
+  ( KeyDeriver (..)
+  , PasswordProtocol (..)
+  , SrpContext (..)
+  , validateSetupBody
+  )
 import Network.ICloud.Internal.LoginFSM
   ( AfterAcctLogin (..)
   , AfterArtifactDir (..)
@@ -137,11 +142,8 @@ import Network.ICloud.PBKDF2 (FancyPseudoRandomF, wrapIO)
 import Network.ICloud.Session
   ( AccountData (..)
   , Credentials (..)
-  , KeyDeriver (..)
-  , PasswordProtocol (..)
   , SavedHeaders (..)
   , Session (..)
-  , SrpContext (..)
   , accountDataRequires2FA
   , accountDataRequires2SA
   , cookiePath

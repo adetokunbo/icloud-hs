@@ -41,11 +41,6 @@ module Network.ICloud.Session
   , saveAccountData
   , loadAccountData
 
-    -- * SRP key derivation
-  , PasswordProtocol (..)
-  , KeyDeriver (..)
-  , SrpContext (..)
-
     -- ** header names
   , hCounter
   , hCountry
@@ -61,13 +56,6 @@ where
 
 import Control.Applicative ((<|>))
 import Control.Monad (forM, (>=>))
-import Crypto.SRP
-  ( FromClient (..)
-  , FromServer (..)
-  , XCalculator (..)
-  , hashMany
-  , hashText
-  )
 import Data.Aeson
   ( FromJSON (..)
   , KeyValue (..)
@@ -82,15 +70,12 @@ import Data.Aeson
   , genericToJSON
   , object
   , withObject
-  , withText
   , (.:)
   , (.:?)
   )
 import Data.Aeson.Casing (aesonPrefix, snakeCase)
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as KeyMap
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Base16 as Base16
 import qualified Data.ByteString.Lazy as LBS
 import Data.CaseInsensitive (mk)
 import Data.Char (isAlphaNum)
@@ -103,10 +88,8 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.UUID (toText)
 import Data.UUID.V4 (nextRandom)
-import Data.Word (Word64)
 import GHC.Generics (Generic)
 import Network.HTTP.Types.Header (Header, HeaderName)
-import Network.ICloud.PBKDF2 (FancyPseudoRandomF, deriveKey)
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 import System.Environment.XDG.BaseDir (getUserConfigDir)
 import System.FilePath ((</>))
@@ -447,49 +430,3 @@ simpleOptions = aesonPrefix snakeCase
 
 appBase :: FilePath
 appBase = "hs-icloud-auth"
-
-
--- | Models the known values of password protocol
-data PasswordProtocol = Old | New
-  deriving (Eq, Show)
-
-
-instance FromJSON PasswordProtocol where
-  parseJSON =
-    let fromText "s2k" = Right New
-        fromText "s2k_fo" = Right Old
-        fromText alt = Left $ "unknown PasswordProtocol: " ++ show alt
-     in withText "PasswordProtocol" $ either fail pure . fromText
-
-
--- | Data used during key derivation and verification
-data KeyDeriver = KeyDeriver
-  { kdTag :: !Text
-  , kdIterations :: !Word64
-  , kdProtocol :: !PasswordProtocol
-  , kdWrappedF :: !FancyPseudoRandomF
-  }
-
-
-instance XCalculator KeyDeriver where
-  calcX = calcXUsingKeyDeriver
-
-
-calcXUsingKeyDeriver :: KeyDeriver -> FromClient -> FromServer -> BS.ByteString
-calcXUsingKeyDeriver kd fc fs =
-  let FromServer{fsSalt, fsKnownAlgorithm = hashAlgo} = fs
-      h = hashMany hashAlgo
-      KeyDeriver{kdIterations = count, kdWrappedF, kdProtocol} = kd
-      useProtocol Old = Base16.encode
-      useProtocol New = id
-      hashed = useProtocol kdProtocol $ hashText hashAlgo $ fcPassword fc
-      reallyHashed = deriveKey kdWrappedF hashed fsSalt count
-   in h [fsSalt, h [":", reallyHashed]]
-
-
--- | Bundles the SRP client\/server data and key deriver for a single auth attempt
-data SrpContext = SrpContext
-  { srpFromClient :: !FromClient
-  , srpFromServer :: !FromServer
-  , srpKeyDeriver :: !KeyDeriver
-  }

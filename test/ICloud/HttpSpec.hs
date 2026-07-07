@@ -15,10 +15,9 @@ import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified ICloud.Examples as Examples
 import Network.HTTP.Types (HeaderName)
-import Network.ICloud.Http.Internal (validateSetupBody)
+import Network.ICloud.Http.Internal (PasswordProtocol (..), validateSetupBody)
 import Network.ICloud.Session
-  ( PasswordProtocol (..)
-  , SavedHeaders (..)
+  ( SavedHeaders (..)
   , hCounter
   , hCountry
   , hSessionId
