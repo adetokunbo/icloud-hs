@@ -17,11 +17,9 @@ import Data.String (IsString (..))
 import Data.Text (Text)
 import qualified Data.Text.IO as Text
 import Data.Word (Word16)
-import Network.ICloud.Session
-  ( AccountData (..)
-  , Credentials (..)
-  , SavedHeaders (..)
-  , Session (..)
+import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..), loadSession)
+import Network.ICloud.Session.Internal
+  ( SavedHeaders (..)
   , accountDataRequires2FA
   , accountDataRequires2SA
   , appBase
@@ -30,7 +28,6 @@ import Network.ICloud.Session
   , credentialsPath
   , loadAccountData
   , loadSavedHeaders
-  , loadSession
   , saveAccountData
   , savedHeadersPath
   , updateSessionSavedHeaders

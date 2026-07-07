@@ -24,7 +24,7 @@ import Network.ICloud.Http.Internal
   , hTrustToken
   , validateSetupBody
   )
-import Network.ICloud.Session
+import Network.ICloud.Session.Internal
   ( SavedHeaders (..)
   , pristine
   , updateSavedHeaders

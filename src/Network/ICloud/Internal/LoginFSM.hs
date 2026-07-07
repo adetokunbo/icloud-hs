@@ -22,7 +22,8 @@ import Data.Functor ((<&>))
 import Data.Kind (Type)
 import Data.Text (Text)
 import Network.ICloud.Http.Internal (SrpContext (..))
-import Network.ICloud.Session (AccountData, Credentials, SavedHeaders)
+import Network.ICloud.Session (AccountData, Credentials)
+import Network.ICloud.Session.Internal (SavedHeaders)
 import Network.ICloud.Trust (Setup2SADevice, TrustData)
 
 

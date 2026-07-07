@@ -141,11 +141,10 @@ import Network.ICloud.Internal.LoginFSM
   , twoSaProcess
   )
 import Network.ICloud.PBKDF2 (FancyPseudoRandomF, wrapIO)
-import Network.ICloud.Session
-  ( AccountData (..)
-  , Credentials (..)
-  , SavedHeaders (..)
-  , Session (..)
+import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..))
+import qualified Network.ICloud.Session as Session
+import Network.ICloud.Session.Internal
+  ( SavedHeaders (..)
   , accountDataRequires2FA
   , accountDataRequires2SA
   , cookiePath
@@ -158,7 +157,6 @@ import Network.ICloud.Session
   , updateSavedHeaders
   , updateSessionSavedHeaders
   )
-import qualified Network.ICloud.Session as Session
 import Network.ICloud.Trust (Setup2SADevice (..), TrustData)
 import Network.ICloud.Trust.Internal
   ( TrustedDevice (..)
