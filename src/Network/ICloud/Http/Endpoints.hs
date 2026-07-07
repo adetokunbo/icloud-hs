@@ -25,5 +25,5 @@ module Network.ICloud.Http.Endpoints
   )
 where
 
-import Network.ICloud.Http.Endpoints.Internal (Endpoints (..), Realm, realmEndpoints)
+import Network.ICloud.Internal.Endpoints (Endpoints (..), Realm, realmEndpoints)
 

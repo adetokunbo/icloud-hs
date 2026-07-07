@@ -2,12 +2,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 {- |
-Module      : Network.ICloud.Http.Endpoints.Internal
+Module      : Network.ICloud.Internal.Endpoints
 Copyright   : (c) 2025 Tim Emiola
 Maintainer  : Tim Emiola <adetokunbo@emio.la>
 SPDX-License-Identifier: BSD3
 -}
-module Network.ICloud.Http.Endpoints.Internal where
+module Network.ICloud.Internal.Endpoints where
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS

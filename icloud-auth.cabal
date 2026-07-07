@@ -21,7 +21,8 @@ source-repository head
   location: https://github.com/adetokunbo/icloud-auth.git
 
 library icloud-auth-internal
-  exposed-modules:  Network.ICloud.Internal.Http
+  exposed-modules:  Network.ICloud.Internal.Endpoints
+                    Network.ICloud.Internal.Http
                     Network.ICloud.Internal.HttpErrors
                     Network.ICloud.Internal.LoginFSM
                     Network.ICloud.Internal.PBKDF2
@@ -39,6 +40,7 @@ library icloud-auth-internal
     , crypto-srp           >=0.1 && <0.2
     , directory            >=1.3 && <1.4
     , filepath             >=1.4 && <1.6
+    , http-client          >=0.5 && <0.8
     , http-types           >=0.12.1 && <0.13
     , fmt                  >=0.6.3  && <0.8
     , simple-prompt        >=0.2 && <0.3
@@ -54,7 +56,6 @@ library
                     Network.ICloud.Http.Endpoints
                     Network.ICloud.Session
                     Network.ICloud.Trust
-  other-modules:    Network.ICloud.Http.Endpoints.Internal
   hs-source-dirs:   src
   build-depends:
     , aeson                >=1.5.1 && <2.3 

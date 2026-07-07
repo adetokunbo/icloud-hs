@@ -115,7 +115,7 @@ import Network.HTTP.Types
   , hContentType
   )
 import Network.ICloud.Http.Endpoints (Endpoints (..), Realm, realmEndpoints)
-import Network.ICloud.Http.Endpoints.Internal
+import Network.ICloud.Internal.Endpoints
   ( accountLoginBase
   , extendPath
   , homeHeaders
