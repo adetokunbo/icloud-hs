@@ -7,6 +7,11 @@ module Network.ICloud.Http.Internal
   , PasswordProtocol (..)
   , KeyDeriver (..)
   , SrpContext (..)
+  , hCounter
+  , hCountry
+  , hSessionId
+  , hSessionToken
+  , hTrustToken
   )
 where
 
@@ -21,8 +26,10 @@ import Data.Aeson (FromJSON (..), Value (..), withText)
 import Data.Aeson.KeyMap (fromList)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base16 as Base16
+import Data.CaseInsensitive (mk)
 import Data.Text (Text)
 import Data.Word (Word64)
+import Network.HTTP.Types.Header (HeaderName)
 import Network.ICloud.PBKDF2 (FancyPseudoRandomF, deriveKey)
 import Network.ICloud.Trust.Internal (Setup2SADevice (..))
 
@@ -71,6 +78,15 @@ data SrpContext = SrpContext
   , srpFromServer :: !FromServer
   , srpKeyDeriver :: !KeyDeriver
   }
+
+
+-- | @HeaderName@s used to capture session info from HTTP responses
+hCountry, hSessionId, hSessionToken, hTrustToken, hCounter :: HeaderName
+hCountry = mk "X-Apple-ID-Account-Country"
+hSessionId = mk "X-Apple-ID-Session-Id"
+hSessionToken = mk "X-Apple-Session-Token"
+hTrustToken = mk "X-Apple-TwoSV-Trust-Token"
+hCounter = mk "scnt"
 
 
 validateSetupBody :: Setup2SADevice -> Text -> Value

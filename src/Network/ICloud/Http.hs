@@ -118,6 +118,8 @@ import Network.ICloud.Http.Internal
   ( KeyDeriver (..)
   , PasswordProtocol (..)
   , SrpContext (..)
+  , hCounter
+  , hSessionId
   , validateSetupBody
   )
 import Network.ICloud.Internal.LoginFSM
@@ -561,12 +563,7 @@ callHandlingResponse mkReq modReq handleResponse api@Api{apiEndpoints} x =
 
 
 -- | @HeaderName@ used to represent API session data
-hSessionId
-  , hCounter
-  , hClientId
-    :: HeaderName
-hSessionId = mk "X-Apple-ID-Session-Id"
-hCounter = mk "scnt"
+hClientId :: HeaderName
 hClientId = mk "X-Apple-OAuth-State"
 
 

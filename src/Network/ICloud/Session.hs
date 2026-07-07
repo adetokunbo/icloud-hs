@@ -41,13 +41,6 @@ module Network.ICloud.Session
   , saveAccountData
   , loadAccountData
 
-    -- ** header names
-  , hCounter
-  , hCountry
-  , hSessionId
-  , hSessionToken
-  , hTrustToken
-
     -- * path components
   , appBase
   , (</>)
@@ -77,7 +70,6 @@ import Data.Aeson.Casing (aesonPrefix, snakeCase)
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.ByteString.Lazy as LBS
-import Data.CaseInsensitive (mk)
 import Data.Char (isAlphaNum)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -89,24 +81,17 @@ import qualified Data.Text.IO as Text
 import Data.UUID (toText)
 import Data.UUID.V4 (nextRandom)
 import GHC.Generics (Generic)
-import Network.HTTP.Types.Header (Header, HeaderName)
-import System.Directory (createDirectoryIfMissing, doesFileExist)
-import System.Environment.XDG.BaseDir (getUserConfigDir)
-import System.FilePath ((</>))
-
-
--- | @HeaderName@s used to capture session info from HTTP responses
-hCountry
+import Network.HTTP.Types.Header (Header)
+import Network.ICloud.Http.Internal
+  ( hCounter
+  , hCountry
   , hSessionId
   , hSessionToken
   , hTrustToken
-  , hCounter
-    :: HeaderName
-hCountry = mk "X-Apple-ID-Account-Country"
-hSessionId = mk "X-Apple-ID-Session-Id"
-hSessionToken = mk "X-Apple-Session-Token"
-hTrustToken = mk "X-Apple-TwoSV-Trust-Token"
-hCounter = mk "scnt"
+  )
+import System.Directory (createDirectoryIfMissing, doesFileExist)
+import System.Environment.XDG.BaseDir (getUserConfigDir)
+import System.FilePath ((</>))
 
 
 -- | Update the @SavedHeaders@ using some response headers
