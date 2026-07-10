@@ -97,7 +97,7 @@ import Data.Base64.Types (extractBase64)
 import Data.ByteString (ByteString)
 import Data.ByteString.Base64 (decodeBase64Untyped, encodeBase64)
 import qualified Data.ByteString.Lazy as LBS
-import Data.CaseInsensitive (mk)
+import Data.CaseInsensitive (mk, original)
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Proxy (Proxy (..))
 import Data.String.Conv (toS)
@@ -274,8 +274,12 @@ withLogger logger api = api{apiLogger = Just logger}
 
 {- | Build an 'ApiLogger' that appends one entry per response to a 'Handle'.
 
-Each entry is a header line (@TIMESTAMP METHOD URL STATUS@) followed by the
-raw response body and a @---@ separator.
+Each entry contains:
+
+* a summary line: @TIMESTAMP METHOD URL STATUS@
+* one response header per line: @Name: value@
+* the raw response body
+* a @---@ separator
 
 Not safe for concurrent use from multiple threads against the same handle.
 -}
@@ -285,8 +289,11 @@ fileLogger h = ApiLogger $ \req resp -> do
   let scheme = if secure req then "https" else "http" :: String
       uri = scheme <> "://" <> toS (host req) <> toS (path req)
       status = statusCode (responseStatus resp)
-      header = show now <> " " <> toS (method req) <> " " <> uri <> " " <> show status
-  hPutStrLn h header
+      summary = show now <> " " <> toS (method req) <> " " <> uri <> " " <> show status
+      fmtHdr (name, val) = toS (original name) <> ": " <> toS val
+  hPutStrLn h summary
+  mapM_ (hPutStrLn h . fmtHdr) (responseHeaders resp)
+  hPutStrLn h ""
   LBS.hPutStr h (responseBody resp)
   hPutStrLn h "\n---"
 

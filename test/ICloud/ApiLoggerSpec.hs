@@ -41,10 +41,14 @@ spec = describe "Network.ICloud.Http.fileLogger" $ do
         (decode (LBS8.pack body) :: Maybe Value) `shouldNotBe` Nothing
 
 
--- | Extract the body of the first log entry (all lines between the header and the first separator).
+{- | Extract the body of the first log entry.
+Format: summary line, response headers, blank line, body, blank line, "---".
+Skips the summary and headers by dropping lines up to and including the first blank.
+-}
 firstBody :: String -> String
 firstBody contents =
-  let bodyLines = takeWhile (/= "---") (drop 1 (lines contents))
+  let ls = drop 1 (lines contents)
+      bodyLines = takeWhile (/= "---") $ drop 1 $ dropWhile (not . null) ls
    in unlines bodyLines
 
 
