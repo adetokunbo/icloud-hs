@@ -1,4 +1,7 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+
+{- HLINT ignore "Use lambda-case" -}
 
 module ICloud.HttpMockSpec (spec) where
 
@@ -26,68 +29,63 @@ import Network.ICloud.Session (Credentials (..), Session (..))
 import Network.ICloud.Trust (Setup2SADevice)
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
-import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
+import Test.Hspec (Spec, describe, it, shouldBe, shouldReturn, shouldSatisfy)
 
 
 spec :: Spec
 spec = describe "Network.ICloud.Http.login" $ do
   it "returns Authenticated on fresh login" $
-    withSystemTempDirectory "icloud-auth-mock" $ \tmpDir ->
-      loginShouldAuthenticate tmpDir defaultScenario
+    loginShouldAuthenticate defaultScenario
 
   it "creates the session directory when absent then returns Authenticated" $
     withSystemTempDirectory "icloud-auth-mock" $ \tmpDir ->
-      loginShouldAuthenticate (tmpDir </> "session") defaultScenario
+      withMockApi (tmpDir </> "session") defaultScenario $ \api -> do
+        isAuthenticated <$> login api `shouldReturn` True
 
   it "returns Authenticated when saved headers are valid" $
     withSystemTempDirectory "icloud-auth-mock" $ \tmpDir -> do
       writeSavedHeaders tmpDir
-      loginShouldAuthenticate tmpDir defaultScenario
+      withMockApi tmpDir defaultScenario $ \api -> do
+        isAuthenticated <$> login api `shouldReturn` True
 
   it "falls through to fresh login when validate returns 401" $
     withSystemTempDirectory "icloud-auth-mock" $ \tmpDir -> do
       writeSavedHeaders tmpDir
-      loginShouldAuthenticate tmpDir defaultScenario{snValidate = False}
+      withMockApi tmpDir defaultScenario{snValidate = False} $ \api -> do
+        isAuthenticated <$> login api `shouldReturn` True
 
   it "completes 2FA automatically when signin complete returns 409" $
-    withSystemTempDirectory "icloud-auth-mock" $ \tmpDir ->
-      withMockApi tmpDir defaultScenario{snSrpOutcome = SrpNeeds2FA} $ \api -> do
-        result <- loginWith (pure "123456") (\_ -> pure testDevice) api
-        isAuthenticated result `shouldBe` True
+    withFreshMockApi "icloud-auth-mock" defaultScenario{snSrpOutcome = SrpNeeds2FA} $ \api -> do
+      isAuthenticated <$> loginWith (pure "123456") (\_ -> pure testDevice) api `shouldReturn` True
 
   it "complete2SA returns Authenticated after 2SA challenge" $
-    withSystemTempDirectory "icloud-auth-2sa" $ \tmpDir ->
-      withMockApi tmpDir defaultScenario $ \api -> do
-        result <- complete2SAWith (\_ -> pure testDevice) (pure "0") api [testDevice]
-        isAuthenticated result `shouldBe` True
+    withFreshMockApi "icloud-auth-2sa" defaultScenario $ \api -> do
+      result <- complete2SAWith (\_ -> pure testDevice) (pure "0") api [testDevice]
+      isAuthenticated result `shouldBe` True
 
   it "completes 2SA automatically when account login signals 2SA required" $
-    withSystemTempDirectory "icloud-auth-2sa-login" $ \tmpDir ->
-      withMockApi tmpDir defaultScenario{snAccountLoginNeeds2SA = True} $ \api -> do
-        result <- loginWith (pure "0") (\_ -> pure testDevice) api
-        isAuthenticated result `shouldBe` True
+    withFreshMockApi "icloud-auth-2sa-login" defaultScenario{snAccountLoginNeeds2SA = True} $ \api -> do
+      isAuthenticated <$> loginWith (pure "0") (\_ -> pure testDevice) api `shouldReturn` True
 
   it "throws UnexpectedResponse with HTTP status when error response has no body" $
-    withSystemTempDirectory "icloud-auth-empty-err" $ \tmpDir ->
-      withMockApi tmpDir defaultScenario{snSrpCompleteEmptyError = True} $ \api -> do
-        result <- try (login api) :: IO (Either AuthError AuthState)
-        result
-          `shouldSatisfy` ( \r -> case r of
-                              Left (UnexpectedResponse msg) -> "bad request" `Text.isPrefixOf` msg
-                              _ -> False
-                          )
+    withFreshMockApi "icloud-auth-empty-err" defaultScenario{snSrpCompleteEmptyError = True} $ \api -> do
+      result <- try (login api) :: IO (Either AuthError AuthState)
+      result
+        `shouldSatisfy` ( \r -> case r of
+                            Left (UnexpectedResponse msg) -> "bad request" `Text.isPrefixOf` msg
+                            _ -> False
+                        )
 
-  it "complete2SA retries when the first verification code is wrong" $
-    withSystemTempDirectory "icloud-auth-2sa-retry" $ \tmpDir -> do
-      codeRef <- newIORef ["wrongcode", "0"]
-      let readCode = do
-            codes <- readIORef codeRef
-            case codes of
-              [] -> fail "no more codes"
-              (c : rest) -> writeIORef codeRef rest >> pure c
-      withMockApi tmpDir defaultScenario{snValidateCodeFails = True} $ \api -> do
-        result <- complete2SAWith (\_ -> pure testDevice) readCode api [testDevice]
-        isAuthenticated result `shouldBe` True
+  it "complete2SA retries when the first verification code is wrong" $ do
+    codeRef <- newIORef ["wrongcode", "0"]
+    let readCode = do
+          codes <- readIORef codeRef
+          case codes of
+            [] -> fail "no more codes"
+            (c : rest) -> writeIORef codeRef rest >> pure c
+    withFreshMockApi "icloud-auth-2sa-retry" defaultScenario{snValidateCodeFails = True} $ \api -> do
+      result <- complete2SAWith (\_ -> pure testDevice) readCode api [testDevice]
+      isAuthenticated result `shouldBe` True
 
 
 withMockApi :: FilePath -> Scenario -> (Api -> IO a) -> IO a
@@ -98,9 +96,15 @@ withMockApi tmpDir scenario action =
     action api
 
 
-loginShouldAuthenticate :: FilePath -> Scenario -> IO ()
-loginShouldAuthenticate tmpDir scenario =
-  withMockApi tmpDir scenario $ \api -> do
+withFreshMockApi :: String -> Scenario -> (Api -> IO a) -> IO a
+withFreshMockApi prefix scenario action =
+  withSystemTempDirectory prefix $ \tmpDir ->
+    withMockApi tmpDir scenario action
+
+
+loginShouldAuthenticate :: Scenario -> IO ()
+loginShouldAuthenticate scenario =
+  withFreshMockApi "icloud-auth-mock" scenario $ \api -> do
     result <- login api
     isAuthenticated result `shouldBe` True
 
