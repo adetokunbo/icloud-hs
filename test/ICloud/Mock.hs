@@ -5,22 +5,15 @@ module ICloud.Mock
   , SrpOutcome (..)
   , defaultScenario
   , withMockApp
+  , withMockAppCapturing
   )
 where
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
-import Data.IORef (IORef, newIORef, readIORef, writeIORef)
-import Network.HTTP.Types
-  ( HeaderName
-  , hContentType
-  , status200
-  , status400
-  , status401
-  , status404
-  , status409
-  )
-import Network.Wai (Application, pathInfo, requestMethod, responseLBS)
+import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
+import Network.HTTP.Types (HeaderName, RequestHeaders, hContentType, status200, status400, status401, status404, status409)
+import Network.Wai (Application, pathInfo, rawPathInfo, requestHeaders, requestMethod, responseLBS)
 import Network.Wai.Handler.Warp (testWithApplication)
 import Paths_icloud_auth (getDataFileName)
 
@@ -54,7 +47,12 @@ jsonHeaders = [(hContentType, "application/json")]
 
 
 withMockApp :: Scenario -> (Int -> IO a) -> IO a
-withMockApp scenario action = do
+withMockApp scenario action =
+  withMockAppCapturing scenario $ \port _ -> action port
+
+
+withMockAppCapturing :: Scenario -> (Int -> IORef [(ByteString, RequestHeaders)] -> IO a) -> IO a
+withMockAppCapturing scenario action = do
   srpInit <- LBS.readFile =<< getDataFileName "testdata/srp_init_ok_test.json"
   trustData <- LBS.readFile =<< getDataFileName "testdata/trust_data_test.json"
   login2sa <- LBS.readFile =<< getDataFileName "testdata/login_2sa_test.json"
@@ -62,10 +60,12 @@ withMockApp scenario action = do
   listDevices <- LBS.readFile =<< getDataFileName "testdata/trusted_devices_test.json"
   codeAttemptsRef <- newIORef (0 :: Int)
   accountLoginRef <- newIORef (0 :: Int)
+  capturedRef <- newIORef []
   testWithApplication
     ( pure $
         mockApp
           scenario
+          capturedRef
           srpInit
           trustData
           login2sa
@@ -74,11 +74,12 @@ withMockApp scenario action = do
           codeAttemptsRef
           accountLoginRef
     )
-    action
+    (\port -> action port capturedRef)
 
 
 mockApp
   :: Scenario
+  -> IORef [(ByteString, RequestHeaders)]
   -> LBS.ByteString
   -> LBS.ByteString
   -> LBS.ByteString
@@ -89,6 +90,7 @@ mockApp
   -> Application
 mockApp
   scenario
+  capturedRef
   srpInit
   trustData
   login2sa
@@ -98,6 +100,7 @@ mockApp
   accountLoginRef
   req
   respond = do
+    modifyIORef' capturedRef ((rawPathInfo req, requestHeaders req) :)
     let method = requestMethod req
         segs = pathInfo req
         json st body = responseLBS st jsonHeaders body

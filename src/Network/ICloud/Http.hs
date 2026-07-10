@@ -118,6 +118,7 @@ import Network.HTTP.Types
   ( HeaderName
   , RequestHeaders
   , Status (..)
+  , hAccept
   , hContentType
   )
 import Network.ICloud.Http.Endpoints (Endpoints (..), Realm, realmEndpoints)
@@ -622,7 +623,11 @@ asObject = Object . fromList
 
 mkJsonRequest :: (a -> Request) -> (b -> Value) -> a -> b -> Request
 mkJsonRequest mkBase mkBody baseSrc bodySrc =
-  withBody (encode $ mkBody bodySrc) $ mkBase baseSrc
+  withJsonRequestHeaders . withBody (encode $ mkBody bodySrc) $ mkBase baseSrc
+
+
+withJsonRequestHeaders :: Request -> Request
+withJsonRequestHeaders = withHeaders [(hAccept, "application/json"), (hContentType, "application/json")]
 
 
 callHandlingResponse
@@ -794,7 +799,7 @@ validate api@Api{apiEndpoints} = do
 
 
 validateReq :: Endpoints -> Request
-validateReq = withBody (encode Null) . validateBase
+validateReq = withJsonRequestHeaders . withBody (encode Null) . validateBase
 
 
 accountLogin :: Api -> IO Value
@@ -869,8 +874,9 @@ sendSetupVerification api@Api{apiSession = s, apiEndpoints = ep} device = do
   savedHdrs <- loadSavedHeaders s
   let req =
         withHeaders (requiredHeaders savedHdrs) $
-          withBody (encode device) $
-            sendVerification ep
+          withJsonRequestHeaders $
+            withBody (encode device) $
+              sendVerification ep
   resp <- rawRequest api req
   unless (statusCode (responseStatus resp) < 400) $ throwIO $ UnexpectedResponse $ showStatusOf resp
 
@@ -880,8 +886,9 @@ validateSetupVerification api@Api{apiSession = s, apiEndpoints = ep} device code
   savedHdrs <- loadSavedHeaders s
   let req =
         withHeaders (requiredHeaders savedHdrs) $
-          withBody (encode $ validateSetupBody device code) $
-            validateVerification ep
+          withJsonRequestHeaders $
+            withBody (encode $ validateSetupBody device code) $
+              validateVerification ep
   resp <- rawRequest api req
   pure $ statusCode (responseStatus resp) < 400
 

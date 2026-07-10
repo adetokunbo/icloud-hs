@@ -137,7 +137,13 @@ chinaEndpoints =
 
 
 apiRequest :: Request
-apiRequest = defaultRequest{secure = True, port = 443, method = methodPost}
+apiRequest =
+  defaultRequest
+    { secure = True
+    , port = 443
+    , method = methodPost
+    , requestHeaders = [(hAccept, "application/json"), (hContentType, "application/json")]
+    }
 
 
 authReq :: Request
@@ -209,7 +215,7 @@ twoSvTrust = (`extendPath` "/2sv/trust") . toGet . epAuth
 verifySecurityCodeReq :: Text -> Endpoints -> Request
 verifySecurityCodeReq codeType =
   (`extendPath` ("/verify/" <> toS codeType <> "/securitycode"))
-    . withHeaders [(hContentType, "application/json")]
+    . withHeaders [(hAccept, "application/json"), (hContentType, "application/json")]
     . epAuth
 
 
@@ -226,7 +232,7 @@ listDevices = (`extendPath` "/listDevices") . toGet . epSetup
 
 
 withHeaders :: RequestHeaders -> Request -> Request
-withHeaders requestHeaders req = req{requestHeaders}
+withHeaders newHeaders req = req{requestHeaders = newHeaders <> requestHeaders req}
 
 
 withBody :: LBS.LazyByteString -> Request -> Request

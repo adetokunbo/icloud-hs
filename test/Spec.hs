@@ -4,6 +4,7 @@ module Main where
 
 import qualified ICloud.ApiLoggerSpec as ApiLogger
 import qualified ICloud.Http.ErrorsSpec as HttpErrors
+import qualified ICloud.Http.HeadersSpec as HttpHeaders
 import qualified ICloud.HttpMockSpec as HttpMock
 import qualified ICloud.HttpSpec as Http
 import qualified ICloud.LoginFSMSpec as LoginFSM
@@ -28,6 +29,7 @@ main = do
     Http.spec
     ApiLogger.spec
     HttpErrors.spec
+    HttpHeaders.spec
     HttpMock.spec
     PBKDF2.spec
     Trust.spec
