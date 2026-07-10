@@ -137,7 +137,7 @@ chinaEndpoints =
 
 
 apiRequest :: Request
-apiRequest = defaultRequest{secure = True, method = methodPost}
+apiRequest = defaultRequest{secure = True, port = 443, method = methodPost}
 
 
 authReq :: Request
