@@ -67,7 +67,7 @@ module Network.ICloud.Http
 where
 
 import Control.Exception (IOException, catch, throwIO)
-import Control.Monad (unless)
+import Control.Monad (unless, when)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Reader (ReaderT, ask, asks, runReaderT)
 import qualified Crypto.Hash.SHA256 as SHA256
@@ -94,7 +94,7 @@ import Data.Aeson
 import Data.Aeson.KeyMap (fromList)
 import Data.Aeson.Types (Parser, Value (..), parseMaybe)
 import Data.Base64.Types (extractBase64)
-import Data.ByteString (ByteString)
+import Data.ByteString (ByteString, isPrefixOf)
 import Data.ByteString.Base64 (decodeBase64Untyped, encodeBase64)
 import qualified Data.ByteString.Lazy as LBS
 import Data.CaseInsensitive (mk, original)
@@ -549,13 +549,19 @@ if the response is not JSON, use 'rawRequest' instead
 callApi
   :: (FromJSON a) => Api -> Request -> IO (Response (ApiResponse a))
 callApi api req = do
-  let isJsonType "application/json" = True
-      isJsonType "text/json" = True
-      isJsonType _other = False
+  let isJsonType ct = "application/json" `isPrefixOf` ct || "text/json" `isPrefixOf` ct
   raw <- rawRequest api req
-  let theType = lookup hContentType $ responseHeaders raw
+  let code = statusCode (responseStatus raw)
+      theType = lookup hContentType $ responseHeaders raw
       isJson = maybe False isJsonType theType
-  unless isJson $ throwIO $ UnexpectedResponse $ "response was not JSON: " <> toS (show theType)
+  when (code >= 400 && LBS.null (responseBody raw)) $
+    throwIO $
+      UnexpectedResponse $
+        showStatusOf raw
+  unless (code >= 400 || isJson) $
+    throwIO $
+      UnexpectedResponse $
+        "response was not JSON: " <> toS (show theType)
   mapM asJson raw
 
 

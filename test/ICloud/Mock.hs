@@ -29,6 +29,8 @@ data Scenario = Scenario
   -- ^ when True, the first validateVerificationCode call returns 400
   , snAccountLoginNeeds2SA :: Bool
   -- ^ when True, the first accountLogin call returns a 2SA-required response
+  , snSrpCompleteEmptyError :: Bool
+  -- ^ when True, signin/complete returns 401 with no body or Content-Type
   }
 
 
@@ -39,6 +41,7 @@ defaultScenario =
     , snSrpOutcome = SrpOk
     , snValidateCodeFails = False
     , snAccountLoginNeeds2SA = False
+    , snSrpCompleteEmptyError = False
     }
 
 
@@ -108,9 +111,12 @@ mockApp
       ("POST", ["appleauth", "auth", "signin", "init"]) ->
         pure $ json status200 srpInit
       ("POST", ["appleauth", "auth", "signin", "complete"]) ->
-        pure $ case snSrpOutcome scenario of
-          SrpOk -> json status200 "{}"
-          SrpNeeds2FA -> json status409 "{}"
+        pure $
+          if snSrpCompleteEmptyError scenario
+            then responseLBS status401 [] ""
+            else case snSrpOutcome scenario of
+              SrpOk -> json status200 "{}"
+              SrpNeeds2FA -> json status409 "{}"
       ("GET", ["appleauth", "auth", "2sv", "trust"]) ->
         pure $ json status200 "{}"
       ("POST", ["appleauth", "auth"]) ->

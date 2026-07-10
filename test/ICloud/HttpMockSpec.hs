@@ -2,10 +2,12 @@
 
 module ICloud.HttpMockSpec (spec) where
 
+import Control.Exception (try)
 import Data.Aeson (decode, encodeFile)
 import qualified Data.ByteString.Char8 as BS8
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Maybe (fromJust)
+import qualified Data.Text as Text
 import ICloud.Mock (Scenario (..), SrpOutcome (..), defaultScenario, withMockApp)
 import Network.HTTP.Client (Request (..), defaultManagerSettings, defaultRequest, newManager)
 import Network.HTTP.Types (methodPost)
@@ -18,12 +20,13 @@ import Network.ICloud.Http
   , mkApiWith
   )
 import Network.ICloud.Http.Endpoints (Endpoints (..))
+import Network.ICloud.Internal.HttpErrors (AuthError (..))
 import Network.ICloud.Internal.Session (SavedHeaders (..), savedHeadersPath)
 import Network.ICloud.Session (Credentials (..), Session (..))
 import Network.ICloud.Trust (Setup2SADevice)
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
-import Test.Hspec (Spec, describe, it, shouldBe)
+import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
 
 
 spec :: Spec
@@ -63,6 +66,16 @@ spec = describe "Network.ICloud.Http.login" $ do
       withMockApi tmpDir defaultScenario{snAccountLoginNeeds2SA = True} $ \api -> do
         result <- loginWith (pure "0") (\_ -> pure testDevice) api
         isAuthenticated result `shouldBe` True
+
+  it "throws UnexpectedResponse with HTTP status when error response has no body" $
+    withSystemTempDirectory "icloud-auth-empty-err" $ \tmpDir ->
+      withMockApi tmpDir defaultScenario{snSrpCompleteEmptyError = True} $ \api -> do
+        result <- try (login api) :: IO (Either AuthError AuthState)
+        result
+          `shouldSatisfy` ( \r -> case r of
+                              Left (UnexpectedResponse msg) -> "bad request" `Text.isPrefixOf` msg
+                              _ -> False
+                          )
 
   it "complete2SA retries when the first verification code is wrong" $
     withSystemTempDirectory "icloud-auth-2sa-retry" $ \tmpDir -> do
