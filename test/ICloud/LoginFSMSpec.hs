@@ -25,6 +25,7 @@ data Script = Script
   , scriptAcct :: !Bool
   , scriptTwoFa :: ![Bool]
   , scriptTwoSa :: ![Bool]
+  , scriptNoTrustedDevices :: !Bool
   }
 
 
@@ -40,6 +41,7 @@ allTrue =
     , scriptAcct = True
     , scriptTwoFa = [True]
     , scriptTwoSa = [True]
+    , scriptNoTrustedDevices = False
     }
 
 
@@ -204,6 +206,9 @@ spec = do
 
     it "reaches Requires2SA when account login signals 2SA required after 2FA" $
       runTwoFaScript (allTrue{scriptAcct = False}) `shouldBe` TwoSa
+
+    it "still reaches Authenticated when noTrustedDevices is True" $
+      runTwoFaScript (allTrue{scriptNoTrustedDevices = True}) `shouldBe` Authenticated
 
   describe "LoginFSM.twoSaProcess" $ do
     it "reaches Authenticated when 2SA verification succeeds on the first attempt" $

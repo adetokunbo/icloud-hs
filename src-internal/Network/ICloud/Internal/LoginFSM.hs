@@ -20,7 +20,7 @@ import Data.Kind (Type)
 import Data.Text (Text)
 import Network.ICloud.Internal.Http (SrpContext (..))
 import Network.ICloud.Internal.Session (AccountData, Credentials, SavedHeaders)
-import Network.ICloud.Internal.Trust (Setup2SADevice)
+import Network.ICloud.Internal.Trust (Setup2SADevice, TrustData)
 
 
 {- | @LoginEvent@ represents the valid events of the Login FSM.
@@ -171,8 +171,8 @@ data LoginFSM s where
   DoAccountLogin :: Credentials -> LoginFSM DoAccountLogin
   AuthComplete :: Credentials -> AccountData -> LoginFSM AuthComplete
   NeedsTwoFa :: Credentials -> LoginFSM NeedsTwoFa
-  ReadyForTwoFa :: Credentials -> IO Text -> LoginFSM ReadyForTwoFa
-  TwoFaVerifying :: Credentials -> IO Text -> LoginFSM TwoFaVerifying
+  ReadyForTwoFa :: Credentials -> TrustData -> IO Text -> LoginFSM ReadyForTwoFa
+  TwoFaVerifying :: Credentials -> TrustData -> IO Text -> LoginFSM TwoFaVerifying
   DoTrust :: Credentials -> LoginFSM DoTrust
   NeedsTwoSa :: Credentials -> LoginFSM NeedsTwoSa
   TwoSaReady :: Credentials -> [Setup2SADevice] -> LoginFSM TwoSaReady

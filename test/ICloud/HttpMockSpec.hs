@@ -87,15 +87,15 @@ spec = describe "Network.ICloud.Http.login" $ do
       result <- complete2SAWith (\_ -> pure testDevice) readCode api [testDevice]
       isAuthenticated result `shouldBe` True
 
-  it "does not call POST /appleauth/auth after signin/complete returns 409" $
-    withSystemTempDirectory "icloud-auth-no-choosetrust" $ \tmpDir -> do
+  it "calls GET /appleauth/auth when accountLogin requires 2FA" $
+    withSystemTempDirectory "icloud-auth-fetches-trust" $ \tmpDir -> do
       let scenario = defaultScenario{snSrpOutcome = SrpNeeds2FA, snAccountLoginNeeds2FA = 1}
       withMockAppCapturing scenario $ \serverPort capturedRef -> do
         mgr <- newManager defaultManagerSettings
         api <- mkApiWith (testSession tmpDir) (testEndpoints serverPort) mgr
         _ <- loginWith (pure "123456") (\_ -> pure testDevice) api
         captured <- readIORef capturedRef
-        map fst captured `shouldSatisfy` notElem "/appleauth/auth"
+        map fst captured `shouldSatisfy` elem "/appleauth/auth"
 
 
 withMockApi :: FilePath -> Scenario -> (Api -> IO a) -> IO a

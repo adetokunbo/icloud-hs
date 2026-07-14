@@ -430,20 +430,20 @@ instance LoginEvent (ReaderT Api IO) where
     pure $ TwoSaReady creds devices
 
 
-  beginTwoFa (ReadyForTwoFa creds readCode) = do
+  beginTwoFa (ReadyForTwoFa creds td readCode) = do
     api <- ask
     liftIO $ triggerTwoFaPush api
-    pure $ TwoFaVerifying creds readCode
+    pure $ TwoFaVerifying creds td readCode
 
 
-  verifyTwoFa (TwoFaVerifying creds readCode) = do
+  verifyTwoFa (TwoFaVerifying creds td readCode) = do
     api <- ask
     code <- liftIO readCode
     ok <- liftIO $ verifyTwoFaCode api code
     pure $
       if ok
         then TwoFaOk $ DoTrust creds
-        else TwoFaRetry $ ReadyForTwoFa creds readCode
+        else TwoFaRetry $ ReadyForTwoFa creds td readCode
 
 
   doTrust (DoTrust creds) = do
@@ -489,7 +489,8 @@ completeTwoFactor = completeTwoFactorWith pleaseReadCode
 -- | Like 'completeTwoFactor' with an injectable code prompt, for testing
 completeTwoFactorWith :: IO AuthCode -> Api -> IO AuthState
 completeTwoFactorWith readCode api = do
-  let start = ReadyForTwoFa (sessionCreds (apiSession api)) readCode
+  td <- fetchTrustData api
+  let start = ReadyForTwoFa (sessionCreds (apiSession api)) td readCode
   runReaderT (twoFaProcess start) api >>= \case
     CompletionAuthenticated (AuthComplete _ ad) -> pure $ Authenticated (apiSession api) ad
     CompletionNeedsTwoFa _ -> throwIO $ UnexpectedResponse "accountLogin still requires 2FA after verification"
