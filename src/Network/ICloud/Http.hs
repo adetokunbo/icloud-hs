@@ -878,7 +878,7 @@ triggerTwoFaPush api@Api{apiEndpoints = ep} = do
         withHeaders
           (withAcceptJson $ authHeaders api savedHdrs)
           (toPut (extendPath (epAuth ep) "/verify/trusteddevice/securitycode"))
-  -- Apple sometimes returns a non-2xx here when a push is already in flight;
+  -- The server sometimes returns a non-2xx here when a push is already in flight;
   -- the device still shows the notification, so errors are safe to ignore.
   void (rawRequest api req) `catch` \(_ :: IOException) -> pure ()
 

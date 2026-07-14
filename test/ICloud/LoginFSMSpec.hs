@@ -220,7 +220,7 @@ spec = do
     it "still reaches Authenticated when noTrustedDevices is True" $
       runTwoFaScript (allTrue{scriptNoTrustedDevices = True}) `shouldBe` Authenticated
 
-    it "halts with TwoFaLocked when the code is rejected and Apple signals the account is locked" $
+    it "halts with TwoFaLocked when the code is rejected and the server signals the account is locked" $
       runTwoFaScript (allTrue{scriptTwoFa = [False], scriptTwoFaLocked = True}) `shouldBe` LockedByTwoFa
 
   describe "LoginFSM.twoSaProcess" $ do

@@ -102,7 +102,7 @@ spec = describe "Network.ICloud.Http.login" $ do
         captured <- readIORef capturedRef
         map fst captured `shouldSatisfy` elem "/appleauth/auth"
 
-  it "throws UnexpectedResponse with 2FA locked message when Apple signals the account is locked" $
+  it "throws UnexpectedResponse with 2FA locked message when the server signals the account is locked" $
     withFreshMockApi "icloud-auth-2fa-locked" defaultScenario{snAccountLoginNeeds2FA = 1, snVerifyCodeLocks = True} $ \api -> do
       result <- try (loginWith (pure "wrongcode") (\_ -> pure Nothing) (\_ -> pure testDevice) api) :: IO (Either AuthError AuthState)
       result

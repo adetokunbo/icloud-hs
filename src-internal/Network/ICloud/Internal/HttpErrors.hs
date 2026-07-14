@@ -76,11 +76,11 @@ instance FromJSON ApiError where
 
 -- | Structured errors thrown by the iCloud authentication layer
 data AuthError
-  = -- | The supplied Apple ID or password was rejected.
+  = -- | The supplied credentials were rejected.
     InvalidCredentials
   | -- | The account has been locked due to too many failed sign-in attempts.
     AccountLocked
-  | -- | Apple requires the user to accept updated privacy terms before continuing.
+  | -- | The server requires the user to accept updated privacy terms before continuing.
     PrivacyAgreementRequired
   | -- | The API returned a structured service error with a reason and an optional error code.
     ServiceError !Text !(Maybe Text)

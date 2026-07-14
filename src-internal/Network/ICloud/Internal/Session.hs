@@ -274,7 +274,7 @@ saveCredentialsTo topDir creds = do
   encodeFile (credentialsPath topDir) creds
 
 
-{- | The Apple ID and password used to sign in to iCloud.
+{- | The account ID and password used to sign in to iCloud.
 
 Expected to be read from
 @$XDG_CONFIG_HOME\/hs-icloud-auth\/credentials.json@ with the fields
@@ -282,7 +282,7 @@ Expected to be read from
 -}
 data Credentials = Credentials
   { credAccountName :: !Text
-  -- ^ the Apple ID; typically an email address
+  -- ^ the account ID; typically an email address
   , credPassword :: !Text
   -- ^ the iCloud account password
   }

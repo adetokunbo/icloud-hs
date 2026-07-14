@@ -8,7 +8,7 @@ SPDX-License-Identifier: BSD3
 
 Provides the core types for an iCloud authentication session.
 
-'Credentials' holds the Apple ID and password used to sign in. A 'Session'
+'Credentials' holds the account ID and password used to sign in. A 'Session'
 combines those credentials with a filesystem working directory (where cookies,
 session tokens, and account state are persisted between runs) and a per-client
 identifier. 'AccountData' carries the account information returned by the
