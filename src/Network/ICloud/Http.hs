@@ -198,6 +198,7 @@ import Network.ICloud.Internal.Trust
   , TrustedPhone
   , pleaseReadCode
   , selectSetupDevice
+  , selectTwoFaPhone
   )
 import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..))
 import qualified Network.ICloud.Session as Session
@@ -327,7 +328,7 @@ instance Show AuthState where
 
 -- | Logs into ICloud, completing any 2FA or 2SA challenge automatically
 login :: Api -> IO AuthState
-login = loginWith pleaseReadCode (\_ -> pure Nothing) selectSetupDevice
+login = loginWith pleaseReadCode selectTwoFaPhone selectSetupDevice
 
 
 -- | Like 'login' with injectable code prompt, phone selector, and device selector, for testing

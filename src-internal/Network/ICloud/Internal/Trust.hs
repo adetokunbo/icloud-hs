@@ -18,6 +18,7 @@ module Network.ICloud.Internal.Trust
   , pleaseChooseN
   , selectPhone
   , selectDevice
+  , selectTwoFaPhone
   , setup2SADeviceLabel
   , selectSetupDevice
   )
@@ -43,7 +44,7 @@ import Data.Aeson
 import Data.Aeson.Casing (aesonPrefix, camelCase)
 import Data.Aeson.KeyMap (filterWithKey, toList)
 import Data.Aeson.Types (Parser)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
@@ -263,6 +264,35 @@ setup2SADeviceLabel (Setup2SADevice o) = fromMaybe "(unknown)" $ do
     _ -> Nothing
  where
   pairs = toList o
+
+
+{- | Interactively prompt the user to choose between device push and SMS for HSA2 2FA.
+
+If no trusted devices are registered ('tdNoTrustedDevices' is @True@), the first
+trusted phone is selected automatically.  Otherwise, the user is prompted to press
+Enter for device push or enter a number to receive an SMS code.
+-}
+selectTwoFaPhone :: TrustData -> IO (Maybe TrustedPhone)
+selectTwoFaPhone td =
+  let phones = case tdList td of
+        TrustedPhoneNumbers ps -> ps
+        TrustedDevices _ -> []
+   in if tdNoTrustedDevices td
+        then pure (listToMaybe phones)
+        else pickPhoneOrDevice phones
+ where
+  pickPhoneOrDevice [] = pure Nothing
+  pickPhoneOrDevice phones = do
+    Text.putStrLn "Press Enter to use a trusted device, or enter a number to receive an SMS:"
+    mapM_
+      (\(i, p) -> Text.putStrLn $ "" +| (i :: Int) |+ ") " +| tpnNumberWithDialCode p |+ "")
+      (zip [1 ..] phones)
+    response <- Text.getLine
+    if Text.null response
+      then pure Nothing
+      else case readMaybe (Text.unpack response) of
+        Just n | n >= (1 :: Int) && n <= length phones -> pure $ Just (phones !! (n - 1))
+        _ -> pickPhoneOrDevice phones
 
 
 {- | Interactively prompt the user to select a device from a list of 2SA setup devices.

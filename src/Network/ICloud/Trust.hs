@@ -34,6 +34,7 @@ module Network.ICloud.Trust
 
     -- * Interactive prompts
   , pleaseReadCode
+  , selectTwoFaPhone
   , selectSetupDevice
   )
 where
@@ -44,6 +45,7 @@ import Network.ICloud.Internal.Trust
   , TrustedPhone (..)
   , pleaseReadCode
   , selectSetupDevice
+  , selectTwoFaPhone
   , setup2SADeviceLabel
   )
 
