@@ -161,7 +161,7 @@ The 'adHsaVersion' field determines which two-factor flow applies:
 
 * @0@ — unknown (used as a sentinel when no account data is available)
 * @1@ — legacy two-step authentication (2SA); handled via the setup endpoint
-* @≥ 2@ — modern two-factor authentication (2FA); handled via the auth endpoint
+* @2@ — modern two-factor authentication (2FA); handled via the auth endpoint
 -}
 data AccountData = AccountData
   { adHsaVersion :: !Int
@@ -206,7 +206,8 @@ instance ToJSON AccountData where
 
 -- | True when full 2FA (auth-endpoint) challenge is required
 accountDataRequires2FA :: AccountData -> Bool
-accountDataRequires2FA ad = adHsaVersion ad >= 2 && adHsaChallengeRequired ad
+accountDataRequires2FA ad =
+  adHsaVersion ad == 2 && (adHsaChallengeRequired ad || not (adHsaTrustedBrowser ad))
 
 
 -- | True when legacy 2SA (setup-endpoint) challenge is required

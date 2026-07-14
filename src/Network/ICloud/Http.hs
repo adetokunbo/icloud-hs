@@ -66,10 +66,11 @@ module Network.ICloud.Http
   )
 where
 
-import Control.Exception (IOException, catch, throwIO)
+import Control.Exception (IOException, catch, evaluate, throwIO)
 import Control.Monad (unless, when)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Reader (ReaderT, ask, asks, runReaderT)
+import qualified Crypto.Hash.SHA1 as SHA1
 import qualified Crypto.Hash.SHA256 as SHA256
 import Crypto.SRP
   ( FromClient (..)
@@ -94,7 +95,9 @@ import Data.Aeson
 import Data.Aeson.KeyMap (fromList)
 import Data.Aeson.Types (Parser, Value (..), parseMaybe)
 import Data.Base64.Types (extractBase64)
+import Data.Bits (countLeadingZeros)
 import Data.ByteString (ByteString, isPrefixOf)
+import qualified Data.ByteString as BS
 import Data.ByteString.Base64 (decodeBase64Untyped, encodeBase64)
 import qualified Data.ByteString.Lazy as LBS
 import Data.CaseInsensitive (mk, original)
@@ -105,7 +108,8 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time (getCurrentTime)
-import Data.Word (Word64)
+import Data.Time.Format (defaultTimeLocale, formatTime)
+import Data.Word (Word64, Word8)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import Network.HTTP.Client
   ( Manager
@@ -200,6 +204,7 @@ import qualified Network.ICloud.Session as Session
 import Network.ICloud.Trust (Setup2SADevice (..), TrustData)
 import System.Directory (createDirectoryIfMissing, doesDirectoryExist)
 import System.IO (Handle, hPutStrLn)
+import Text.Read (readMaybe)
 import Web.Cookie.Jar (usingCookiesFromFile)
 
 
@@ -788,7 +793,7 @@ handleSigninComplete api resp = do
     | code == 401 -> throwIO InvalidCredentials
     | code == 403 -> throwIO AccountLocked
     | code == 412 -> throwIO PrivacyAgreementRequired
-    | code == 409 -> Left <$> chooseTrustType api
+    | code == 409 -> Left <$> chooseTrustType api (responseHeaders resp)
     | code >= 400 -> throwIO $ UnexpectedResponse $ showStatusOf resp
     | otherwise -> Right <$> extractOr body
 
@@ -825,14 +830,44 @@ accountLoginReq :: Endpoints -> SavedHeaders -> Request
 accountLoginReq = mkJsonRequest accountLoginBase accountLoginValue
 
 
-chooseTrustType :: Api -> IO TrustData
-chooseTrustType api@Api{apiEndpoints = ep} = callRequiredHeaders api (epAuth ep)
+chooseTrustType :: Api -> RequestHeaders -> IO TrustData
+chooseTrustType api@Api{apiEndpoints = ep, apiSession = s} respHdrs = do
+  savedHdrs <- loadSavedHeaders s
+  hcHeaders <- case (lookup "X-Apple-HC-Bits" respHdrs, lookup "X-Apple-HC-Challenge" respHdrs) of
+    (Just bitsBS, Just challenge) ->
+      case readMaybe (toS bitsBS) of
+        Nothing -> throwIO $ UnexpectedResponse "invalid X-Apple-HC-Bits header"
+        Just bits -> do
+          hc <- solveHashcash bits challenge
+          pure [("X-Apple-HC", hc)]
+    _ -> pure []
+  let req = withHeaders (requiredHeaders savedHdrs <> hcHeaders) (epAuth ep)
+  callApi api req >>= extractOr'
 
 
 callRequiredHeaders :: (FromJSON a) => Api -> Request -> IO a
 callRequiredHeaders api@Api{apiSession = s} req = do
   savedHdrs <- loadSavedHeaders s
   callApi api (withHeaders (requiredHeaders savedHdrs) req) >>= extractOr'
+
+
+hasLeadingZeroBits :: Int -> ByteString -> Bool
+hasLeadingZeroBits bits bs = go 0
+ where
+  go i
+    | i >= BS.length bs = True
+    | BS.index bs i == 0 = go (i + 1)
+    | otherwise = i * 8 + countLeadingZeros (BS.index bs i :: Word8) >= bits
+
+
+solveHashcash :: Int -> ByteString -> IO ByteString
+solveHashcash bits challenge = do
+  now <- getCurrentTime
+  let date = toS $ formatTime defaultTimeLocale "%Y%m%d%H%M%S" now
+      go n =
+        let hc = "1:" <> toS (show bits) <> ":" <> date <> ":" <> challenge <> "::" <> toS (show n)
+         in if hasLeadingZeroBits bits (SHA1.hash hc) then hc else go (n + 1 :: Int)
+  evaluate (go 0)
 
 
 accountLoginValue :: SavedHeaders -> Value

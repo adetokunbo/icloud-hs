@@ -31,6 +31,8 @@ data Scenario = Scenario
   -- ^ when True, the first accountLogin call returns a 2SA-required response
   , snSrpCompleteEmptyError :: Bool
   -- ^ when True, signin/complete returns 401 with no body or Content-Type
+  , snSrpCompleteWithHC :: Bool
+  -- ^ when True, the SrpNeeds2FA 409 response includes X-Apple-HC-Bits/Challenge headers
   }
 
 
@@ -42,6 +44,7 @@ defaultScenario =
     , snValidateCodeFails = False
     , snAccountLoginNeeds2SA = False
     , snSrpCompleteEmptyError = False
+    , snSrpCompleteWithHC = False
     }
 
 
@@ -116,7 +119,12 @@ mockApp
             then responseLBS status401 [] ""
             else case snSrpOutcome scenario of
               SrpOk -> json status200 "{}"
-              SrpNeeds2FA -> json status409 "{}"
+              SrpNeeds2FA ->
+                let hcHeaders =
+                      if snSrpCompleteWithHC scenario
+                        then [("X-Apple-HC-Bits", "1"), ("X-Apple-HC-Challenge", "deadbeef")]
+                        else []
+                 in responseLBS status409 (jsonHeaders <> hcHeaders) "{}"
       ("GET", ["appleauth", "auth", "2sv", "trust"]) ->
         pure $ json status200 "{}"
       ("POST", ["appleauth", "auth"]) ->

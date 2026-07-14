@@ -298,19 +298,23 @@ accountDataSpec = describe "module Network.ICloud.Session (AccountData)" $ do
   context "AccountData" $ do
     it "round-trips through JSON encoding" prop_jsonRoundtripAccountData
   context "accountDataRequires2FA" $ do
-    it "is True when hsaVersion >= 2 and challenged" $
-      accountDataRequires2FA (mkAccountData 2 True) `shouldBe` True
-    it "is False when hsaVersion >= 2 but not challenged" $
-      accountDataRequires2FA (mkAccountData 2 False) `shouldBe` False
+    it "is True when hsaVersion == 2 and challenged" $
+      accountDataRequires2FA (mkAccountData 2 True False) `shouldBe` True
+    it "is True when hsaVersion == 2, not challenged, but browser untrusted" $
+      accountDataRequires2FA (mkAccountData 2 False False) `shouldBe` True
+    it "is False when hsaVersion == 2, not challenged, and browser trusted" $
+      accountDataRequires2FA (mkAccountData 2 False True) `shouldBe` False
     it "is False when hsaVersion is 1" $
-      accountDataRequires2FA (mkAccountData 1 True) `shouldBe` False
+      accountDataRequires2FA (mkAccountData 1 True False) `shouldBe` False
+    it "is False when hsaVersion is 3 (unknown version)" $
+      accountDataRequires2FA (mkAccountData 3 True False) `shouldBe` False
   context "accountDataRequires2SA" $ do
     it "is True when hsaVersion is 1" $
-      accountDataRequires2SA (mkAccountData 1 False) `shouldBe` True
+      accountDataRequires2SA (mkAccountData 1 False False) `shouldBe` True
     it "is False when hsaVersion is 2" $
-      accountDataRequires2SA (mkAccountData 2 False) `shouldBe` False
+      accountDataRequires2SA (mkAccountData 2 False False) `shouldBe` False
     it "is False when hsaVersion is 0" $
-      accountDataRequires2SA (mkAccountData 0 False) `shouldBe` False
+      accountDataRequires2SA (mkAccountData 0 False False) `shouldBe` False
   context "AccountData JSON parsing" $ do
     it "fails to parse from null JSON" $
       (decode "null" :: Maybe AccountData) `shouldBe` Nothing
@@ -339,12 +343,12 @@ prop_saveLoadAccountData appRoot = monadicIO $ do
   assert $ Just ad == loaded
 
 
-mkAccountData :: Int -> Bool -> AccountData
-mkAccountData ver challenged =
+mkAccountData :: Int -> Bool -> Bool -> AccountData
+mkAccountData ver challenged trusted =
   AccountData
     { adHsaVersion = ver
     , adHsaChallengeRequired = challenged
-    , adHsaTrustedBrowser = False
+    , adHsaTrustedBrowser = trusted
     , adWebservices = Map.empty
     }
 
