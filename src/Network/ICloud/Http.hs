@@ -504,7 +504,11 @@ requestSmsCode api@Api{apiEndpoints = ep} tp = do
           withJsonRequestHeaders $
             withBody (encode $ phoneTriggerBody tp) $
               toPut (extendPath (epAuth ep) "/verify/phone")
-  void (rawRequest api req) `catch` \(_ :: IOException) -> pure ()
+  resp <- rawRequest api req
+  unless (statusCode (responseStatus resp) < 400) $
+    throwIO $
+      UnexpectedResponse $
+        showStatusOf resp
 
 
 -- | POST to phone/securitycode to verify an SMS code; returns True when accepted
@@ -865,6 +869,8 @@ triggerTwoFaPush api@Api{apiEndpoints = ep} = do
         withHeaders
           (withAcceptJson $ authHeaders api savedHdrs)
           (toPut (extendPath (epAuth ep) "/verify/trusteddevice/securitycode"))
+  -- Apple sometimes returns a non-2xx here when a push is already in flight;
+  -- the device still shows the notification, so errors are safe to ignore.
   void (rawRequest api req) `catch` \(_ :: IOException) -> pure ()
 
 
