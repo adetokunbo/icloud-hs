@@ -26,6 +26,7 @@ Supply your own alternatives via 'Network.ICloud.Http.loginWith' and
 module Network.ICloud.Trust
   ( -- * Two-factor challenge data
     TrustData (..)
+  , TrustedPhone (..)
 
     -- * Legacy two-step device
   , Setup2SADevice (..)
@@ -40,6 +41,7 @@ where
 import Network.ICloud.Internal.Trust
   ( Setup2SADevice (..)
   , TrustData (..)
+  , TrustedPhone (..)
   , pleaseReadCode
   , selectSetupDevice
   , setup2SADeviceLabel

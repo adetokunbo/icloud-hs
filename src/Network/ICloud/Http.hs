@@ -190,6 +190,7 @@ import Network.ICloud.Internal.Session
   )
 import Network.ICloud.Internal.Trust
   ( TrustData
+  , TrustedPhone
   , pleaseReadCode
   , selectSetupDevice
   )
@@ -321,19 +322,20 @@ instance Show AuthState where
 
 -- | Logs into ICloud, completing any 2FA or 2SA challenge automatically
 login :: Api -> IO AuthState
-login = loginWith pleaseReadCode selectSetupDevice
+login = loginWith pleaseReadCode (\_ -> pure Nothing) selectSetupDevice
 
 
--- | Like 'login' with injectable code prompt and device selector, for testing
+-- | Like 'login' with injectable code prompt, phone selector, and device selector, for testing
 loginWith
   :: IO AuthCode
+  -> (TrustData -> IO (Maybe TrustedPhone))
   -> ([Setup2SADevice] -> IO Setup2SADevice)
   -> Api
   -> IO AuthState
-loginWith readCode pickDevice api =
+loginWith readCode pickPhone pickDevice api =
   runReaderT loginProcess api >>= \case
     LoginAuthenticated (AuthComplete _ ad) -> pure $ Authenticated (apiSession api) ad
-    LoginNeedsTwoFa (NeedsTwoFa _) -> completeTwoFactorWith readCode api
+    LoginNeedsTwoFa (NeedsTwoFa _) -> completeTwoFactorWith readCode pickPhone api
     LoginNeedsTwoSa (TwoSaReady _ ds) -> complete2SAWith pickDevice readCode api ds
     LoginHaltCreds _ -> throwIO $ UnexpectedResponse "login halted: missing credentials"
     LoginHaltDir _ -> throwIO $ UnexpectedResponse "login halted: cannot create artifact directory"
@@ -430,20 +432,20 @@ instance LoginEvent (ReaderT Api IO) where
     pure $ TwoSaReady creds devices
 
 
-  beginTwoFa (ReadyForTwoFa creds td readCode) = do
+  beginTwoFa (ReadyForTwoFa creds td pickPhone readCode) = do
     api <- ask
     liftIO $ triggerTwoFaPush api
-    pure $ TwoFaVerifying creds td readCode
+    pure $ TwoFaVerifying creds td pickPhone readCode
 
 
-  verifyTwoFa (TwoFaVerifying creds td readCode) = do
+  verifyTwoFa (TwoFaVerifying creds td pickPhone readCode) = do
     api <- ask
     code <- liftIO readCode
     ok <- liftIO $ verifyTwoFaCode api code
     pure $
       if ok
         then TwoFaOk $ DoTrust creds
-        else TwoFaRetry $ ReadyForTwoFa creds td readCode
+        else TwoFaRetry $ ReadyForTwoFa creds td pickPhone readCode
 
 
   doTrust (DoTrust creds) = do
@@ -483,14 +485,14 @@ fetchTrustData api = do
 
 -- | Complete a pending 2FA (auth-endpoint) challenge
 completeTwoFactor :: Api -> IO AuthState
-completeTwoFactor = completeTwoFactorWith pleaseReadCode
+completeTwoFactor api = completeTwoFactorWith pleaseReadCode (\_ -> pure Nothing) api
 
 
--- | Like 'completeTwoFactor' with an injectable code prompt, for testing
-completeTwoFactorWith :: IO AuthCode -> Api -> IO AuthState
-completeTwoFactorWith readCode api = do
+-- | Like 'completeTwoFactor' with an injectable code prompt and phone selector, for testing
+completeTwoFactorWith :: IO AuthCode -> (TrustData -> IO (Maybe TrustedPhone)) -> Api -> IO AuthState
+completeTwoFactorWith readCode pickPhone api = do
   td <- fetchTrustData api
-  let start = ReadyForTwoFa (sessionCreds (apiSession api)) td readCode
+  let start = ReadyForTwoFa (sessionCreds (apiSession api)) td pickPhone readCode
   runReaderT (twoFaProcess start) api >>= \case
     CompletionAuthenticated (AuthComplete _ ad) -> pure $ Authenticated (apiSession api) ad
     CompletionNeedsTwoFa _ -> throwIO $ UnexpectedResponse "accountLogin still requires 2FA after verification"

@@ -56,7 +56,7 @@ spec = describe "Network.ICloud.Http.login" $ do
 
   it "completes 2FA automatically when accountLogin requires 2FA" $
     withFreshMockApi "icloud-auth-mock" defaultScenario{snAccountLoginNeeds2FA = 1} $ \api -> do
-      isAuthenticated <$> loginWith (pure "123456") (\_ -> pure testDevice) api `shouldReturn` True
+      isAuthenticated <$> loginWith (pure "123456") (\_ -> pure Nothing) (\_ -> pure testDevice) api `shouldReturn` True
 
   it "complete2SA returns Authenticated after 2SA challenge" $
     withFreshMockApi "icloud-auth-2sa" defaultScenario $ \api -> do
@@ -65,7 +65,7 @@ spec = describe "Network.ICloud.Http.login" $ do
 
   it "completes 2SA automatically when account login signals 2SA required" $
     withFreshMockApi "icloud-auth-2sa-login" defaultScenario{snAccountLoginNeeds2SA = True} $ \api -> do
-      isAuthenticated <$> loginWith (pure "0") (\_ -> pure testDevice) api `shouldReturn` True
+      isAuthenticated <$> loginWith (pure "0") (\_ -> pure Nothing) (\_ -> pure testDevice) api `shouldReturn` True
 
   it "throws UnexpectedResponse with HTTP status when error response has no body" $
     withFreshMockApi "icloud-auth-empty-err" defaultScenario{snSrpCompleteEmptyError = True} $ \api -> do
@@ -93,7 +93,7 @@ spec = describe "Network.ICloud.Http.login" $ do
       withMockAppCapturing scenario $ \serverPort capturedRef -> do
         mgr <- newManager defaultManagerSettings
         api <- mkApiWith (testSession tmpDir) (testEndpoints serverPort) mgr
-        _ <- loginWith (pure "123456") (\_ -> pure testDevice) api
+        _ <- loginWith (pure "123456") (\_ -> pure Nothing) (\_ -> pure testDevice) api
         captured <- readIORef capturedRef
         map fst captured `shouldSatisfy` elem "/appleauth/auth"
 

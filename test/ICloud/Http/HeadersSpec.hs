@@ -106,7 +106,7 @@ withCapturedTwoFa action =
     withMockAppCapturing defaultScenario{snAccountLoginNeeds2FA = 1} $ \serverPort capturedRef -> do
       mgr <- newManager defaultManagerSettings
       api <- mkApiWith (testSession tmpDir) (testEndpoints serverPort) mgr
-      _ <- loginWith (pure "123456") (\_ -> pure testDevice) api
+      _ <- loginWith (pure "123456") (\_ -> pure Nothing) (\_ -> pure testDevice) api
       captured <- readIORef capturedRef
       action captured
 
@@ -117,7 +117,7 @@ withCapturedTwoSa action =
     withMockAppCapturing defaultScenario{snAccountLoginNeeds2SA = True} $ \serverPort capturedRef -> do
       mgr <- newManager defaultManagerSettings
       api <- mkApiWith (testSession tmpDir) (testEndpoints serverPort) mgr
-      _ <- loginWith (pure "0") (\_ -> pure testDevice) api
+      _ <- loginWith (pure "0") (\_ -> pure Nothing) (\_ -> pure testDevice) api
       captured <- readIORef capturedRef
       action captured
 
