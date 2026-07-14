@@ -89,7 +89,7 @@ spec = describe "Network.ICloud.Http request headers" $ do
 
   it "requestSmsCode sends Content-Type, Accept, Widget-Key, scnt, and X-Apple-ID-Session-Id" $
     withCapturedRequestSms $ \captured ->
-      headersFor "/verify/phone/securitycode" captured
+      headersFor "/appleauth/auth/verify/phone" captured
         `shouldSatisfy` (\hs -> hasJsonContentHeaders hs && hasWidgetKey hs && hasScnt hs && hasSessionId hs)
 
   it "verifySmsCode sends Content-Type, Accept, Widget-Key, scnt, and X-Apple-ID-Session-Id" $

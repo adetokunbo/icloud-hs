@@ -40,6 +40,7 @@ import Data.Aeson
   , object
   , withObject
   , (.:)
+  , (.:?)
   )
 import Data.Aeson.Casing (aesonPrefix, camelCase)
 import Data.Aeson.KeyMap (filterWithKey, toList)
@@ -107,7 +108,7 @@ data CodeStatus = CodeStatus
   , scTooManyCodesSent :: !Bool
   , scTooManyCodesValidated :: !Bool
   , scSecurityCodeLocked :: !Bool
-  , scSecurityCoolDown :: !Bool
+  , scSecurityCodeCooldown :: !Bool
   }
   deriving (Eq, Show, Generic)
 
@@ -224,7 +225,7 @@ toJSONTrustData td =
 parseJSONTrustData :: Value -> Parser TrustData
 parseJSONTrustData = withObject "TrustData" $ \o ->
   let securityCode = o .: "securityCode"
-      noTrustedDevices = o .: "noTrustedDevices"
+      noTrustedDevices = fromMaybe False <$> o .:? "noTrustedDevices"
       isListKey key _ignored = key == "trustedPhoneNumbers" || key == "trustedDevices"
       theList = parseJSON (Object $ filterWithKey isListKey o)
    in TrustData <$> theList <*> securityCode <*> noTrustedDevices
@@ -283,10 +284,10 @@ selectTwoFaPhone td =
  where
   pickPhoneOrDevice [] = pure Nothing
   pickPhoneOrDevice phones = do
-    Text.putStrLn "Press Enter to use a trusted device, or enter a number to receive an SMS:"
     mapM_
       (\(i, p) -> Text.putStrLn $ "" +| (i :: Int) |+ ") " +| tpnNumberWithDialCode p |+ "")
       (zip [1 ..] phones)
+    Text.putStrLn "Press Enter to use a trusted device, or select a phone number by its index to receive an SMS:"
     response <- Text.getLine
     if Text.null response
       then pure Nothing

@@ -153,6 +153,7 @@ import Network.ICloud.Internal.Http
   , hCounter
   , hSessionId
   , phoneCodeBody
+  , phoneTriggerBody
   , validateSetupBody
   )
 import Network.ICloud.Internal.HttpErrors
@@ -490,7 +491,7 @@ parseAccountData v = fromMaybe unknownAccountData $ parseMaybe parseJSON v
 fetchTrustData :: Api -> IO TrustData
 fetchTrustData api = do
   savedHdrs <- loadSavedHeaders (apiSession api)
-  let req = withHeaders (requiredHeaders savedHdrs) (twoFaOptionsBase (apiEndpoints api))
+  let req = withHeaders (withAcceptJson $ authHeaders api savedHdrs) (twoFaOptionsBase (apiEndpoints api))
   callApi api req >>= extractOr'
 
 
@@ -499,10 +500,10 @@ requestSmsCode :: Api -> TrustedPhone -> IO ()
 requestSmsCode api@Api{apiEndpoints = ep} tp = do
   savedHdrs <- loadSavedHeaders (apiSession api)
   let req =
-        withHeaders (requiredHeaders savedHdrs) $
+        withHeaders (authHeaders api savedHdrs) $
           withJsonRequestHeaders $
-            withBody (encode $ phoneCodeBody tp "") $
-              verifySecurityCodeReq "phone" ep
+            withBody (encode $ phoneTriggerBody tp) $
+              toPut (extendPath (epAuth ep) "/verify/phone")
   void (rawRequest api req) `catch` \(_ :: IOException) -> pure ()
 
 
@@ -511,7 +512,7 @@ verifySmsCode :: Api -> TrustedPhone -> AuthCode -> IO Bool
 verifySmsCode api@Api{apiEndpoints = ep} tp code = do
   savedHdrs <- loadSavedHeaders (apiSession api)
   let req =
-        withHeaders (requiredHeaders savedHdrs) $
+        withHeaders (authHeaders api savedHdrs) $
           withJsonRequestHeaders $
             withBody (encode $ phoneCodeBody tp code) $
               verifySecurityCodeReq "phone" ep
@@ -862,7 +863,7 @@ triggerTwoFaPush api@Api{apiEndpoints = ep} = do
   savedHdrs <- loadSavedHeaders (apiSession api)
   let req =
         withHeaders
-          (requiredHeaders savedHdrs)
+          (withAcceptJson $ authHeaders api savedHdrs)
           (toPut (extendPath (epAuth ep) "/verify/trusteddevice/securitycode"))
   void (rawRequest api req) `catch` \(_ :: IOException) -> pure ()
 
@@ -870,7 +871,7 @@ triggerTwoFaPush api@Api{apiEndpoints = ep} = do
 doTrustStep :: Api -> IO ()
 doTrustStep api@Api{apiEndpoints = ep} = do
   savedHdrs <- loadSavedHeaders (apiSession api)
-  let req = withHeaders (requiredHeaders savedHdrs) (twoSvTrust ep)
+  let req = withHeaders (withAcceptJson $ authHeaders api savedHdrs) (twoSvTrust ep)
   resp <- rawRequest api req
   unless (statusCode (responseStatus resp) < 400) $
     throwIO $
@@ -883,7 +884,7 @@ verifyTwoFaCode api@Api{apiEndpoints = ep} code = do
   savedHdrs <- loadSavedHeaders (apiSession api)
   let body = encode $ Object [("securityCode", Object [("code", String code)])]
       req =
-        withHeaders (requiredHeaders savedHdrs) $
+        withHeaders (authHeaders api savedHdrs) $
           withJsonRequestHeaders $
             withBody body $
               verifySecurityCodeReq "trusteddevice" ep

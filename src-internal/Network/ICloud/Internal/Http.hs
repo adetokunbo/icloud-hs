@@ -5,6 +5,7 @@
 module Network.ICloud.Internal.Http
   ( validateSetupBody
   , phoneCodeBody
+  , phoneTriggerBody
   , PasswordProtocol (..)
   , KeyDeriver (..)
   , SrpContext (..)
@@ -97,12 +98,22 @@ validateSetupBody (Setup2SADevice fields) code =
   Object $ fields <> fromList [("verificationCode", String code), ("trustBrowser", Bool True)]
 
 
--- | Build the JSON body for SMS phone code requests and verification
+-- | Build the JSON body to trigger an SMS code to the given phone
+phoneTriggerBody :: TrustedPhone -> Value
+phoneTriggerBody tp =
+  Object $
+    fromList
+      [ ("phoneNumber", Object $ fromList [("id", Number $ fromIntegral $ tpnId tp)])
+      , ("mode", String $ maybe "sms" id $ tpnPushMode tp)
+      ]
+
+
+-- | Build the JSON body to verify an SMS code received on the given phone
 phoneCodeBody :: TrustedPhone -> Text -> Value
 phoneCodeBody tp code =
   Object $
     fromList
       [ ("phoneNumber", Object $ fromList [("id", Number $ fromIntegral $ tpnId tp)])
       , ("securityCode", Object $ fromList [("code", String code)])
-      , ("mode", String "sms")
+      , ("mode", String $ maybe "sms" id $ tpnPushMode tp)
       ]
