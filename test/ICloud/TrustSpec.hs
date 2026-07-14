@@ -9,8 +9,10 @@ SPDX-License-Identifier: BSD3
 -}
 module ICloud.TrustSpec (spec, encode, genTrustData, genTrustedList) where
 
-import Data.Aeson (Key, Value (..), decode, eitherDecodeFileStrict, encode)
+import Data.Aeson (Key, ToJSON (..), Value (..), decode, eitherDecodeFileStrict, encode)
 import Data.Aeson.KeyMap (fromList)
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.List (sort)
 import Data.Maybe (catMaybes)
 import Data.String.Conv (toS)
 import Data.Text (Text)
@@ -49,6 +51,18 @@ spec = describe "module Network.ICloud.Trust" $ do
       it "should succeed" $ do
         result <- eitherDecodeFileStrict =<< getDataFileName "testdata/trust_data_test.json"
         result `shouldBe` Right expectedTrustData
+  describe "CodeStatus JSON field names" $ do
+    it "uses the server field names" $
+      jsonKeysOf (CodeStatus 6 False False False False)
+        `shouldBe` Just (sort ["length", "tooManyCodesSent", "tooManyCodesValidated", "securityCodeLocked", "securityCodeCooldown"])
+  describe "TrustedPhone JSON field names" $ do
+    it "uses the server field names" $
+      jsonKeysOf (TrustedPhone 1 "+81 test" (Just "sms"))
+        `shouldBe` Just (sort ["id", "numberWithDialCode", "pushMode"])
+  describe "TrustedDevice JSON field names" $ do
+    it "uses the server field names" $
+      jsonKeysOf (TrustedDevice "id1" "iPhone" "iPhone14")
+        `shouldBe` Just (sort ["id", "name", "modelName"])
 
   describe "Setup2SADevice" $ do
     context "parsing generated examples to/from JSON" $ do
@@ -177,6 +191,12 @@ genExWord = elements Examples.wordz
 
 genExWordMaybe :: Gen (Maybe Text)
 genExWordMaybe = frequency [(1, pure Nothing), (1, Just <$> genExWord)]
+
+
+jsonKeysOf :: (ToJSON a) => a -> Maybe [Key]
+jsonKeysOf x = case toJSON x of
+  Object o -> Just (sort $ KeyMap.keys o)
+  _ -> Nothing
 
 
 expectedTrustData :: TrustData
