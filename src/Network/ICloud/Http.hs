@@ -787,9 +787,10 @@ validateReq = withJsonRequestHeaders . withBody (encode Null) . validateBase
 
 
 accountLogin :: Api -> IO Value
-accountLogin api = do
+accountLogin api@Api{apiEndpoints = ep} = do
   savedHdrs <- loadSavedHeaders $ apiSession api
-  callHandlingResponse accountLoginReq id extractOr' api savedHdrs
+  let hdrs = homeHeaders ep <> requiredHeaders savedHdrs
+  callHandlingResponse accountLoginReq (withHeaders hdrs) extractOr' api savedHdrs
 
 
 accountLoginReq :: Endpoints -> SavedHeaders -> Request

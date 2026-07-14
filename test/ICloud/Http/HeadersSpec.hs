@@ -47,6 +47,11 @@ spec = describe "Network.ICloud.Http request headers" $ do
       headersFor "/setup/ws/1/accountLogin" captured
         `shouldSatisfy` hasJsonContentHeaders
 
+  it "accountLogin sends Origin and X-Apple-Widget-Key" $
+    withCapturedLogin (\_ -> pure ()) $ \captured ->
+      headersFor "/setup/ws/1/accountLogin" captured
+        `shouldSatisfy` (\hs -> hasOrigin hs && hasWidgetKey hs)
+
   it "signin/init sends X-Apple-Widget-Key" $
     withCapturedLogin (\_ -> pure ()) $ \captured ->
       headersFor "/appleauth/auth/signin/init" captured
@@ -137,6 +142,11 @@ hasJsonContentType (Just hs) = any (\(n, v) -> n == hContentType && v == "applic
 hasWidgetKey :: Maybe RequestHeaders -> Bool
 hasWidgetKey Nothing = False
 hasWidgetKey (Just hs) = any (\(n, _) -> n == "X-Apple-Widget-Key") hs
+
+
+hasOrigin :: Maybe RequestHeaders -> Bool
+hasOrigin Nothing = False
+hasOrigin (Just hs) = any (\(n, _) -> n == "Origin") hs
 
 
 hasJsonContentHeaders :: Maybe RequestHeaders -> Bool
