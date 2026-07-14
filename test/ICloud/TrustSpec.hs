@@ -55,6 +55,9 @@ spec = describe "module Network.ICloud.Trust" $ do
     it "uses the server field names" $
       jsonKeysOf (CodeStatus 6 False False False False)
         `shouldBe` Just (sort ["length", "tooManyCodesSent", "tooManyCodesValidated", "securityCodeLocked", "securityCodeCooldown"])
+  describe "CodeStatus JSON parsing" $ do
+    it "defaults all boolean fields to False when absent" $
+      decode "{\"length\":6}" `shouldBe` Just (CodeStatus 6 False False False False)
   describe "TrustedPhone JSON field names" $ do
     it "uses the server field names" $
       jsonKeysOf (TrustedPhone 1 "+81 test" (Just "sms"))
@@ -63,6 +66,9 @@ spec = describe "module Network.ICloud.Trust" $ do
     it "uses the server field names" $
       jsonKeysOf (TrustedDevice "id1" "iPhone" "iPhone14")
         `shouldBe` Just (sort ["id", "name", "modelName"])
+  describe "TrustedDevice JSON parsing" $ do
+    it "defaults modelName to empty string when absent" $
+      decode "{\"id\":\"1\",\"name\":\"iPhone\"}" `shouldBe` Just (TrustedDevice "1" "iPhone" "")
 
   describe "Setup2SADevice" $ do
     context "parsing generated examples to/from JSON" $ do

@@ -114,7 +114,13 @@ data CodeStatus = CodeStatus
 
 
 instance FromJSON CodeStatus where
-  parseJSON = genericParseJSON simpleOptions
+  parseJSON = withObject "CodeStatus" $ \o ->
+    CodeStatus
+      <$> o .: "length"
+      <*> (fromMaybe False <$> o .:? "tooManyCodesSent")
+      <*> (fromMaybe False <$> o .:? "tooManyCodesValidated")
+      <*> (fromMaybe False <$> o .:? "securityCodeLocked")
+      <*> (fromMaybe False <$> o .:? "securityCodeCooldown")
 
 
 instance ToJSON CodeStatus where
@@ -150,7 +156,11 @@ data TrustedDevice = TrustedDevice
 
 
 instance FromJSON TrustedDevice where
-  parseJSON = genericParseJSON simpleOptions
+  parseJSON = withObject "TrustedDevice" $ \o ->
+    TrustedDevice
+      <$> o .: "id"
+      <*> o .: "name"
+      <*> (fromMaybe "" <$> o .:? "modelName")
 
 
 instance ToJSON TrustedDevice where
