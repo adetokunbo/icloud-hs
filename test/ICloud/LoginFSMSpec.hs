@@ -21,7 +21,6 @@ data Script = Script
   , scriptMkDir :: !Bool
   , scriptHasSavedSession :: !Bool
   , scriptSessionValid :: !Bool
-  , scriptSrp :: !Bool
   , scriptSrpInvalidKey :: !Bool
   , scriptAcct :: !Bool
   , scriptTwoFa :: ![Bool]
@@ -37,7 +36,6 @@ allTrue =
     , scriptMkDir = True
     , scriptHasSavedSession = False
     , scriptSessionValid = False
-    , scriptSrp = True
     , scriptSrpInvalidKey = False
     , scriptAcct = True
     , scriptTwoFa = [True]
@@ -100,13 +98,7 @@ instance LoginEvent TestM where
   srpComplete (TestState ()) = asksScript $ \s ->
     if scriptSrpInvalidKey s
       then SrpCompleteInvalidKey (TestState ())
-      else
-        if scriptSrp s
-          then SrpCompleteOk (TestState ())
-          else SrpComplete2FA (TestState ())
-
-
-  increaseTrust (TestState ()) = pure (TestState ())
+      else SrpCompleteOk (TestState ())
 
 
   acctLogin (TestState ()) = asksScript $ \s ->
@@ -180,9 +172,6 @@ spec = do
 
     it "halts when the artifact directory cannot be created" $
       runScript (allTrue{scriptDir = False, scriptMkDir = False}) `shouldBe` HaltMkDir
-
-    it "reaches Requires2FA when SRP completes with a 2FA challenge" $
-      runScript (allTrue{scriptSrp = False}) `shouldBe` TwoFa
 
     it "halts with invalid SRP key when the server public value is bad" $
       runScript (allTrue{scriptSrpInvalidKey = True}) `shouldBe` HaltSrp

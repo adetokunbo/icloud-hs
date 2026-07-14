@@ -31,8 +31,6 @@ data Scenario = Scenario
   -- ^ when True, the first accountLogin call returns a 2SA-required response
   , snSrpCompleteEmptyError :: Bool
   -- ^ when True, signin/complete returns 401 with no body or Content-Type
-  , snSrpCompleteWithHC :: Bool
-  -- ^ when True, the SrpNeeds2FA 409 response includes X-Apple-HC-Bits/Challenge headers
   }
 
 
@@ -44,7 +42,6 @@ defaultScenario =
     , snValidateCodeFails = False
     , snAccountLoginNeeds2SA = False
     , snSrpCompleteEmptyError = False
-    , snSrpCompleteWithHC = False
     }
 
 
@@ -60,7 +57,6 @@ withMockApp scenario action =
 withMockAppCapturing :: Scenario -> (Int -> IORef [(ByteString, RequestHeaders)] -> IO a) -> IO a
 withMockAppCapturing scenario action = do
   srpInit <- LBS.readFile =<< getDataFileName "testdata/srp_init_ok_test.json"
-  trustData <- LBS.readFile =<< getDataFileName "testdata/trust_data_test.json"
   login2sa <- LBS.readFile =<< getDataFileName "testdata/login_2sa_test.json"
   loginWorking <- LBS.readFile =<< getDataFileName "testdata/login_working_test.json"
   listDevices <- LBS.readFile =<< getDataFileName "testdata/trusted_devices_test.json"
@@ -73,7 +69,6 @@ withMockAppCapturing scenario action = do
           scenario
           capturedRef
           srpInit
-          trustData
           login2sa
           loginWorking
           listDevices
@@ -90,7 +85,6 @@ mockApp
   -> LBS.ByteString
   -> LBS.ByteString
   -> LBS.ByteString
-  -> LBS.ByteString
   -> IORef Int
   -> IORef Int
   -> Application
@@ -98,7 +92,6 @@ mockApp
   scenario
   capturedRef
   srpInit
-  trustData
   login2sa
   loginWorking
   listDevices
@@ -119,16 +112,9 @@ mockApp
             then responseLBS status401 [] ""
             else case snSrpOutcome scenario of
               SrpOk -> json status200 "{}"
-              SrpNeeds2FA ->
-                let hcHeaders =
-                      if snSrpCompleteWithHC scenario
-                        then [("X-Apple-HC-Bits", "1"), ("X-Apple-HC-Challenge", "deadbeef")]
-                        else []
-                 in responseLBS status409 (jsonHeaders <> hcHeaders) "{}"
+              SrpNeeds2FA -> responseLBS status409 jsonHeaders "{}"
       ("GET", ["appleauth", "auth", "2sv", "trust"]) ->
         pure $ json status200 "{}"
-      ("POST", ["appleauth", "auth"]) ->
-        pure $ json status200 trustData
       ("PUT", ["appleauth", "auth", "verify", "phone"]) ->
         pure $ json status200 "{}"
       ("POST", ["appleauth", "auth", "verify", "phone", "securitycode"]) ->

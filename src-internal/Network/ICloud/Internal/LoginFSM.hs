@@ -41,7 +41,6 @@ class LoginEvent m where
   validateSession :: State m HasSavedSession -> m (AfterValidateSession (State m))
   srpInit :: State m ReadyToAuth -> m (State m SrpInitDone)
   srpComplete :: State m SrpInitDone -> m (AfterSrpComplete (State m))
-  increaseTrust :: State m IncreaseTrust -> m (State m DoAccountLogin)
   acctLogin :: State m DoAccountLogin -> m (AfterAcctLogin (State m))
   listTwoSaDevices :: State m NeedsTwoSa -> m (State m TwoSaReady)
   beginTwoFa :: State m ReadyForTwoFa -> m (State m TwoFaVerifying)
@@ -110,8 +109,7 @@ onReadyToAuth
   -> m (LoginOutcome (State m))
 onReadyToAuth s =
   srpInit s >>= srpComplete >>= \case
-    SrpCompleteOk x -> increaseTrust x >>= acctLogin >>= fmap completionToLogin . onAcctLoginDone
-    SrpComplete2FA x -> pure $ LoginNeedsTwoFa x
+    SrpCompleteOk x -> acctLogin x >>= fmap completionToLogin . onAcctLoginDone
     SrpCompleteInvalidKey x -> pure $ LoginHaltSrp x
 
 
@@ -166,7 +164,6 @@ data LoginFSM s where
   HasSavedSession :: Credentials -> SavedHeaders -> LoginFSM HasSavedSession
   ReadyToAuth :: Credentials -> SavedHeaders -> LoginFSM ReadyToAuth
   SrpInitDone :: Credentials -> SrpContext -> LoginFSM SrpInitDone
-  IncreaseTrust :: Credentials -> LoginFSM IncreaseTrust
   DoAccountLogin :: Credentials -> LoginFSM DoAccountLogin
   AuthComplete :: Credentials -> AccountData -> LoginFSM AuthComplete
   NeedsTwoFa :: Credentials -> TrustData -> LoginFSM NeedsTwoFa
@@ -213,10 +210,6 @@ data ReadyToAuth
 
 -- | Phantom type linked to a unique state in 'LoginFSM'
 data SrpInitDone
-
-
--- | Phantom type linked to a unique state in 'LoginFSM'
-data IncreaseTrust
 
 
 -- | Phantom type linked to a unique state in 'LoginFSM'
@@ -291,8 +284,7 @@ data AfterCredentials f
 
 -- | The valid states after 'srpComplete'
 data AfterSrpComplete f
-  = SrpCompleteOk (f IncreaseTrust)
-  | SrpComplete2FA (f NeedsTwoFa)
+  = SrpCompleteOk (f DoAccountLogin)
   | SrpCompleteInvalidKey (f HaltInvalidSrp)
 
 

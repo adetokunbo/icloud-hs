@@ -413,13 +413,7 @@ instance LoginEvent (ReaderT Api IO) where
       Nothing -> pure $ SrpCompleteInvalidKey $ HaltInvalidSrp creds
       Just results -> do
         liftIO $ runSigninComplete api kd results
-        pure $ SrpCompleteOk $ IncreaseTrust creds
-
-
-  increaseTrust (IncreaseTrust creds) = do
-    api <- ask
-    liftIO (callRequiredHeaders api (twoSvTrust (apiEndpoints api)) :: IO ())
-    pure $ DoAccountLogin creds
+        pure $ SrpCompleteOk $ DoAccountLogin creds
 
 
   acctLogin (DoAccountLogin creds) = do

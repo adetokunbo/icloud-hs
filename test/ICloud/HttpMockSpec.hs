@@ -11,7 +11,7 @@ import qualified Data.ByteString.Char8 as BS8
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Maybe (fromJust)
 import qualified Data.Text as Text
-import ICloud.Mock (Scenario (..), SrpOutcome (..), defaultScenario, withMockApp, withMockAppCapturing)
+import ICloud.Mock (Scenario (..), SrpOutcome (..), defaultScenario, withMockApp)
 import Network.HTTP.Client (Request (..), defaultManagerSettings, defaultRequest, newManager)
 import Network.HTTP.Types (methodPost)
 import Network.ICloud.Http
@@ -75,16 +75,6 @@ spec = describe "Network.ICloud.Http.login" $ do
                             Left (UnexpectedResponse msg) -> "bad request" `Text.isPrefixOf` msg
                             _ -> False
                         )
-
-  it "sends X-Apple-HC header when signin/complete 409 includes a Hashcash challenge" $
-    withSystemTempDirectory "icloud-auth-hc" $ \tmpDir ->
-      withMockAppCapturing defaultScenario{snSrpOutcome = SrpNeeds2FA, snSrpCompleteWithHC = True} $ \serverPort capturedRef -> do
-        mgr <- newManager defaultManagerSettings
-        api <- mkApiWith (testSession tmpDir) (testEndpoints serverPort) mgr
-        _ <- loginWith (pure "123456") (\_ -> pure testDevice) api
-        captured <- readIORef capturedRef
-        let authHdrs = lookup "/appleauth/auth" captured
-        authHdrs `shouldSatisfy` maybe False (any (\(n, _) -> n == "X-Apple-HC"))
 
   it "complete2SA retries when the first verification code is wrong" $ do
     codeRef <- newIORef ["wrongcode", "0"]
