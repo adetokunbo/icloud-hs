@@ -66,11 +66,10 @@ module Network.ICloud.Http
   )
 where
 
-import Control.Exception (IOException, catch, evaluate, throwIO)
-import Control.Monad (unless, when)
+import Control.Exception (IOException, catch, throwIO)
+import Control.Monad (unless, void, when)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Reader (ReaderT, ask, asks, runReaderT)
-import qualified Crypto.Hash.SHA1 as SHA1
 import qualified Crypto.Hash.SHA256 as SHA256
 import Crypto.SRP
   ( FromClient (..)
@@ -86,7 +85,7 @@ import Data.Aeson
   ( FromJSON (..)
   , Key
   , Object
-  , ToJSON (..)
+
   , eitherDecode
   , encode
   , withObject
@@ -95,22 +94,17 @@ import Data.Aeson
 import Data.Aeson.KeyMap (fromList)
 import Data.Aeson.Types (Parser, Value (..), parseMaybe)
 import Data.Base64.Types (extractBase64)
-import Data.Bits (countLeadingZeros)
 import Data.ByteString (ByteString, isPrefixOf)
-import qualified Data.ByteString as BS
 import Data.ByteString.Base64 (decodeBase64Untyped, encodeBase64)
 import qualified Data.ByteString.Lazy as LBS
 import Data.CaseInsensitive (mk, original)
 import Data.Maybe (catMaybes, fromMaybe)
-import Data.Proxy (Proxy (..))
 import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time (getCurrentTime)
-import Data.Time.Format (defaultTimeLocale, formatTime)
-import Data.Word (Word64, Word8)
-import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
+import Data.Word (Word64)
 import Network.HTTP.Client
   ( Manager
   , Request (..)
@@ -135,7 +129,7 @@ import Network.ICloud.Internal.Endpoints
   , signinCompleteBase
   , signinInitBase
   , toPut
-  , twoSvTrust
+
   , validateBase
   , validateVerification
   , verifySecurityCodeReq
@@ -157,7 +151,7 @@ import Network.ICloud.Internal.HttpErrors
   ( ApiResponse
   , AuthError (..)
   , ExtractOr (..)
-  , extractOrRetry
+
   )
 import Network.ICloud.Internal.LoginFSM
   ( AfterAcctLogin (..)
@@ -193,18 +187,15 @@ import Network.ICloud.Internal.Session
   , updateSessionSavedHeaders
   )
 import Network.ICloud.Internal.Trust
-  ( TrustedDevice (..)
-  , TrustedPhone (..)
-  , pleaseReadCode
+  ( pleaseReadCode
   , selectSetupDevice
-  , withSelectedPhoneOrDevice
+
   )
 import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..))
 import qualified Network.ICloud.Session as Session
-import Network.ICloud.Trust (Setup2SADevice (..), TrustData)
+import Network.ICloud.Trust (Setup2SADevice (..))
 import System.Directory (createDirectoryIfMissing, doesDirectoryExist)
 import System.IO (Handle, hPutStrLn)
-import Text.Read (readMaybe)
 import Web.Cookie.Jar (usingCookiesFromFile)
 
 
@@ -313,14 +304,14 @@ data AuthState
   = -- | Sign-in succeeded; the 'Session' is refreshed and 'AccountData' is available.
     Authenticated Session AccountData
   | -- | Sign-in requires a two-factor code; use 'completeTwoFactor' or 'completeTwoFactorWith' to proceed.
-    Requires2FA Session TrustData
+    Requires2FA Session
   | -- | Sign-in requires a legacy two-step code; use 'complete2SA' or 'complete2SAWith' to proceed.
     Requires2SA Session [Setup2SADevice]
 
 
 instance Show AuthState where
   show (Authenticated _ ad) = "Authenticated <session> " ++ show ad
-  show (Requires2FA _ td) = "Requires2FA <session> " ++ show td
+  show (Requires2FA _) = "Requires2FA <session>"
   show (Requires2SA _ ds) = "Requires2SA <session> " ++ show ds
 
 
@@ -338,7 +329,7 @@ loginWith
 loginWith readCode pickDevice api =
   runReaderT loginProcess api >>= \case
     LoginAuthenticated (AuthComplete _ ad) -> pure $ Authenticated (apiSession api) ad
-    LoginNeedsTwoFa (NeedsTwoFa _ td) -> completeTwoFactorWith readCode api td
+    LoginNeedsTwoFa (NeedsTwoFa _) -> completeTwoFactorWith readCode api
     LoginNeedsTwoSa (TwoSaReady _ ds) -> complete2SAWith pickDevice readCode api ds
     LoginHaltCreds _ -> throwIO $ UnexpectedResponse "login halted: missing credentials"
     LoginHaltDir _ -> throwIO $ UnexpectedResponse "login halted: cannot create artifact directory"
@@ -422,10 +413,10 @@ instance LoginEvent (ReaderT Api IO) where
     let ad = parseAccountData loginReply
     liftIO $ saveLoginMsg (apiSession api) loginReply
     liftIO $ saveAccountData (apiSession api) ad
-    pure $
-      if accountDataRequires2SA ad
-        then AcctLogin2SA $ NeedsTwoSa creds
-        else AcctLoginOk $ AuthComplete creds ad
+    pure $ if
+      | accountDataRequires2SA ad -> AcctLogin2SA $ NeedsTwoSa creds
+      | accountDataRequires2FA ad -> AcctLogin2FA $ NeedsTwoFa creds
+      | otherwise                 -> AcctLoginOk  $ AuthComplete creds ad
 
 
   listTwoSaDevices (NeedsTwoSa creds) = do
@@ -434,24 +425,19 @@ instance LoginEvent (ReaderT Api IO) where
     pure $ TwoSaReady creds devices
 
 
-  beginTwoFa (ReadyForTwoFa creds td readCode) = do
+  beginTwoFa (ReadyForTwoFa creds readCode) = do
     api <- ask
-    liftIO $ withSelectedPhoneOrDevice (askForTwoFactorCode api) (askForTwoStepCode api) td
-    pure $ TwoFaVerifying creds td readCode
+    liftIO $ triggerTwoFaPush api
+    pure $ TwoFaVerifying creds readCode
 
 
-  verifyTwoFa (TwoFaVerifying creds td readCode) = do
+  verifyTwoFa (TwoFaVerifying creds readCode) = do
     api <- ask
     code <- liftIO readCode
-    let doVerify =
-          withSelectedPhoneOrDevice
-            (\tp -> verifyCodeOrRetry api tp code)
-            (\td' -> verifyCodeOrRetry api td' code)
-            td
-    mbResult <- liftIO (doVerify :: IO (Maybe ()))
-    pure $ case mbResult of
-      Nothing -> TwoFaRetry $ ReadyForTwoFa creds td readCode
-      Just () -> TwoFaOk $ DoAccountLogin creds
+    ok <- liftIO $ verifyTwoFaCode api code
+    pure $ if ok
+      then TwoFaOk  $ DoAccountLogin creds
+      else TwoFaRetry $ ReadyForTwoFa creds readCode
 
 
   beginTwoSa (ReadyForTwoSa creds devices pickDevice readCode) = do
@@ -475,17 +461,18 @@ parseAccountData :: Value -> AccountData
 parseAccountData v = fromMaybe unknownAccountData $ parseMaybe parseJSON v
 
 
--- | Complete a 2FA (auth-endpoint) challenge using 'TrustData' obtained outside the normal 'login' flow
-completeTwoFactor :: Api -> TrustData -> IO AuthState
+-- | Complete a pending 2FA (auth-endpoint) challenge
+completeTwoFactor :: Api -> IO AuthState
 completeTwoFactor = completeTwoFactorWith pleaseReadCode
 
 
 -- | Like 'completeTwoFactor' with an injectable code prompt, for testing
-completeTwoFactorWith :: IO AuthCode -> Api -> TrustData -> IO AuthState
-completeTwoFactorWith readCode api td = do
-  let start = ReadyForTwoFa (sessionCreds (apiSession api)) td readCode
+completeTwoFactorWith :: IO AuthCode -> Api -> IO AuthState
+completeTwoFactorWith readCode api = do
+  let start = ReadyForTwoFa (sessionCreds (apiSession api)) readCode
   runReaderT (twoFaProcess start) api >>= \case
     CompletionAuthenticated (AuthComplete _ ad) -> pure $ Authenticated (apiSession api) ad
+    CompletionNeedsTwoFa _ -> throwIO $ UnexpectedResponse "accountLogin still requires 2FA after verification"
     CompletionNeedsTwoSa (TwoSaReady _ ds) -> pure $ Requires2SA (apiSession api) ds
 
 
@@ -505,6 +492,7 @@ complete2SAWith pickDevice readCode api devices = do
   let start = ReadyForTwoSa (sessionCreds (apiSession api)) devices pickDevice readCode
   runReaderT (twoSaProcess start) api >>= \case
     CompletionAuthenticated (AuthComplete _ ad) -> pure $ Authenticated (apiSession api) ad
+    CompletionNeedsTwoFa _ -> throwIO $ UnexpectedResponse "accountLogin requires 2FA after 2SA verification"
     CompletionNeedsTwoSa (TwoSaReady _ ds) -> pure $ Requires2SA (apiSession api) ds
 
 
@@ -560,16 +548,6 @@ callApi api req = do
       UnexpectedResponse $
         "response was not JSON: " <> toS (show theType)
   mapM asJson raw
-
-
-callSEReply
-  :: (FromJSON a) => Api -> Request -> IO (Maybe a)
-callSEReply api req =
-  let
-    extractOrRetry' r | statusCode (responseStatus r) >= 400 = throwIO $ UnexpectedResponse $ showStatusOf r
-    extractOrRetry' r = extractOrRetry $ responseBody r
-   in
-    rawRequest api req >>= mapM asJson >>= extractOrRetry'
 
 
 -- confirm the content-type of the response before attempting to parse
@@ -789,14 +767,6 @@ handleSigninComplete resp = do
     | otherwise -> pure ()
 
 
-verifyCodeOrRetry :: forall b a. (FromJSON a, AsVerifyRequest b) => Api -> b -> AuthCode -> IO (Maybe a)
-verifyCodeOrRetry api x code =
-  let codeType = Text.pack $ symbolVal (Proxy :: Proxy (VerifyCodeType b))
-      req' = verifySecurityCodeReq codeType $ apiEndpoints api
-      req = withBody (encode $ asVerifyRequest x code) req'
-   in callSEReply api req
-
-
 validate :: Api -> IO Bool
 validate api@Api{apiEndpoints} = do
   resp <- rawRequest api (validateReq apiEndpoints)
@@ -821,44 +791,33 @@ accountLoginReq :: Endpoints -> SavedHeaders -> Request
 accountLoginReq = mkJsonRequest accountLoginBase accountLoginValue
 
 
-chooseTrustType :: Api -> RequestHeaders -> IO TrustData
-chooseTrustType api@Api{apiEndpoints = ep, apiSession = s} respHdrs = do
-  savedHdrs <- loadSavedHeaders s
-  hcHeaders <- case (lookup "X-Apple-HC-Bits" respHdrs, lookup "X-Apple-HC-Challenge" respHdrs) of
-    (Just bitsBS, Just challenge) ->
-      case readMaybe (toS bitsBS) of
-        Nothing -> throwIO $ UnexpectedResponse "invalid X-Apple-HC-Bits header"
-        Just bits -> do
-          hc <- solveHashcash bits challenge
-          pure [("X-Apple-HC", hc)]
-    _ -> pure []
-  let req = withHeaders (requiredHeaders savedHdrs <> hcHeaders) (epAuth ep)
-  callApi api req >>= extractOr'
+triggerTwoFaPush :: Api -> IO ()
+triggerTwoFaPush api@Api{apiEndpoints = ep} = do
+  savedHdrs <- loadSavedHeaders (apiSession api)
+  let req = withHeaders (requiredHeaders savedHdrs)
+              (toPut (extendPath (epAuth ep) "/verify/trusteddevice/securitycode"))
+  void (rawRequest api req) `catch` \(_ :: IOException) -> pure ()
+
+
+verifyTwoFaCode :: Api -> AuthCode -> IO Bool
+verifyTwoFaCode api@Api{apiEndpoints = ep} code = do
+  savedHdrs <- loadSavedHeaders (apiSession api)
+  let body = encode $ Object [("securityCode", Object [("code", String code)])]
+      req = withHeaders (requiredHeaders savedHdrs) $
+              withJsonRequestHeaders $
+                withBody body $
+                  verifySecurityCodeReq "trusteddevice" ep
+  resp <- rawRequest api req
+  let c = statusCode (responseStatus resp)
+  if | c < 400  -> pure True
+     | c == 400 -> pure False
+     | otherwise -> throwIO $ UnexpectedResponse $ showStatusOf resp
 
 
 callRequiredHeaders :: (FromJSON a) => Api -> Request -> IO a
 callRequiredHeaders api@Api{apiSession = s} req = do
   savedHdrs <- loadSavedHeaders s
   callApi api (withHeaders (requiredHeaders savedHdrs) req) >>= extractOr'
-
-
-hasLeadingZeroBits :: Int -> ByteString -> Bool
-hasLeadingZeroBits bits bs = go 0
- where
-  go i
-    | i >= BS.length bs = True
-    | BS.index bs i == 0 = go (i + 1)
-    | otherwise = i * 8 + countLeadingZeros (BS.index bs i :: Word8) >= bits
-
-
-solveHashcash :: Int -> ByteString -> IO ByteString
-solveHashcash bits challenge = do
-  now <- getCurrentTime
-  let date = toS $ formatTime defaultTimeLocale "%Y%m%d%H%M%S" now
-      go n =
-        let hc = "1:" <> toS (show bits) <> ":" <> date <> ":" <> challenge <> "::" <> toS (show n)
-         in if hasLeadingZeroBits bits (SHA1.hash hc) then hc else go (n + 1 :: Int)
-  evaluate (go 0)
 
 
 accountLoginValue :: SavedHeaders -> Value
@@ -869,31 +828,6 @@ accountLoginValue hs =
     , ("trustToken", maybeValue String (shTrustToken hs))
     , ("extended_login", Bool True)
     ]
-
-
-askForTwoStepCode :: Api -> TrustedDevice -> IO ()
-askForTwoStepCode api@Api{apiEndpoints = ep} td =
-  let pathTail = toS $ "/" <> tdId td <> "/securitycode"
-      mkReqBase = (`extendPath` "/verify/device") . toPut . epAuth
-      mkReq = (`extendPath` pathTail) . mkReqBase
-   in callRequiredHeaders api (mkReq ep)
-
-
-askForTwoFactorCode :: Api -> TrustedPhone -> IO ()
-askForTwoFactorCode api tp = do
-  let mode = fromMaybe "sms" $ tpnPushMode tp
-      mkReq =
-        (`extendPath` "/verify/phone")
-          . toPut
-          . withHeaders [(hContentType, "application/json")]
-          . epAuth
-      value =
-        Object
-          [ ("mode", String mode)
-          , ("phoneNumber", Object [("id", toJSON (tpnId tp))])
-          ]
-      req = withBody (encode value) $ mkReq $ apiEndpoints api
-  callRequiredHeaders api req
 
 
 newtype ListDevicesReply = ListDevicesReply {ldrDevices :: [Setup2SADevice]}
@@ -938,26 +872,3 @@ authenticity
 type AuthCode = Text
 
 
-class (KnownSymbol (VerifyCodeType a)) => AsVerifyRequest a where
-  type VerifyCodeType a :: Symbol
-  asVerifyRequest :: a -> AuthCode -> Value
-
-
-instance AsVerifyRequest TrustedPhone where
-  type VerifyCodeType TrustedPhone = "phone"
-  asVerifyRequest tpn code =
-    Object
-      [ ("securityCode", String code)
-      , ("mode", String "sms")
-      , ("phoneNumber", Object [("id", toJSON (tpnId tpn))])
-      ]
-
-
-instance AsVerifyRequest TrustedDevice where
-  type VerifyCodeType TrustedDevice = "trusteddevice"
-  asVerifyRequest td code =
-    Object
-      [ ("securityCode", String code)
-      , ("mode", String "sms")
-      , ("phoneNumber", String (tdId td))
-      ]

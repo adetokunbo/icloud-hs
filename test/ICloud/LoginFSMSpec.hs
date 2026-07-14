@@ -149,6 +149,7 @@ outcomeOf = \case
 completionOutcomeOf :: CompletionOutcome TestState -> Outcome
 completionOutcomeOf = \case
   CompletionAuthenticated _ -> Authenticated
+  CompletionNeedsTwoFa _ -> TwoFa
   CompletionNeedsTwoSa _ -> TwoSa
 
 

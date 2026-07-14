@@ -11,7 +11,7 @@ import qualified Data.ByteString.Char8 as BS8
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Maybe (fromJust)
 import qualified Data.Text as Text
-import ICloud.Mock (Scenario (..), SrpOutcome (..), defaultScenario, withMockApp)
+import ICloud.Mock (Scenario (..), defaultScenario, withMockApp)
 import Network.HTTP.Client (Request (..), defaultManagerSettings, defaultRequest, newManager)
 import Network.HTTP.Types (methodPost)
 import Network.ICloud.Http
@@ -54,8 +54,8 @@ spec = describe "Network.ICloud.Http.login" $ do
       withMockApi tmpDir defaultScenario{snValidate = False} $ \api -> do
         isAuthenticated <$> login api `shouldReturn` True
 
-  it "completes 2FA automatically when signin complete returns 409" $
-    withFreshMockApi "icloud-auth-mock" defaultScenario{snSrpOutcome = SrpNeeds2FA} $ \api -> do
+  it "completes 2FA automatically when accountLogin requires 2FA" $
+    withFreshMockApi "icloud-auth-mock" defaultScenario{snAccountLoginNeeds2FA = True} $ \api -> do
       isAuthenticated <$> loginWith (pure "123456") (\_ -> pure testDevice) api `shouldReturn` True
 
   it "complete2SA returns Authenticated after 2SA challenge" $

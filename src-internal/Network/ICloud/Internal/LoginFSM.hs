@@ -20,7 +20,7 @@ import Data.Kind (Type)
 import Data.Text (Text)
 import Network.ICloud.Internal.Http (SrpContext (..))
 import Network.ICloud.Internal.Session (AccountData, Credentials, SavedHeaders)
-import Network.ICloud.Internal.Trust (Setup2SADevice, TrustData)
+import Network.ICloud.Internal.Trust (Setup2SADevice)
 
 
 {- | @LoginEvent@ represents the valid events of the Login FSM.
@@ -62,6 +62,7 @@ data LoginOutcome f
 -- | The outcome of 'twoFaProcess' and 'twoSaProcess'.
 data CompletionOutcome f
   = CompletionAuthenticated (f AuthComplete)
+  | CompletionNeedsTwoFa (f NeedsTwoFa)
   | CompletionNeedsTwoSa (f TwoSaReady)
 
 
@@ -119,11 +120,13 @@ onAcctLoginDone
   -> m (CompletionOutcome (State m))
 onAcctLoginDone = \case
   AcctLoginOk y -> pure $ CompletionAuthenticated y
+  AcctLogin2FA y -> pure $ CompletionNeedsTwoFa y
   AcctLogin2SA y -> listTwoSaDevices y <&> CompletionNeedsTwoSa
 
 
 completionToLogin :: CompletionOutcome f -> LoginOutcome f
 completionToLogin (CompletionAuthenticated x) = LoginAuthenticated x
+completionToLogin (CompletionNeedsTwoFa x) = LoginNeedsTwoFa x
 completionToLogin (CompletionNeedsTwoSa x) = LoginNeedsTwoSa x
 
 
@@ -166,9 +169,9 @@ data LoginFSM s where
   SrpInitDone :: Credentials -> SrpContext -> LoginFSM SrpInitDone
   DoAccountLogin :: Credentials -> LoginFSM DoAccountLogin
   AuthComplete :: Credentials -> AccountData -> LoginFSM AuthComplete
-  NeedsTwoFa :: Credentials -> TrustData -> LoginFSM NeedsTwoFa
-  ReadyForTwoFa :: Credentials -> TrustData -> IO Text -> LoginFSM ReadyForTwoFa
-  TwoFaVerifying :: Credentials -> TrustData -> IO Text -> LoginFSM TwoFaVerifying
+  NeedsTwoFa :: Credentials -> LoginFSM NeedsTwoFa
+  ReadyForTwoFa :: Credentials -> IO Text -> LoginFSM ReadyForTwoFa
+  TwoFaVerifying :: Credentials -> IO Text -> LoginFSM TwoFaVerifying
   NeedsTwoSa :: Credentials -> LoginFSM NeedsTwoSa
   TwoSaReady :: Credentials -> [Setup2SADevice] -> LoginFSM TwoSaReady
   ReadyForTwoSa :: Credentials -> [Setup2SADevice] -> ([Setup2SADevice] -> IO Setup2SADevice) -> IO Text -> LoginFSM ReadyForTwoSa
@@ -291,6 +294,7 @@ data AfterSrpComplete f
 -- | The valid states after 'acctLogin'
 data AfterAcctLogin f
   = AcctLoginOk (f AuthComplete)
+  | AcctLogin2FA (f NeedsTwoFa)
   | AcctLogin2SA (f NeedsTwoSa)
 
 

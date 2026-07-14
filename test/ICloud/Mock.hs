@@ -12,7 +12,7 @@ where
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
-import Network.HTTP.Types (HeaderName, RequestHeaders, hContentType, status200, status400, status401, status404, status409)
+import Network.HTTP.Types (HeaderName, RequestHeaders, hContentType, status200, status204, status400, status401, status404, status409)
 import Network.Wai (Application, pathInfo, rawPathInfo, requestHeaders, requestMethod, responseLBS)
 import Network.Wai.Handler.Warp (testWithApplication)
 import Paths_icloud_auth (getDataFileName)
@@ -29,6 +29,8 @@ data Scenario = Scenario
   -- ^ when True, the first validateVerificationCode call returns 400
   , snAccountLoginNeeds2SA :: Bool
   -- ^ when True, the first accountLogin call returns a 2SA-required response
+  , snAccountLoginNeeds2FA :: Bool
+  -- ^ when True, the first accountLogin call returns a 2FA-required response
   , snSrpCompleteEmptyError :: Bool
   -- ^ when True, signin/complete returns 401 with no body or Content-Type
   }
@@ -41,6 +43,7 @@ defaultScenario =
     , snSrpOutcome = SrpOk
     , snValidateCodeFails = False
     , snAccountLoginNeeds2SA = False
+    , snAccountLoginNeeds2FA = False
     , snSrpCompleteEmptyError = False
     }
 
@@ -57,6 +60,7 @@ withMockApp scenario action =
 withMockAppCapturing :: Scenario -> (Int -> IORef [(ByteString, RequestHeaders)] -> IO a) -> IO a
 withMockAppCapturing scenario action = do
   srpInit <- LBS.readFile =<< getDataFileName "testdata/srp_init_ok_test.json"
+  login2fa <- LBS.readFile =<< getDataFileName "testdata/login_2fa_test.json"
   login2sa <- LBS.readFile =<< getDataFileName "testdata/login_2sa_test.json"
   loginWorking <- LBS.readFile =<< getDataFileName "testdata/login_working_test.json"
   listDevices <- LBS.readFile =<< getDataFileName "testdata/trusted_devices_test.json"
@@ -69,6 +73,7 @@ withMockAppCapturing scenario action = do
           scenario
           capturedRef
           srpInit
+          login2fa
           login2sa
           loginWorking
           listDevices
@@ -85,6 +90,7 @@ mockApp
   -> LBS.ByteString
   -> LBS.ByteString
   -> LBS.ByteString
+  -> LBS.ByteString
   -> IORef Int
   -> IORef Int
   -> Application
@@ -92,6 +98,7 @@ mockApp
   scenario
   capturedRef
   srpInit
+  login2fa
   login2sa
   loginWorking
   listDevices
@@ -114,6 +121,10 @@ mockApp
               SrpOk -> json status200 "{}"
               SrpNeeds2FA -> responseLBS status409 jsonHeaders "{}"
       ("GET", ["appleauth", "auth", "2sv", "trust"]) ->
+        pure $ json status200 "{}"
+      ("PUT", ["appleauth", "auth", "verify", "trusteddevice", "securitycode"]) ->
+        pure $ responseLBS status204 [] ""
+      ("POST", ["appleauth", "auth", "verify", "trusteddevice", "securitycode"]) ->
         pure $ json status200 "{}"
       ("PUT", ["appleauth", "auth", "verify", "phone"]) ->
         pure $ json status200 "{}"
@@ -139,8 +150,10 @@ mockApp
         n <- readIORef accountLoginRef
         writeIORef accountLoginRef (n + 1)
         pure $
-          if snAccountLoginNeeds2SA scenario && n == 0
-            then json status200 login2sa
-            else json status200 loginWorking
+          if snAccountLoginNeeds2FA scenario && n == 0
+            then json status200 login2fa
+            else if snAccountLoginNeeds2SA scenario && n == 0
+              then json status200 login2sa
+              else json status200 loginWorking
       _ -> pure $ responseLBS status404 [] "not found"
     respond resp
