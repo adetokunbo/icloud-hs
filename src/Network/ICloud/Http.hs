@@ -85,7 +85,6 @@ import Data.Aeson
   ( FromJSON (..)
   , Key
   , Object
-
   , eitherDecode
   , encode
   , withObject
@@ -151,7 +150,6 @@ import Network.ICloud.Internal.HttpErrors
   ( ApiResponse
   , AuthError (..)
   , ExtractOr (..)
-
   )
 import Network.ICloud.Internal.LoginFSM
   ( AfterAcctLogin (..)
@@ -189,7 +187,6 @@ import Network.ICloud.Internal.Session
 import Network.ICloud.Internal.Trust
   ( pleaseReadCode
   , selectSetupDevice
-
   )
 import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..))
 import qualified Network.ICloud.Session as Session
@@ -413,10 +410,11 @@ instance LoginEvent (ReaderT Api IO) where
     let ad = parseAccountData loginReply
     liftIO $ saveLoginMsg (apiSession api) loginReply
     liftIO $ saveAccountData (apiSession api) ad
-    pure $ if
-      | accountDataRequires2SA ad -> AcctLogin2SA $ NeedsTwoSa creds
-      | accountDataRequires2FA ad -> AcctLogin2FA $ NeedsTwoFa creds
-      | otherwise                 -> AcctLoginOk  $ AuthComplete creds ad
+    pure $
+      if
+        | accountDataRequires2SA ad -> AcctLogin2SA $ NeedsTwoSa creds
+        | accountDataRequires2FA ad -> AcctLogin2FA $ NeedsTwoFa creds
+        | otherwise -> AcctLoginOk $ AuthComplete creds ad
 
 
   listTwoSaDevices (NeedsTwoSa creds) = do
@@ -435,9 +433,10 @@ instance LoginEvent (ReaderT Api IO) where
     api <- ask
     code <- liftIO readCode
     ok <- liftIO $ verifyTwoFaCode api code
-    pure $ if ok
-      then TwoFaOk  $ DoTrust creds
-      else TwoFaRetry $ ReadyForTwoFa creds readCode
+    pure $
+      if ok
+        then TwoFaOk $ DoTrust creds
+        else TwoFaRetry $ ReadyForTwoFa creds readCode
 
 
   doTrust (DoTrust creds) = do
@@ -768,7 +767,7 @@ handleSigninComplete resp = do
     | code == 401 -> throwIO InvalidCredentials
     | code == 403 -> throwIO AccountLocked
     | code == 412 -> throwIO PrivacyAgreementRequired
-    | code == 409 -> pure ()  -- 2FA required; accountLogin will detect it
+    | code == 409 -> pure () -- 2FA required; accountLogin will detect it
     | code >= 400 -> throwIO $ UnexpectedResponse $ showStatusOf resp
     | otherwise -> pure ()
 
@@ -800,8 +799,10 @@ accountLoginReq = mkJsonRequest accountLoginBase accountLoginValue
 triggerTwoFaPush :: Api -> IO ()
 triggerTwoFaPush api@Api{apiEndpoints = ep} = do
   savedHdrs <- loadSavedHeaders (apiSession api)
-  let req = withHeaders (requiredHeaders savedHdrs)
-              (toPut (extendPath (epAuth ep) "/verify/trusteddevice/securitycode"))
+  let req =
+        withHeaders
+          (requiredHeaders savedHdrs)
+          (toPut (extendPath (epAuth ep) "/verify/trusteddevice/securitycode"))
   void (rawRequest api req) `catch` \(_ :: IOException) -> pure ()
 
 
@@ -811,22 +812,26 @@ doTrustStep api@Api{apiEndpoints = ep} = do
   let req = withHeaders (requiredHeaders savedHdrs) (twoSvTrust ep)
   resp <- rawRequest api req
   unless (statusCode (responseStatus resp) < 400) $
-    throwIO $ UnexpectedResponse $ showStatusOf resp
+    throwIO $
+      UnexpectedResponse $
+        showStatusOf resp
 
 
 verifyTwoFaCode :: Api -> AuthCode -> IO Bool
 verifyTwoFaCode api@Api{apiEndpoints = ep} code = do
   savedHdrs <- loadSavedHeaders (apiSession api)
   let body = encode $ Object [("securityCode", Object [("code", String code)])]
-      req = withHeaders (requiredHeaders savedHdrs) $
-              withJsonRequestHeaders $
-                withBody body $
-                  verifySecurityCodeReq "trusteddevice" ep
+      req =
+        withHeaders (requiredHeaders savedHdrs) $
+          withJsonRequestHeaders $
+            withBody body $
+              verifySecurityCodeReq "trusteddevice" ep
   resp <- rawRequest api req
   let c = statusCode (responseStatus resp)
-  if | c < 400  -> pure True
-     | c == 400 -> pure False
-     | otherwise -> throwIO $ UnexpectedResponse $ showStatusOf resp
+  if
+    | c < 400 -> pure True
+    | c == 400 -> pure False
+    | otherwise -> throwIO $ UnexpectedResponse $ showStatusOf resp
 
 
 callRequiredHeaders :: (FromJSON a) => Api -> Request -> IO a
@@ -885,5 +890,3 @@ validateSetupVerification api@Api{apiSession = s, apiEndpoints = ep} device code
 authenticity
 -}
 type AuthCode = Text
-
-

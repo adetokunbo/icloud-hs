@@ -152,8 +152,9 @@ mockApp
         pure $
           if snAccountLoginNeeds2FA scenario > n
             then json status200 login2fa
-            else if snAccountLoginNeeds2SA scenario && n == 0
-              then json status200 login2sa
-              else json status200 loginWorking
+            else
+              if snAccountLoginNeeds2SA scenario && n == 0
+                then json status200 login2sa
+                else json status200 loginWorking
       _ -> pure $ responseLBS status404 [] "not found"
     respond resp

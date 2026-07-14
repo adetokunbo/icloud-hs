@@ -1,5 +1,0 @@
-{
-  "trustedPhoneNumbers": [{"id": 1, "numberWithDialCode": "+1 (***) ***-1234"}],
-  "securityCode": {"length": 6, "tooManyCodesSent": false, "tooManyCodesValidated": false, "securityCodeLocked": false, "securityCoolDown": false},
-  "noTrustedDevices": true
-}
