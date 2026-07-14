@@ -42,13 +42,12 @@ spec = describe "Network.ICloud.Http.fileLogger" $ do
 
 
 {- | Extract the body of the first log entry.
-Format: summary line, response headers, blank line, body, blank line, "---".
-Skips the summary and headers by dropping lines up to and including the first blank.
+Format: summary line, request headers, blank line, response headers, blank line, body, "---".
 -}
 firstBody :: String -> String
 firstBody contents =
-  let ls = drop 1 (lines contents)
-      bodyLines = takeWhile (/= "---") $ drop 1 $ dropWhile (not . null) ls
+  let skipSection = drop 1 . dropWhile (not . null)
+      bodyLines = takeWhile (/= "---") $ skipSection $ skipSection $ drop 1 (lines contents)
    in unlines bodyLines
 
 

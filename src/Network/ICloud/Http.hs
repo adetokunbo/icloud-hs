@@ -286,6 +286,8 @@ fileLogger h = ApiLogger $ \req resp -> do
       summary = show now <> " " <> toS (method req) <> " " <> uri <> " " <> show status
       fmtHdr (name, val) = toS (original name) <> ": " <> toS val
   hPutStrLn h summary
+  mapM_ (hPutStrLn h . fmtHdr) (requestHeaders req)
+  hPutStrLn h ""
   mapM_ (hPutStrLn h . fmtHdr) (responseHeaders resp)
   hPutStrLn h ""
   LBS.hPutStr h (responseBody resp)
