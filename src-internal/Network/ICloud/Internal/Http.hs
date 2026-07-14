@@ -4,6 +4,7 @@
 
 module Network.ICloud.Internal.Http
   ( validateSetupBody
+  , phoneCodeBody
   , PasswordProtocol (..)
   , KeyDeriver (..)
   , SrpContext (..)
@@ -32,7 +33,7 @@ import Data.Text (Text)
 import Data.Word (Word64)
 import Network.HTTP.Types.Header (HeaderName)
 import Network.ICloud.Internal.PBKDF2 (FancyPseudoRandomF, deriveKey)
-import Network.ICloud.Internal.Trust (Setup2SADevice (..))
+import Network.ICloud.Internal.Trust (Setup2SADevice (..), TrustedPhone (..))
 
 
 -- | Models the known values of password protocol
@@ -94,3 +95,14 @@ hCounter = mk "scnt"
 validateSetupBody :: Setup2SADevice -> Text -> Value
 validateSetupBody (Setup2SADevice fields) code =
   Object $ fields <> fromList [("verificationCode", String code), ("trustBrowser", Bool True)]
+
+
+-- | Build the JSON body for SMS phone code requests and verification
+phoneCodeBody :: TrustedPhone -> Text -> Value
+phoneCodeBody tp code =
+  Object $
+    fromList
+      [ ("phoneNumber", Object $ fromList [("id", Number $ fromIntegral $ tpnId tp)])
+      , ("securityCode", Object $ fromList [("code", String code)])
+      , ("mode", String "sms")
+      ]

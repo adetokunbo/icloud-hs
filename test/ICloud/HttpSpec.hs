@@ -22,6 +22,7 @@ import Network.ICloud.Internal.Http
   , hSessionId
   , hSessionToken
   , hTrustToken
+  , phoneCodeBody
   , validateSetupBody
   )
 import Network.ICloud.Internal.Session
@@ -29,7 +30,7 @@ import Network.ICloud.Internal.Session
   , pristine
   , updateSavedHeaders
   )
-import Network.ICloud.Trust (Setup2SADevice (..))
+import Network.ICloud.Trust (Setup2SADevice (..), TrustedPhone (..))
 import Test.Hspec (Spec, context, describe, it, shouldBe)
 import Test.QuickCheck
   ( Gen
@@ -47,6 +48,7 @@ spec = describe "module Network.ICloud.Http" $ do
   updateSavedHeadersSpec
   passwordProtocolSpec
   validateSetupBodySpec
+  phoneCodeBodySpec
 
 
 updateSavedHeadersSpec :: Spec
@@ -113,3 +115,22 @@ validateSetupBodySpec = describe "validateSetupBody" $ do
   device = Setup2SADevice $ fromList [("deviceId", String "abc")]
   body = validateSetupBody device "123456"
   field k = parseMaybe (withObject "body" (.: k)) body
+
+
+phoneCodeBodySpec :: Spec
+phoneCodeBodySpec = describe "phoneCodeBody" $ do
+  it "sets phoneNumber.id to the TrustedPhone id" $
+    phoneField verifyBody "id" `shouldBe` Just (Number 1)
+  it "sets securityCode.code to the supplied code" $
+    codeField verifyBody "code" `shouldBe` Just (String "654321")
+  it "sets mode to sms" $
+    field verifyBody "mode" `shouldBe` Just (String "sms")
+  it "sets securityCode.code to empty string when requesting SMS" $
+    codeField requestBody "code" `shouldBe` Just (String "")
+ where
+  phone = TrustedPhone 1 "+81 test" (Just "sms")
+  verifyBody = phoneCodeBody phone "654321"
+  requestBody = phoneCodeBody phone ""
+  field b k = parseMaybe (withObject "body" (.: k)) b
+  phoneField b k = field b "phoneNumber" >>= parseMaybe (withObject "phoneNumber" (.: k))
+  codeField b k = field b "securityCode" >>= parseMaybe (withObject "securityCode" (.: k))

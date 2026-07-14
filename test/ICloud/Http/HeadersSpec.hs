@@ -11,11 +11,11 @@ import Data.Maybe (fromJust)
 import ICloud.Mock (Scenario (..), defaultScenario, withMockAppCapturing)
 import Network.HTTP.Client (Request (..), defaultManagerSettings, defaultRequest, newManager)
 import Network.HTTP.Types (RequestHeaders, hAccept, hContentType, methodPost)
-import Network.ICloud.Http (fetchTrustData, login, loginWith, mkApiWith)
+import Network.ICloud.Http (fetchTrustData, login, loginWith, mkApiWith, requestSmsCode, verifySmsCode)
 import Network.ICloud.Http.Endpoints (Endpoints (..))
 import Network.ICloud.Internal.Session (SavedHeaders (..), savedHeadersPath)
 import Network.ICloud.Session (Credentials (..), Session (..))
-import Network.ICloud.Trust (Setup2SADevice)
+import Network.ICloud.Trust (Setup2SADevice, TrustedPhone (..))
 import System.IO.Temp (withSystemTempDirectory)
 import Test.Hspec (Spec, describe, it, shouldSatisfy)
 
@@ -87,6 +87,16 @@ spec = describe "Network.ICloud.Http request headers" $ do
       headersFor "/appleauth/auth" captured
         `shouldSatisfy` (\hs -> hasWidgetKey hs && hasScnt hs && hasSessionId hs)
 
+  it "requestSmsCode sends Content-Type, Accept, Widget-Key, scnt, and X-Apple-ID-Session-Id" $
+    withCapturedRequestSms $ \captured ->
+      headersFor "/verify/phone/securitycode" captured
+        `shouldSatisfy` (\hs -> hasJsonContentHeaders hs && hasWidgetKey hs && hasScnt hs && hasSessionId hs)
+
+  it "verifySmsCode sends Content-Type, Accept, Widget-Key, scnt, and X-Apple-ID-Session-Id" $
+    withCapturedVerifySms $ \captured ->
+      headersFor "/verify/phone/securitycode" captured
+        `shouldSatisfy` (\hs -> hasJsonContentHeaders hs && hasWidgetKey hs && hasScnt hs && hasSessionId hs)
+
 
 withCapturedLogin :: (FilePath -> IO ()) -> ([(ByteString, RequestHeaders)] -> IO ()) -> IO ()
 withCapturedLogin setup action =
@@ -146,6 +156,34 @@ writeSavedHeadersWithSession tmpDir = do
   let creds = Credentials "alice@example.com" "password123"
       hdrs = SavedHeaders Nothing Nothing (Just "test-session-id") Nothing Nothing (Just "test-scnt")
   encodeFile (savedHeadersPath tmpDir creds) hdrs
+
+
+withCapturedRequestSms :: ([(ByteString, RequestHeaders)] -> IO ()) -> IO ()
+withCapturedRequestSms action =
+  withSystemTempDirectory "icloud-auth-headers-req-sms" $ \tmpDir -> do
+    writeSavedHeadersWithSession tmpDir
+    withMockAppCapturing defaultScenario $ \serverPort capturedRef -> do
+      mgr <- newManager defaultManagerSettings
+      api <- mkApiWith (testSession tmpDir) (testEndpoints serverPort) mgr
+      requestSmsCode api testPhone
+      captured <- readIORef capturedRef
+      action captured
+
+
+withCapturedVerifySms :: ([(ByteString, RequestHeaders)] -> IO ()) -> IO ()
+withCapturedVerifySms action =
+  withSystemTempDirectory "icloud-auth-headers-verify-sms" $ \tmpDir -> do
+    writeSavedHeadersWithSession tmpDir
+    withMockAppCapturing defaultScenario $ \serverPort capturedRef -> do
+      mgr <- newManager defaultManagerSettings
+      api <- mkApiWith (testSession tmpDir) (testEndpoints serverPort) mgr
+      _ <- verifySmsCode api testPhone "654321"
+      captured <- readIORef capturedRef
+      action captured
+
+
+testPhone :: TrustedPhone
+testPhone = TrustedPhone 1 "+81 test" (Just "sms")
 
 
 headersFor :: ByteString -> [(ByteString, RequestHeaders)] -> Maybe RequestHeaders

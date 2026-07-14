@@ -47,6 +47,10 @@ module Network.ICloud.Http
     -- * Fetching two-factor options
   , fetchTrustData
 
+    -- * SMS phone code
+  , requestSmsCode
+  , verifySmsCode
+
     -- * Completing two-factor challenges
   , completeTwoFactor
   , completeTwoFactorWith
@@ -148,6 +152,7 @@ import Network.ICloud.Internal.Http
   , SrpContext (..)
   , hCounter
   , hSessionId
+  , phoneCodeBody
   , validateSetupBody
   )
 import Network.ICloud.Internal.HttpErrors
@@ -481,6 +486,35 @@ fetchTrustData api = do
   savedHdrs <- loadSavedHeaders (apiSession api)
   let req = withHeaders (requiredHeaders savedHdrs) (twoFaOptionsBase (apiEndpoints api))
   callApi api req >>= extractOr'
+
+
+-- | POST to phone/securitycode to request an SMS code to the given phone
+requestSmsCode :: Api -> TrustedPhone -> IO ()
+requestSmsCode api@Api{apiEndpoints = ep} tp = do
+  savedHdrs <- loadSavedHeaders (apiSession api)
+  let req =
+        withHeaders (requiredHeaders savedHdrs) $
+          withJsonRequestHeaders $
+            withBody (encode $ phoneCodeBody tp "") $
+              verifySecurityCodeReq "phone" ep
+  void (rawRequest api req) `catch` \(_ :: IOException) -> pure ()
+
+
+-- | POST to phone/securitycode to verify an SMS code; returns True when accepted
+verifySmsCode :: Api -> TrustedPhone -> AuthCode -> IO Bool
+verifySmsCode api@Api{apiEndpoints = ep} tp code = do
+  savedHdrs <- loadSavedHeaders (apiSession api)
+  let req =
+        withHeaders (requiredHeaders savedHdrs) $
+          withJsonRequestHeaders $
+            withBody (encode $ phoneCodeBody tp code) $
+              verifySecurityCodeReq "phone" ep
+  resp <- rawRequest api req
+  let c = statusCode (responseStatus resp)
+  if
+    | c < 400 -> pure True
+    | c == 400 -> pure False
+    | otherwise -> throwIO $ UnexpectedResponse $ showStatusOf resp
 
 
 -- | Complete a pending 2FA (auth-endpoint) challenge
