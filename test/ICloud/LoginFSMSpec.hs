@@ -26,6 +26,7 @@ data Script = Script
   , scriptTwoFa :: ![Bool]
   , scriptTwoSa :: ![Bool]
   , scriptNoTrustedDevices :: !Bool
+  , scriptTwoFaLocked :: !Bool
   }
 
 
@@ -42,6 +43,7 @@ allTrue =
     , scriptTwoFa = [True]
     , scriptTwoSa = [True]
     , scriptNoTrustedDevices = False
+    , scriptTwoFaLocked = False
     }
 
 
@@ -120,7 +122,12 @@ instance LoginEvent TestM where
 
   verifyTwoFa (TestState ()) = do
     result <- popTwoFa
-    pure $ if result then TwoFaOk (TestState ()) else TwoFaRetry (TestState ())
+    if result
+      then pure $ TwoFaOk (TestState ())
+      else asksScript $ \s ->
+        if scriptTwoFaLocked s
+          then TwoFaLocked (TestState ())
+          else TwoFaRetry (TestState ())
 
 
   beginTwoSa (TestState ()) = pure (TestState ())
@@ -138,6 +145,7 @@ data Outcome
   | HaltCreds
   | HaltMkDir
   | HaltSrp
+  | LockedByTwoFa
   deriving (Eq, Show)
 
 
@@ -149,6 +157,7 @@ outcomeOf = \case
   LoginHaltCreds _ -> HaltCreds
   LoginHaltDir _ -> HaltMkDir
   LoginHaltSrp _ -> HaltSrp
+  LoginHaltTwoFaLocked _ -> LockedByTwoFa
 
 
 completionOutcomeOf :: CompletionOutcome TestState -> Outcome
@@ -156,6 +165,7 @@ completionOutcomeOf = \case
   CompletionAuthenticated _ -> Authenticated
   CompletionNeedsTwoFa _ -> TwoFa
   CompletionNeedsTwoSa _ -> TwoSa
+  CompletionTwoFaLocked _ -> LockedByTwoFa
 
 
 runScript :: Script -> Outcome
@@ -209,6 +219,9 @@ spec = do
 
     it "still reaches Authenticated when noTrustedDevices is True" $
       runTwoFaScript (allTrue{scriptNoTrustedDevices = True}) `shouldBe` Authenticated
+
+    it "halts with TwoFaLocked when the code is rejected and Apple signals the account is locked" $
+      runTwoFaScript (allTrue{scriptTwoFa = [False], scriptTwoFaLocked = True}) `shouldBe` LockedByTwoFa
 
   describe "LoginFSM.twoSaProcess" $ do
     it "reaches Authenticated when 2SA verification succeeds on the first attempt" $

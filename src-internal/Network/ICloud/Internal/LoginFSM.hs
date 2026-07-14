@@ -58,6 +58,7 @@ data LoginOutcome f
   | LoginHaltCreds (f HaltMissingCredentials)
   | LoginHaltDir (f HaltCannotMkArtifactDir)
   | LoginHaltSrp (f HaltInvalidSrp)
+  | LoginHaltTwoFaLocked (f HaltTwoFaLocked)
 
 
 -- | The outcome of 'twoFaProcess' and 'twoSaProcess'.
@@ -65,6 +66,7 @@ data CompletionOutcome f
   = CompletionAuthenticated (f AuthComplete)
   | CompletionNeedsTwoFa (f NeedsTwoFa)
   | CompletionNeedsTwoSa (f TwoSaReady)
+  | CompletionTwoFaLocked (f HaltTwoFaLocked)
 
 
 -- | The canonical login process using events from 'LoginEvent'.
@@ -129,6 +131,7 @@ completionToLogin :: CompletionOutcome f -> LoginOutcome f
 completionToLogin (CompletionAuthenticated x) = LoginAuthenticated x
 completionToLogin (CompletionNeedsTwoFa x) = LoginNeedsTwoFa x
 completionToLogin (CompletionNeedsTwoSa x) = LoginNeedsTwoSa x
+completionToLogin (CompletionTwoFaLocked x) = LoginHaltTwoFaLocked x
 
 
 -- | The 2FA completion process using events from 'LoginEvent'.
@@ -140,6 +143,7 @@ twoFaProcess s =
   beginTwoFa s >>= verifyTwoFa >>= \case
     TwoFaOk x -> doTrust x >>= acctLogin >>= onAcctLoginDone
     TwoFaRetry x -> twoFaProcess x
+    TwoFaLocked x -> pure $ CompletionTwoFaLocked x
 
 
 -- | The 2SA completion process using events from 'LoginEvent'.
@@ -179,6 +183,7 @@ data LoginFSM s where
   ReadyForTwoSa :: Credentials -> [Setup2SADevice] -> ([Setup2SADevice] -> IO Setup2SADevice) -> IO Text -> LoginFSM ReadyForTwoSa
   TwoSaVerifying :: Credentials -> Setup2SADevice -> [Setup2SADevice] -> ([Setup2SADevice] -> IO Setup2SADevice) -> IO Text -> LoginFSM TwoSaVerifying
   HaltInvalidSrp :: Credentials -> LoginFSM HaltInvalidSrp
+  HaltTwoFaLocked :: Credentials -> LoginFSM HaltTwoFaLocked
 
 
 -- | Phantom type linked to a unique state in 'LoginFSM'
@@ -261,6 +266,10 @@ data TwoSaVerifying
 data HaltInvalidSrp
 
 
+-- | Phantom type linked to a unique state in 'LoginFSM'
+data HaltTwoFaLocked
+
+
 -- | The valid states after 'loadSession'
 data AfterLoadLastSession f
   = HasClientId (f ReadyToAuth)
@@ -308,6 +317,7 @@ data AfterAcctLogin f
 data AfterTwoFaVerify f
   = TwoFaOk (f DoTrust)
   | TwoFaRetry (f ReadyForTwoFa)
+  | TwoFaLocked (f HaltTwoFaLocked)
 
 
 -- | The valid states after 'verifyTwoSa'

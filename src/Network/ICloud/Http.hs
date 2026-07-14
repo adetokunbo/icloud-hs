@@ -195,7 +195,8 @@ import Network.ICloud.Internal.Session
   , updateSessionSavedHeaders
   )
 import Network.ICloud.Internal.Trust
-  ( TrustData
+  ( CodeStatus (..)
+  , TrustData (..)
   , TrustedPhone
   , pleaseReadCode
   , selectSetupDevice
@@ -347,6 +348,7 @@ loginWith readCode pickPhone pickDevice api =
     LoginHaltCreds _ -> throwIO $ UnexpectedResponse "login halted: missing credentials"
     LoginHaltDir _ -> throwIO $ UnexpectedResponse "login halted: cannot create artifact directory"
     LoginHaltSrp _ -> throwIO $ UnexpectedResponse "login halted: invalid SRP server public value"
+    LoginHaltTwoFaLocked _ -> throwIO $ UnexpectedResponse "2FA locked: too many incorrect code attempts"
 
 
 instance LoginEvent (ReaderT Api IO) where
@@ -448,16 +450,21 @@ instance LoginEvent (ReaderT Api IO) where
     pure $ TwoFaVerifying creds td mbPhone pickPhone readCode
 
 
-  verifyTwoFa (TwoFaVerifying creds td mbPhone pickPhone readCode) = do
+  verifyTwoFa (TwoFaVerifying creds _td mbPhone pickPhone readCode) = do
     api <- ask
     code <- liftIO readCode
     ok <- liftIO $ case mbPhone of
       Nothing -> verifyTwoFaCode api code
       Just phone -> verifySmsCode api phone code
-    pure $
-      if ok
-        then TwoFaOk $ DoTrust creds
-        else TwoFaRetry $ ReadyForTwoFa creds td pickPhone readCode
+    if ok
+      then pure $ TwoFaOk $ DoTrust creds
+      else do
+        freshTd <- liftIO $ fetchTrustData api
+        let cs = tdSecurityCode freshTd
+        pure $
+          if scTooManyCodesValidated cs || scSecurityCodeLocked cs || scSecurityCodeCooldown cs
+            then TwoFaLocked $ HaltTwoFaLocked creds
+            else TwoFaRetry $ ReadyForTwoFa creds freshTd pickPhone readCode
 
 
   doTrust (DoTrust creds) = do
@@ -542,6 +549,7 @@ completeTwoFactorWith readCode pickPhone api = do
     CompletionAuthenticated (AuthComplete _ ad) -> pure $ Authenticated (apiSession api) ad
     CompletionNeedsTwoFa _ -> throwIO $ UnexpectedResponse "accountLogin still requires 2FA after verification"
     CompletionNeedsTwoSa (TwoSaReady _ ds) -> pure $ Requires2SA (apiSession api) ds
+    CompletionTwoFaLocked _ -> throwIO $ UnexpectedResponse "2FA locked: too many incorrect code attempts"
 
 
 -- | Used when already holding a 'Requires2SA' result from 'completeTwoFactor' or 'completeTwoFactorWith'
@@ -562,6 +570,7 @@ complete2SAWith pickDevice readCode api devices = do
     CompletionAuthenticated (AuthComplete _ ad) -> pure $ Authenticated (apiSession api) ad
     CompletionNeedsTwoFa _ -> throwIO $ UnexpectedResponse "accountLogin requires 2FA after 2SA verification"
     CompletionNeedsTwoSa (TwoSaReady _ ds) -> pure $ Requires2SA (apiSession api) ds
+    CompletionTwoFaLocked _ -> throwIO $ UnexpectedResponse "2FA locked: too many incorrect code attempts"
 
 
 -- | Make a session request and obtain the raw byte results

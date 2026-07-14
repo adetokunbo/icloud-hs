@@ -33,6 +33,8 @@ data Scenario = Scenario
   -- ^ countdown: serve login_2fa_test.json while > 0, then loginWorking
   , snSrpCompleteEmptyError :: Bool
   -- ^ when True, signin/complete returns 401 with no body or Content-Type
+  , snVerifyCodeLocks :: Bool
+  -- ^ when True, POST verify/trusteddevice/securitycode returns 400 and GET /appleauth/auth returns locked trust data
   }
 
 
@@ -45,11 +47,19 @@ defaultScenario =
     , snAccountLoginNeeds2SA = False
     , snAccountLoginNeeds2FA = 0
     , snSrpCompleteEmptyError = False
+    , snVerifyCodeLocks = False
     }
 
 
 jsonHeaders :: [(HeaderName, ByteString)]
 jsonHeaders = [(hContentType, "application/json")]
+
+
+lockedTrustData :: LBS.ByteString
+lockedTrustData =
+  "{\"securityCode\":{\"length\":6,\"tooManyCodesSent\":false,\"tooManyCodesValidated\":false\
+  \,\"securityCodeLocked\":true,\"securityCodeCooldown\":false}\
+  \,\"trustedPhoneNumbers\":[],\"noTrustedDevices\":false}"
 
 
 withMockApp :: Scenario -> (Int -> IO a) -> IO a
@@ -116,7 +126,9 @@ mockApp
         json st body = responseLBS st jsonHeaders body
     resp <- case (method, segs) of
       ("GET", ["appleauth", "auth"]) ->
-        pure $ json status200 trustData
+        pure $
+          json status200 $
+            if snVerifyCodeLocks scenario then lockedTrustData else trustData
       ("POST", ["appleauth", "auth", "signin", "init"]) ->
         pure $ json status200 srpInit
       ("POST", ["appleauth", "auth", "signin", "complete"]) ->
@@ -131,7 +143,10 @@ mockApp
       ("PUT", ["appleauth", "auth", "verify", "trusteddevice", "securitycode"]) ->
         pure $ responseLBS status204 [] ""
       ("POST", ["appleauth", "auth", "verify", "trusteddevice", "securitycode"]) ->
-        pure $ json status200 "{}"
+        pure $
+          if snVerifyCodeLocks scenario
+            then responseLBS status400 [] ""
+            else json status200 "{}"
       ("PUT", ["appleauth", "auth", "verify", "phone"]) ->
         pure $ json status200 "{}"
       ("POST", ["appleauth", "auth", "verify", "phone", "securitycode"]) ->
