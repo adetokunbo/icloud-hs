@@ -412,10 +412,8 @@ instance LoginEvent (ReaderT Api IO) where
     case calcResults kd fc fs of
       Nothing -> pure $ SrpCompleteInvalidKey $ HaltInvalidSrp creds
       Just results -> do
-        result <- liftIO $ runSigninComplete api kd results
-        pure $ case result of
-          Left td -> SrpComplete2FA $ NeedsTwoFa creds td
-          Right () -> SrpCompleteOk $ IncreaseTrust creds
+        liftIO $ runSigninComplete api kd results
+        pure $ SrpCompleteOk $ IncreaseTrust creds
 
 
   increaseTrust (IncreaseTrust creds) = do
@@ -745,7 +743,7 @@ data SigninCompletion = SigninCompletion
   }
 
 
-runSigninComplete :: Api -> KeyDeriver -> Results -> IO (Either TrustData ())
+runSigninComplete :: Api -> KeyDeriver -> Results -> IO ()
 runSigninComplete api@Api{apiSession = session} kd results = do
   siSavedHeaders <- loadSavedHeaders session
   let siAccountName = credAccountName $ sessionCreds session
@@ -759,10 +757,10 @@ runSigninComplete api@Api{apiSession = session} kd results = do
   signinComplete api completion
 
 
-signinComplete :: Api -> SigninCompletion -> IO (Either TrustData ())
+signinComplete :: Api -> SigninCompletion -> IO ()
 signinComplete api sc = do
   resp <- callApi api (signinCompleteReq (apiEndpoints api) sc) :: IO (Response (ApiResponse ()))
-  handleSigninComplete api resp
+  handleSigninComplete resp
 
 
 signinCompleteReq :: Endpoints -> SigninCompletion -> Request
@@ -785,17 +783,16 @@ signinCompleteValue sc =
         ]
 
 
-handleSigninComplete :: Api -> Response (ApiResponse ()) -> IO (Either TrustData ())
-handleSigninComplete api resp = do
+handleSigninComplete :: Response (ApiResponse ()) -> IO ()
+handleSigninComplete resp = do
   let code = statusCode $ responseStatus resp
-      body = responseBody resp
   if
     | code == 401 -> throwIO InvalidCredentials
     | code == 403 -> throwIO AccountLocked
     | code == 412 -> throwIO PrivacyAgreementRequired
-    | code == 409 -> Left <$> chooseTrustType api (responseHeaders resp)
+    | code == 409 -> pure ()  -- 2FA required; accountLogin will detect it
     | code >= 400 -> throwIO $ UnexpectedResponse $ showStatusOf resp
-    | otherwise -> Right <$> extractOr body
+    | otherwise -> pure ()
 
 
 verifyCodeOrRetry :: forall b a. (FromJSON a, AsVerifyRequest b) => Api -> b -> AuthCode -> IO (Maybe a)
