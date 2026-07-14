@@ -787,14 +787,15 @@ validateReq = withJsonRequestHeaders . withBody (encode Null) . validateBase
 
 
 accountLogin :: Api -> IO Value
-accountLogin api@Api{apiEndpoints = ep} = do
+accountLogin api@Api{apiEndpoints = ep, apiSession = sess} = do
   savedHdrs <- loadSavedHeaders $ apiSession api
   let hdrs = homeHeaders ep <> requiredHeaders savedHdrs
-  callHandlingResponse accountLoginReq (withHeaders hdrs) extractOr' api savedHdrs
+      creds = sessionCreds sess
+  callHandlingResponse (accountLoginReq creds) (withHeaders hdrs) extractOr' api savedHdrs
 
 
-accountLoginReq :: Endpoints -> SavedHeaders -> Request
-accountLoginReq = mkJsonRequest accountLoginBase accountLoginValue
+accountLoginReq :: Credentials -> Endpoints -> SavedHeaders -> Request
+accountLoginReq creds = mkJsonRequest accountLoginBase (accountLoginValue creds)
 
 
 triggerTwoFaPush :: Api -> IO ()
@@ -841,13 +842,14 @@ callRequiredHeaders api@Api{apiSession = s} req = do
   callApi api (withHeaders (requiredHeaders savedHdrs) req) >>= extractOr'
 
 
-accountLoginValue :: SavedHeaders -> Value
-accountLoginValue hs =
+accountLoginValue :: Credentials -> SavedHeaders -> Value
+accountLoginValue creds hs =
   asObject
     [ ("accountCountryCode", maybeValue String (shCountry hs))
     , ("dsWebAuthToken", maybeValue String (shSessionToken hs))
-    , ("trustToken", maybeValue String (shTrustToken hs))
+    , ("trustToken", String $ fromMaybe "" $ shTrustToken hs)
     , ("extended_login", Bool True)
+    , ("apple_id", String $ credAccountName creds)
     ]
 
 
