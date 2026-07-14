@@ -792,7 +792,7 @@ validateReq = withJsonRequestHeaders . withBody (encode Null) . validateBase
 accountLogin :: Api -> IO Value
 accountLogin api@Api{apiEndpoints = ep} = do
   savedHdrs <- loadSavedHeaders $ apiSession api
-  let hdrs = homeHeaders ep <> requiredHeaders savedHdrs <> authAttrHeader savedHdrs
+  let hdrs = homeHeaders ep <> withICloudWidgetKey [] <> authAttrHeader savedHdrs
   callHandlingResponse accountLoginReq (withHeaders hdrs) extractOr' api savedHdrs
 
 

@@ -55,7 +55,6 @@ import Network.HTTP.Types
   , HeaderName
   , RequestHeaders
   , hAccept
-  , hContentType
   , hReferer
   , hUserAgent
   , methodGet
@@ -142,7 +141,6 @@ apiRequest =
     { secure = True
     , port = 443
     , method = methodPost
-    , requestHeaders = [(hAccept, "application/json"), (hContentType, "application/json")]
     }
 
 
@@ -214,9 +212,7 @@ twoSvTrust = (`extendPath` "/2sv/trust") . toGet . epAuth
 -- | build the @Request@ to that verifies makes a security code
 verifySecurityCodeReq :: Text -> Endpoints -> Request
 verifySecurityCodeReq codeType =
-  (`extendPath` ("/verify/" <> toS codeType <> "/securitycode"))
-    . withHeaders [(hAccept, "application/json"), (hContentType, "application/json")]
-    . epAuth
+  (`extendPath` ("/verify/" <> toS codeType <> "/securitycode")) . epAuth
 
 
 validateVerification :: Endpoints -> Request
