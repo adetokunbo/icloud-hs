@@ -45,6 +45,7 @@ class LoginEvent m where
   listTwoSaDevices :: State m NeedsTwoSa -> m (State m TwoSaReady)
   beginTwoFa :: State m ReadyForTwoFa -> m (State m TwoFaVerifying)
   verifyTwoFa :: State m TwoFaVerifying -> m (AfterTwoFaVerify (State m))
+  doTrust :: State m DoTrust -> m (State m DoAccountLogin)
   beginTwoSa :: State m ReadyForTwoSa -> m (State m TwoSaVerifying)
   verifyTwoSa :: State m TwoSaVerifying -> m (AfterTwoSaVerify (State m))
 
@@ -137,7 +138,7 @@ twoFaProcess
   -> m (CompletionOutcome (State m))
 twoFaProcess s =
   beginTwoFa s >>= verifyTwoFa >>= \case
-    TwoFaOk x -> acctLogin x >>= onAcctLoginDone
+    TwoFaOk x -> doTrust x >>= acctLogin >>= onAcctLoginDone
     TwoFaRetry x -> twoFaProcess x
 
 
@@ -172,6 +173,7 @@ data LoginFSM s where
   NeedsTwoFa :: Credentials -> LoginFSM NeedsTwoFa
   ReadyForTwoFa :: Credentials -> IO Text -> LoginFSM ReadyForTwoFa
   TwoFaVerifying :: Credentials -> IO Text -> LoginFSM TwoFaVerifying
+  DoTrust :: Credentials -> LoginFSM DoTrust
   NeedsTwoSa :: Credentials -> LoginFSM NeedsTwoSa
   TwoSaReady :: Credentials -> [Setup2SADevice] -> LoginFSM TwoSaReady
   ReadyForTwoSa :: Credentials -> [Setup2SADevice] -> ([Setup2SADevice] -> IO Setup2SADevice) -> IO Text -> LoginFSM ReadyForTwoSa
@@ -233,6 +235,10 @@ data ReadyForTwoFa
 
 -- | Phantom type linked to a unique state in 'LoginFSM'
 data TwoFaVerifying
+
+
+-- | Phantom type linked to a unique state in 'LoginFSM'
+data DoTrust
 
 
 -- | Phantom type linked to a unique state in 'LoginFSM'
@@ -300,7 +306,7 @@ data AfterAcctLogin f
 
 -- | The valid states after 'verifyTwoFa'
 data AfterTwoFaVerify f
-  = TwoFaOk (f DoAccountLogin)
+  = TwoFaOk (f DoTrust)
   | TwoFaRetry (f ReadyForTwoFa)
 
 

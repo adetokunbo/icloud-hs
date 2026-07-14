@@ -129,7 +129,7 @@ import Network.ICloud.Internal.Endpoints
   , signinCompleteBase
   , signinInitBase
   , toPut
-
+  , twoSvTrust
   , validateBase
   , validateVerification
   , verifySecurityCodeReq
@@ -436,8 +436,14 @@ instance LoginEvent (ReaderT Api IO) where
     code <- liftIO readCode
     ok <- liftIO $ verifyTwoFaCode api code
     pure $ if ok
-      then TwoFaOk  $ DoAccountLogin creds
+      then TwoFaOk  $ DoTrust creds
       else TwoFaRetry $ ReadyForTwoFa creds readCode
+
+
+  doTrust (DoTrust creds) = do
+    api <- ask
+    liftIO $ doTrustStep api
+    pure $ DoAccountLogin creds
 
 
   beginTwoSa (ReadyForTwoSa creds devices pickDevice readCode) = do
@@ -797,6 +803,15 @@ triggerTwoFaPush api@Api{apiEndpoints = ep} = do
   let req = withHeaders (requiredHeaders savedHdrs)
               (toPut (extendPath (epAuth ep) "/verify/trusteddevice/securitycode"))
   void (rawRequest api req) `catch` \(_ :: IOException) -> pure ()
+
+
+doTrustStep :: Api -> IO ()
+doTrustStep api@Api{apiEndpoints = ep} = do
+  savedHdrs <- loadSavedHeaders (apiSession api)
+  let req = withHeaders (requiredHeaders savedHdrs) (twoSvTrust ep)
+  resp <- rawRequest api req
+  unless (statusCode (responseStatus resp) < 400) $
+    throwIO $ UnexpectedResponse $ showStatusOf resp
 
 
 verifyTwoFaCode :: Api -> AuthCode -> IO Bool

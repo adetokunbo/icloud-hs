@@ -55,7 +55,7 @@ spec = describe "Network.ICloud.Http.login" $ do
         isAuthenticated <$> login api `shouldReturn` True
 
   it "completes 2FA automatically when accountLogin requires 2FA" $
-    withFreshMockApi "icloud-auth-mock" defaultScenario{snAccountLoginNeeds2FA = True} $ \api -> do
+    withFreshMockApi "icloud-auth-mock" defaultScenario{snAccountLoginNeeds2FA = 1} $ \api -> do
       isAuthenticated <$> loginWith (pure "123456") (\_ -> pure testDevice) api `shouldReturn` True
 
   it "complete2SA returns Authenticated after 2SA challenge" $

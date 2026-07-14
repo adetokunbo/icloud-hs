@@ -8,7 +8,7 @@ import qualified Data.ByteString.Char8 as BS8
 import Data.IORef (readIORef)
 import Data.List (find)
 import Data.Maybe (fromJust)
-import ICloud.Mock (Scenario (..), SrpOutcome (..), defaultScenario, withMockAppCapturing)
+import ICloud.Mock (Scenario (..), defaultScenario, withMockAppCapturing)
 import Network.HTTP.Client (Request (..), defaultManagerSettings, defaultRequest, newManager)
 import Network.HTTP.Types (RequestHeaders, hAccept, hContentType, methodPost)
 import Network.ICloud.Http (login, loginWith, mkApiWith)
@@ -33,7 +33,7 @@ spec = describe "Network.ICloud.Http request headers" $ do
         `shouldSatisfy` hasJsonContentHeaders
 
   it "2sv/trust sends Accept: application/json" $
-    withCapturedLogin (\_ -> pure ()) $ \captured ->
+    withCapturedTwoFa $ \captured ->
       headersFor "/appleauth/auth/2sv/trust" captured
         `shouldSatisfy` hasJsonAccept
 
@@ -53,24 +53,14 @@ spec = describe "Network.ICloud.Http request headers" $ do
         `shouldSatisfy` hasWidgetKey
 
   it "2sv/trust sends X-Apple-Widget-Key" $
-    withCapturedLogin (\_ -> pure ()) $ \captured ->
+    withCapturedTwoFa $ \captured ->
       headersFor "/appleauth/auth/2sv/trust" captured
         `shouldSatisfy` hasWidgetKey
 
-  it "chooseTrustType sends Accept: application/json and X-Apple-Widget-Key" $
+  it "verify/trusteddevice/securitycode sends Content-Type, Accept: application/json, and X-Apple-Widget-Key" $
     withCapturedTwoFa $ \captured ->
-      headersFor "/appleauth/auth" captured
-        `shouldSatisfy` (\hs -> hasJsonAccept hs && hasWidgetKey hs)
-
-  it "verify/phone sends Content-Type, Accept: application/json, and X-Apple-Widget-Key" $
-    withCapturedTwoFa $ \captured ->
-      headersFor "/appleauth/auth/verify/phone" captured
+      headersFor "/appleauth/auth/verify/trusteddevice/securitycode" captured
         `shouldSatisfy` (\hs -> hasJsonContentHeaders hs && hasWidgetKey hs)
-
-  it "verify/phone/securitycode sends Content-Type and Accept: application/json" $
-    withCapturedTwoFa $ \captured ->
-      headersFor "/appleauth/auth/verify/phone/securitycode" captured
-        `shouldSatisfy` hasJsonContentHeaders
 
   it "listDevices sends Accept: application/json and X-Apple-Widget-Key" $
     withCapturedTwoSa $ \captured ->
@@ -103,7 +93,7 @@ withCapturedLogin setup action =
 withCapturedTwoFa :: ([(ByteString, RequestHeaders)] -> IO ()) -> IO ()
 withCapturedTwoFa action =
   withSystemTempDirectory "icloud-auth-headers-2fa" $ \tmpDir ->
-    withMockAppCapturing defaultScenario{snSrpOutcome = SrpNeeds2FA} $ \serverPort capturedRef -> do
+    withMockAppCapturing defaultScenario{snAccountLoginNeeds2FA = 1} $ \serverPort capturedRef -> do
       mgr <- newManager defaultManagerSettings
       api <- mkApiWith (testSession tmpDir) (testEndpoints serverPort) mgr
       _ <- loginWith (pure "123456") (\_ -> pure testDevice) api

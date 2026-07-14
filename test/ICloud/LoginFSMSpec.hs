@@ -113,6 +113,9 @@ instance LoginEvent TestM where
   beginTwoFa (TestState ()) = pure (TestState ())
 
 
+  doTrust (TestState ()) = pure (TestState ())
+
+
   verifyTwoFa (TestState ()) = do
     result <- popTwoFa
     pure $ if result then TwoFaOk (TestState ()) else TwoFaRetry (TestState ())

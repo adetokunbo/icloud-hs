@@ -29,8 +29,8 @@ data Scenario = Scenario
   -- ^ when True, the first validateVerificationCode call returns 400
   , snAccountLoginNeeds2SA :: Bool
   -- ^ when True, the first accountLogin call returns a 2SA-required response
-  , snAccountLoginNeeds2FA :: Bool
-  -- ^ when True, the first accountLogin call returns a 2FA-required response
+  , snAccountLoginNeeds2FA :: Int
+  -- ^ countdown: serve login_2fa_test.json while > 0, then loginWorking
   , snSrpCompleteEmptyError :: Bool
   -- ^ when True, signin/complete returns 401 with no body or Content-Type
   }
@@ -43,7 +43,7 @@ defaultScenario =
     , snSrpOutcome = SrpOk
     , snValidateCodeFails = False
     , snAccountLoginNeeds2SA = False
-    , snAccountLoginNeeds2FA = False
+    , snAccountLoginNeeds2FA = 0
     , snSrpCompleteEmptyError = False
     }
 
@@ -150,7 +150,7 @@ mockApp
         n <- readIORef accountLoginRef
         writeIORef accountLoginRef (n + 1)
         pure $
-          if snAccountLoginNeeds2FA scenario && n == 0
+          if snAccountLoginNeeds2FA scenario > n
             then json status200 login2fa
             else if snAccountLoginNeeds2SA scenario && n == 0
               then json status200 login2sa
