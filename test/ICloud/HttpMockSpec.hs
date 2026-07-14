@@ -150,7 +150,7 @@ writeSavedHeaders :: FilePath -> IO ()
 writeSavedHeaders tmpDir = do
   let creds = Credentials "alice@example.com" "password123"
       hdrsPath = savedHeadersPath tmpDir creds
-      hdrs = SavedHeaders Nothing Nothing (Just "test-token") Nothing Nothing
+      hdrs = SavedHeaders Nothing Nothing Nothing (Just "test-token") Nothing Nothing
   encodeFile hdrsPath hdrs
 
 

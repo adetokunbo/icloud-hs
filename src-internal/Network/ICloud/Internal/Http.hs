@@ -7,6 +7,7 @@ module Network.ICloud.Internal.Http
   , PasswordProtocol (..)
   , KeyDeriver (..)
   , SrpContext (..)
+  , hAuthAttributes
   , hCounter
   , hCountry
   , hSessionId
@@ -81,7 +82,8 @@ data SrpContext = SrpContext
 
 
 -- | @HeaderName@s used to capture session info from HTTP responses
-hCountry, hSessionId, hSessionToken, hTrustToken, hCounter :: HeaderName
+hAuthAttributes, hCountry, hSessionId, hSessionToken, hTrustToken, hCounter :: HeaderName
+hAuthAttributes = mk "X-Apple-Auth-Attributes"
 hCountry = mk "X-Apple-ID-Account-Country"
 hSessionId = mk "X-Apple-ID-Session-Id"
 hSessionToken = mk "X-Apple-Session-Token"

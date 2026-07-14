@@ -142,6 +142,7 @@ import Network.ICloud.Internal.Http
   ( KeyDeriver (..)
   , PasswordProtocol (..)
   , SrpContext (..)
+  , hAuthAttributes
   , hCounter
   , hSessionId
   , validateSetupBody
@@ -787,15 +788,14 @@ validateReq = withJsonRequestHeaders . withBody (encode Null) . validateBase
 
 
 accountLogin :: Api -> IO Value
-accountLogin api@Api{apiEndpoints = ep, apiSession = sess} = do
+accountLogin api@Api{apiEndpoints = ep} = do
   savedHdrs <- loadSavedHeaders $ apiSession api
-  let hdrs = homeHeaders ep <> requiredHeaders savedHdrs
-      creds = sessionCreds sess
-  callHandlingResponse (accountLoginReq creds) (withHeaders hdrs) extractOr' api savedHdrs
+  let hdrs = homeHeaders ep <> requiredHeaders savedHdrs <> authAttrHeader savedHdrs
+  callHandlingResponse accountLoginReq (withHeaders hdrs) extractOr' api savedHdrs
 
 
-accountLoginReq :: Credentials -> Endpoints -> SavedHeaders -> Request
-accountLoginReq creds = mkJsonRequest accountLoginBase (accountLoginValue creds)
+accountLoginReq :: Endpoints -> SavedHeaders -> Request
+accountLoginReq = mkJsonRequest accountLoginBase accountLoginValue
 
 
 triggerTwoFaPush :: Api -> IO ()
@@ -842,15 +842,18 @@ callRequiredHeaders api@Api{apiSession = s} req = do
   callApi api (withHeaders (requiredHeaders savedHdrs) req) >>= extractOr'
 
 
-accountLoginValue :: Credentials -> SavedHeaders -> Value
-accountLoginValue creds hs =
+accountLoginValue :: SavedHeaders -> Value
+accountLoginValue hs =
   asObject
     [ ("accountCountryCode", maybeValue String (shCountry hs))
     , ("dsWebAuthToken", maybeValue String (shSessionToken hs))
     , ("trustToken", String $ fromMaybe "" $ shTrustToken hs)
     , ("extended_login", Bool True)
-    , ("apple_id", String $ credAccountName creds)
     ]
+
+
+authAttrHeader :: SavedHeaders -> RequestHeaders
+authAttrHeader savedHdrs = catMaybes [(\v -> (hAuthAttributes, toS v)) <$> shAuthAttributes savedHdrs]
 
 
 newtype ListDevicesReply = ListDevicesReply {ldrDevices :: [Setup2SADevice]}
