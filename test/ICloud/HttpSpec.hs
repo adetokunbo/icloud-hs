@@ -23,6 +23,7 @@ import Network.ICloud.Internal.Http
   , hSessionToken
   , hTrustToken
   , phoneCodeBody
+  , phoneTriggerBody
   , validateSetupBody
   )
 import Network.ICloud.Internal.Session
@@ -49,6 +50,7 @@ spec = describe "module Network.ICloud.Http" $ do
   passwordProtocolSpec
   validateSetupBodySpec
   phoneCodeBodySpec
+  phoneTriggerBodySpec
 
 
 updateSavedHeadersSpec :: Spec
@@ -127,10 +129,31 @@ phoneCodeBodySpec = describe "phoneCodeBody" $ do
     field verifyBody "mode" `shouldBe` Just (String "sms")
   it "sets securityCode.code to empty string when requesting SMS" $
     codeField requestBody "code" `shouldBe` Just (String "")
+  it "defaults mode to sms when tpnPushMode is Nothing" $
+    field (phoneCodeBody noModePhone "123") "mode" `shouldBe` Just (String "sms")
  where
   phone = TrustedPhone 1 "+81 test" (Just "sms")
+  noModePhone = TrustedPhone 1 "+81 test" Nothing
   verifyBody = phoneCodeBody phone "654321"
   requestBody = phoneCodeBody phone ""
   field b k = parseMaybe (withObject "body" (.: k)) b
   phoneField b k = field b "phoneNumber" >>= parseMaybe (withObject "phoneNumber" (.: k))
   codeField b k = field b "securityCode" >>= parseMaybe (withObject "securityCode" (.: k))
+
+
+phoneTriggerBodySpec :: Spec
+phoneTriggerBodySpec = describe "phoneTriggerBody" $ do
+  it "sets phoneNumber.id to the TrustedPhone id" $
+    phoneField triggerBody "id" `shouldBe` Just (Number 1)
+  it "sets mode to the tpnPushMode value" $
+    field triggerBody "mode" `shouldBe` Just (String "sms")
+  it "defaults mode to sms when tpnPushMode is Nothing" $
+    field (phoneTriggerBody noModePhone) "mode" `shouldBe` Just (String "sms")
+  it "does not include a securityCode field" $
+    field triggerBody "securityCode" `shouldBe` (Nothing :: Maybe Value)
+ where
+  phone = TrustedPhone 1 "+81 test" (Just "sms")
+  noModePhone = TrustedPhone 1 "+81 test" Nothing
+  triggerBody = phoneTriggerBody phone
+  field b k = parseMaybe (withObject "body" (.: k)) b
+  phoneField b k = field b "phoneNumber" >>= parseMaybe (withObject "phoneNumber" (.: k))
