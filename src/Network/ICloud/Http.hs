@@ -142,7 +142,6 @@ import Network.ICloud.Internal.Http
   ( KeyDeriver (..)
   , PasswordProtocol (..)
   , SrpContext (..)
-  , hAuthAttributes
   , hCounter
   , hSessionId
   , validateSetupBody
@@ -739,7 +738,9 @@ runSigninComplete api@Api{apiSession = session} kd results = do
 
 signinComplete :: Api -> SigninCompletion -> IO ()
 signinComplete api sc = do
-  resp <- callApi api (signinCompleteReq (apiEndpoints api) sc) :: IO (Response (ApiResponse ()))
+  savedHdrs <- loadSavedHeaders (apiSession api)
+  let req = withHeaders (authHeaders api savedHdrs) $ signinCompleteReq (apiEndpoints api) sc
+  resp <- callApi api req :: IO (Response (ApiResponse ()))
   handleSigninComplete resp
 
 
@@ -792,7 +793,7 @@ validateReq = withJsonRequestHeaders . withBody (encode Null) . validateBase
 accountLogin :: Api -> IO Value
 accountLogin api@Api{apiEndpoints = ep} = do
   savedHdrs <- loadSavedHeaders $ apiSession api
-  let hdrs = homeHeaders ep <> withICloudWidgetKey [] <> authAttrHeader savedHdrs
+  let hdrs = homeHeaders ep
   callHandlingResponse accountLoginReq (withHeaders hdrs) extractOr' api savedHdrs
 
 
@@ -852,10 +853,6 @@ accountLoginValue hs =
     , ("trustToken", String $ fromMaybe "" $ shTrustToken hs)
     , ("extended_login", Bool True)
     ]
-
-
-authAttrHeader :: SavedHeaders -> RequestHeaders
-authAttrHeader savedHdrs = catMaybes [(\v -> (hAuthAttributes, toS v)) <$> shAuthAttributes savedHdrs]
 
 
 newtype ListDevicesReply = ListDevicesReply {ldrDevices :: [Setup2SADevice]}

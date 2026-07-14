@@ -182,16 +182,16 @@ acceptJson = (hAccept, "application/json")
 
 -- | build the basic @Request@ to make the initiate signin
 signinInitBase :: Endpoints -> Request
-signinInitBase =
-  let
-    withQuery x = x{queryString = "?isRememberMeEnabled=true"}
-   in
-    withQuery . (`extendPath` "/signin/init") . epAuth
+signinInitBase = (`extendPath` "/signin/init") . epAuth
 
 
 -- | build the basic @Request@ to complete signin
 signinCompleteBase :: Endpoints -> Request
-signinCompleteBase = (`extendPath` "/signin/complete") . epAuth
+signinCompleteBase =
+  let
+    withQuery x = x{queryString = "?isRememberMeEnabled=true"}
+   in
+    withQuery . (`extendPath` "/signin/complete") . epAuth
 
 
 -- | build the basic @Request@ to that validates user credentials
