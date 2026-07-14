@@ -11,7 +11,7 @@ import qualified Data.ByteString.Char8 as BS8
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Maybe (fromJust)
 import qualified Data.Text as Text
-import ICloud.Mock (Scenario (..), defaultScenario, withMockApp)
+import ICloud.Mock (Scenario (..), SrpOutcome (..), defaultScenario, withMockApp, withMockAppCapturing)
 import Network.HTTP.Client (Request (..), defaultManagerSettings, defaultRequest, newManager)
 import Network.HTTP.Types (methodPost)
 import Network.ICloud.Http
@@ -86,6 +86,16 @@ spec = describe "Network.ICloud.Http.login" $ do
     withFreshMockApi "icloud-auth-2sa-retry" defaultScenario{snValidateCodeFails = True} $ \api -> do
       result <- complete2SAWith (\_ -> pure testDevice) readCode api [testDevice]
       isAuthenticated result `shouldBe` True
+
+  it "does not call POST /appleauth/auth after signin/complete returns 409" $
+    withSystemTempDirectory "icloud-auth-no-choosetrust" $ \tmpDir -> do
+      let scenario = defaultScenario{snSrpOutcome = SrpNeeds2FA, snAccountLoginNeeds2FA = 1}
+      withMockAppCapturing scenario $ \serverPort capturedRef -> do
+        mgr <- newManager defaultManagerSettings
+        api <- mkApiWith (testSession tmpDir) (testEndpoints serverPort) mgr
+        _ <- loginWith (pure "123456") (\_ -> pure testDevice) api
+        captured <- readIORef capturedRef
+        map fst captured `shouldSatisfy` notElem "/appleauth/auth"
 
 
 withMockApi :: FilePath -> Scenario -> (Api -> IO a) -> IO a
