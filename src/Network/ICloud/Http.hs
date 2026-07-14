@@ -439,14 +439,19 @@ instance LoginEvent (ReaderT Api IO) where
 
   beginTwoFa (ReadyForTwoFa creds td pickPhone readCode) = do
     api <- ask
-    liftIO $ triggerTwoFaPush api
-    pure $ TwoFaVerifying creds td pickPhone readCode
+    mbPhone <- liftIO $ pickPhone td
+    liftIO $ case mbPhone of
+      Nothing -> triggerTwoFaPush api
+      Just phone -> requestSmsCode api phone
+    pure $ TwoFaVerifying creds td mbPhone pickPhone readCode
 
 
-  verifyTwoFa (TwoFaVerifying creds td pickPhone readCode) = do
+  verifyTwoFa (TwoFaVerifying creds td mbPhone pickPhone readCode) = do
     api <- ask
     code <- liftIO readCode
-    ok <- liftIO $ verifyTwoFaCode api code
+    ok <- liftIO $ case mbPhone of
+      Nothing -> verifyTwoFaCode api code
+      Just phone -> verifySmsCode api phone code
     pure $
       if ok
         then TwoFaOk $ DoTrust creds

@@ -26,7 +26,7 @@ import Network.ICloud.Http.Endpoints (Endpoints (..))
 import Network.ICloud.Internal.HttpErrors (AuthError (..))
 import Network.ICloud.Internal.Session (SavedHeaders (..), savedHeadersPath)
 import Network.ICloud.Session (Credentials (..), Session (..))
-import Network.ICloud.Trust (Setup2SADevice)
+import Network.ICloud.Trust (Setup2SADevice, TrustedPhone (..))
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
 import Test.Hspec (Spec, describe, it, shouldBe, shouldReturn, shouldSatisfy)
@@ -86,6 +86,11 @@ spec = describe "Network.ICloud.Http.login" $ do
     withFreshMockApi "icloud-auth-2sa-retry" defaultScenario{snValidateCodeFails = True} $ \api -> do
       result <- complete2SAWith (\_ -> pure testDevice) readCode api [testDevice]
       isAuthenticated result `shouldBe` True
+
+  it "completes 2FA via SMS when phone selector returns a phone" $
+    withFreshMockApi "icloud-auth-2fa-sms" defaultScenario{snAccountLoginNeeds2FA = 1} $ \api -> do
+      isAuthenticated <$> loginWith (pure "654321") (\_ -> pure (Just testPhone)) (\_ -> pure testDevice) api
+        `shouldReturn` True
 
   it "calls GET /appleauth/auth when accountLogin requires 2FA" $
     withSystemTempDirectory "icloud-auth-fetches-trust" $ \tmpDir -> do
@@ -164,3 +169,7 @@ testDevice =
   fromJust $
     decode
       "{\"deviceType\":\"SMS\",\"areaCode\":\"\",\"phoneNumber\":\"*******58\",\"deviceId\":\"1\"}"
+
+
+testPhone :: TrustedPhone
+testPhone = TrustedPhone 1 "+81 test" (Just "sms")

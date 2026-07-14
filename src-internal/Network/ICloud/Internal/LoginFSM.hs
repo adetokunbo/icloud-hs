@@ -172,7 +172,7 @@ data LoginFSM s where
   AuthComplete :: Credentials -> AccountData -> LoginFSM AuthComplete
   NeedsTwoFa :: Credentials -> LoginFSM NeedsTwoFa
   ReadyForTwoFa :: Credentials -> TrustData -> (TrustData -> IO (Maybe TrustedPhone)) -> IO Text -> LoginFSM ReadyForTwoFa
-  TwoFaVerifying :: Credentials -> TrustData -> (TrustData -> IO (Maybe TrustedPhone)) -> IO Text -> LoginFSM TwoFaVerifying
+  TwoFaVerifying :: Credentials -> TrustData -> Maybe TrustedPhone -> (TrustData -> IO (Maybe TrustedPhone)) -> IO Text -> LoginFSM TwoFaVerifying
   DoTrust :: Credentials -> LoginFSM DoTrust
   NeedsTwoSa :: Credentials -> LoginFSM NeedsTwoSa
   TwoSaReady :: Credentials -> [Setup2SADevice] -> LoginFSM TwoSaReady
