@@ -174,6 +174,8 @@ import Network.ICloud.Internal.LoginFSM
   , LoginEvent (..)
   , LoginFSM (..)
   , LoginOutcome (..)
+  , TwoFaConfig (..)
+  , TwoSaConfig (..)
   , loginProcess
   , twoFaProcess
   , twoSaProcess
@@ -440,18 +442,18 @@ instance LoginEvent (ReaderT Api IO) where
     pure $ TwoSaReady creds devices
 
 
-  beginTwoFa (ReadyForTwoFa creds td pickPhone readCode) = do
+  beginTwoFa (ReadyForTwoFa creds td) TwoFaConfig{tfcPickPhone} = do
     api <- ask
-    mbPhone <- liftIO $ pickPhone td
+    mbPhone <- liftIO $ tfcPickPhone td
     liftIO $ case mbPhone of
       Nothing -> triggerTwoFaPush api
       Just phone -> requestSmsCode api phone
-    pure $ TwoFaVerifying creds td mbPhone pickPhone readCode
+    pure $ TwoFaVerifying creds td mbPhone
 
 
-  verifyTwoFa (TwoFaVerifying creds _td mbPhone pickPhone readCode) = do
+  verifyTwoFa (TwoFaVerifying creds _td mbPhone) TwoFaConfig{tfcReadCode} = do
     api <- ask
-    code <- liftIO readCode
+    code <- liftIO tfcReadCode
     ok <- liftIO $ case mbPhone of
       Nothing -> verifyTwoFaCode api code
       Just phone -> verifySmsCode api phone code
@@ -463,7 +465,7 @@ instance LoginEvent (ReaderT Api IO) where
         pure $
           if scTooManyCodesValidated cs || scSecurityCodeLocked cs || scSecurityCodeCooldown cs
             then TwoFaLocked $ HaltTwoFaLocked creds
-            else TwoFaRetry $ ReadyForTwoFa creds freshTd pickPhone readCode
+            else TwoFaRetry $ ReadyForTwoFa creds freshTd
 
 
   doTrust (DoTrust creds) = do
@@ -472,21 +474,21 @@ instance LoginEvent (ReaderT Api IO) where
     pure $ DoAccountLogin creds
 
 
-  beginTwoSa (ReadyForTwoSa creds devices pickDevice readCode) = do
+  beginTwoSa (ReadyForTwoSa creds devices) TwoSaConfig{tscPickDevice} = do
     api <- ask
-    device <- liftIO $ pickDevice devices
+    device <- liftIO $ tscPickDevice devices
     liftIO $ sendSetupVerification api device
-    pure $ TwoSaVerifying creds device devices pickDevice readCode
+    pure $ TwoSaVerifying creds device devices
 
 
-  verifyTwoSa (TwoSaVerifying creds device devices pickDevice readCode) = do
+  verifyTwoSa (TwoSaVerifying creds device devices) TwoSaConfig{tscReadCode} = do
     api <- ask
-    code <- liftIO readCode
+    code <- liftIO tscReadCode
     ok <- liftIO $ validateSetupVerification api device code
     pure $
       if ok
         then TwoSaOk $ DoAccountLogin creds
-        else TwoSaRetry $ ReadyForTwoSa creds devices pickDevice readCode
+        else TwoSaRetry $ ReadyForTwoSa creds devices
 
 
 parseAccountData :: Value -> AccountData
@@ -543,8 +545,9 @@ completeTwoFactor api = completeTwoFactorWith pleaseReadCode (\_ -> pure Nothing
 completeTwoFactorWith :: IO AuthCode -> (TrustData -> IO (Maybe TrustedPhone)) -> Api -> IO AuthState
 completeTwoFactorWith readCode pickPhone api = do
   td <- fetchTrustData api
-  let start = ReadyForTwoFa (sessionCreds (apiSession api)) td pickPhone readCode
-  runReaderT (twoFaProcess start) api >>= \case
+  let start = ReadyForTwoFa (sessionCreds (apiSession api)) td
+      cfg = TwoFaConfig{tfcPickPhone = pickPhone, tfcReadCode = readCode}
+  runReaderT (twoFaProcess start cfg) api >>= \case
     CompletionAuthenticated (AuthComplete _ ad) -> pure $ Authenticated (apiSession api) ad
     CompletionNeedsTwoFa _ -> throwIO $ UnexpectedResponse "accountLogin still requires 2FA after verification"
     CompletionNeedsTwoSa (TwoSaReady _ ds) -> pure $ Requires2SA (apiSession api) ds
@@ -564,8 +567,9 @@ complete2SAWith
   -> [Setup2SADevice]
   -> IO AuthState
 complete2SAWith pickDevice readCode api devices = do
-  let start = ReadyForTwoSa (sessionCreds (apiSession api)) devices pickDevice readCode
-  runReaderT (twoSaProcess start) api >>= \case
+  let start = ReadyForTwoSa (sessionCreds (apiSession api)) devices
+      cfg = TwoSaConfig{tscPickDevice = pickDevice, tscReadCode = readCode}
+  runReaderT (twoSaProcess start cfg) api >>= \case
     CompletionAuthenticated (AuthComplete _ ad) -> pure $ Authenticated (apiSession api) ad
     CompletionNeedsTwoFa _ -> throwIO $ UnexpectedResponse "accountLogin requires 2FA after 2SA verification"
     CompletionNeedsTwoSa (TwoSaReady _ ds) -> pure $ Requires2SA (apiSession api) ds

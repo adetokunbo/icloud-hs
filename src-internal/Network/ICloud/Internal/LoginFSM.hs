@@ -23,6 +23,24 @@ import Network.ICloud.Internal.Session (AccountData, Credentials, SavedHeaders)
 import Network.ICloud.Internal.Trust (Setup2SADevice, TrustData, TrustedPhone)
 
 
+-- | Configuration for the 2FA challenge process.
+data TwoFaConfig = TwoFaConfig
+  { tfcPickPhone :: TrustData -> IO (Maybe TrustedPhone)
+  -- ^ select a phone to receive an SMS code, or 'Nothing' to use a trusted device push
+  , tfcReadCode :: IO Text
+  -- ^ prompt the user for the verification code
+  }
+
+
+-- | Configuration for the 2SA challenge process.
+data TwoSaConfig = TwoSaConfig
+  { tscPickDevice :: [Setup2SADevice] -> IO Setup2SADevice
+  -- ^ select the device to receive a verification code
+  , tscReadCode :: IO Text
+  -- ^ prompt the user for the verification code
+  }
+
+
 {- | @LoginEvent@ represents the valid events of the Login FSM.
 
 Each event is represent by a typeclass function that is constrained
@@ -43,11 +61,11 @@ class LoginEvent m where
   srpComplete :: State m SrpInitDone -> m (AfterSrpComplete (State m))
   acctLogin :: State m DoAccountLogin -> m (AfterAcctLogin (State m))
   listTwoSaDevices :: State m NeedsTwoSa -> m (State m TwoSaReady)
-  beginTwoFa :: State m ReadyForTwoFa -> m (State m TwoFaVerifying)
-  verifyTwoFa :: State m TwoFaVerifying -> m (AfterTwoFaVerify (State m))
+  beginTwoFa :: State m ReadyForTwoFa -> TwoFaConfig -> m (State m TwoFaVerifying)
+  verifyTwoFa :: State m TwoFaVerifying -> TwoFaConfig -> m (AfterTwoFaVerify (State m))
   doTrust :: State m DoTrust -> m (State m DoAccountLogin)
-  beginTwoSa :: State m ReadyForTwoSa -> m (State m TwoSaVerifying)
-  verifyTwoSa :: State m TwoSaVerifying -> m (AfterTwoSaVerify (State m))
+  beginTwoSa :: State m ReadyForTwoSa -> TwoSaConfig -> m (State m TwoSaVerifying)
+  verifyTwoSa :: State m TwoSaVerifying -> TwoSaConfig -> m (AfterTwoSaVerify (State m))
 
 
 -- | The outcome of 'loginProcess'.
@@ -138,11 +156,12 @@ completionToLogin (CompletionTwoFaLocked x) = LoginHaltTwoFaLocked x
 twoFaProcess
   :: (LoginEvent m, Monad m)
   => State m ReadyForTwoFa
+  -> TwoFaConfig
   -> m (CompletionOutcome (State m))
-twoFaProcess s =
-  beginTwoFa s >>= verifyTwoFa >>= \case
+twoFaProcess s cfg =
+  beginTwoFa s cfg >>= flip verifyTwoFa cfg >>= \case
     TwoFaOk x -> doTrust x >>= acctLogin >>= onAcctLoginDone
-    TwoFaRetry x -> twoFaProcess x
+    TwoFaRetry x -> twoFaProcess x cfg
     TwoFaLocked x -> pure $ CompletionTwoFaLocked x
 
 
@@ -150,11 +169,12 @@ twoFaProcess s =
 twoSaProcess
   :: (LoginEvent m, Monad m)
   => State m ReadyForTwoSa
+  -> TwoSaConfig
   -> m (CompletionOutcome (State m))
-twoSaProcess s =
-  beginTwoSa s >>= verifyTwoSa >>= \case
+twoSaProcess s cfg =
+  beginTwoSa s cfg >>= flip verifyTwoSa cfg >>= \case
     TwoSaOk x -> acctLogin x >>= onAcctLoginDone
-    TwoSaRetry x -> twoSaProcess x
+    TwoSaRetry x -> twoSaProcess x cfg
 
 
 {- | The states of FSM defining the login process.
@@ -175,13 +195,13 @@ data LoginFSM s where
   DoAccountLogin :: Credentials -> LoginFSM DoAccountLogin
   AuthComplete :: Credentials -> AccountData -> LoginFSM AuthComplete
   NeedsTwoFa :: Credentials -> LoginFSM NeedsTwoFa
-  ReadyForTwoFa :: Credentials -> TrustData -> (TrustData -> IO (Maybe TrustedPhone)) -> IO Text -> LoginFSM ReadyForTwoFa
-  TwoFaVerifying :: Credentials -> TrustData -> Maybe TrustedPhone -> (TrustData -> IO (Maybe TrustedPhone)) -> IO Text -> LoginFSM TwoFaVerifying
+  ReadyForTwoFa :: Credentials -> TrustData -> LoginFSM ReadyForTwoFa
+  TwoFaVerifying :: Credentials -> TrustData -> Maybe TrustedPhone -> LoginFSM TwoFaVerifying
   DoTrust :: Credentials -> LoginFSM DoTrust
   NeedsTwoSa :: Credentials -> LoginFSM NeedsTwoSa
   TwoSaReady :: Credentials -> [Setup2SADevice] -> LoginFSM TwoSaReady
-  ReadyForTwoSa :: Credentials -> [Setup2SADevice] -> ([Setup2SADevice] -> IO Setup2SADevice) -> IO Text -> LoginFSM ReadyForTwoSa
-  TwoSaVerifying :: Credentials -> Setup2SADevice -> [Setup2SADevice] -> ([Setup2SADevice] -> IO Setup2SADevice) -> IO Text -> LoginFSM TwoSaVerifying
+  ReadyForTwoSa :: Credentials -> [Setup2SADevice] -> LoginFSM ReadyForTwoSa
+  TwoSaVerifying :: Credentials -> Setup2SADevice -> [Setup2SADevice] -> LoginFSM TwoSaVerifying
   HaltInvalidSrp :: Credentials -> LoginFSM HaltInvalidSrp
   HaltTwoFaLocked :: Credentials -> LoginFSM HaltTwoFaLocked
 

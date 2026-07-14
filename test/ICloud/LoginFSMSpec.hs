@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
-
-{- HLINT ignore "Use tuple-section" -}
 
 module ICloud.LoginFSMSpec
   ( spec
@@ -114,13 +114,13 @@ instance LoginEvent TestM where
   listTwoSaDevices (TestState ()) = pure (TestState ())
 
 
-  beginTwoFa (TestState ()) = pure (TestState ())
+  beginTwoFa (TestState ()) _cfg = pure (TestState ())
 
 
   doTrust (TestState ()) = pure (TestState ())
 
 
-  verifyTwoFa (TestState ()) = do
+  verifyTwoFa (TestState ()) _cfg = do
     result <- popTwoFa
     if result
       then pure $ TwoFaOk (TestState ())
@@ -130,10 +130,10 @@ instance LoginEvent TestM where
           else TwoFaRetry (TestState ())
 
 
-  beginTwoSa (TestState ()) = pure (TestState ())
+  beginTwoSa (TestState ()) _cfg = pure (TestState ())
 
 
-  verifyTwoSa (TestState ()) = do
+  verifyTwoSa (TestState ()) _cfg = do
     result <- popTwoSa
     pure $ if result then TwoSaOk (TestState ()) else TwoSaRetry (TestState ())
 
@@ -173,11 +173,19 @@ runScript s = outcomeOf $ runTestM loginProcess s
 
 
 runTwoFaScript :: Script -> Outcome
-runTwoFaScript s = completionOutcomeOf $ runTestM (twoFaProcess (TestState ())) s
+runTwoFaScript s = completionOutcomeOf $ runTestM (twoFaProcess (TestState ()) dummyTwoFaConfig) s
 
 
 runTwoSaScript :: Script -> Outcome
-runTwoSaScript s = completionOutcomeOf $ runTestM (twoSaProcess (TestState ())) s
+runTwoSaScript s = completionOutcomeOf $ runTestM (twoSaProcess (TestState ()) dummyTwoSaConfig) s
+
+
+dummyTwoFaConfig :: TwoFaConfig
+dummyTwoFaConfig = TwoFaConfig{tfcPickPhone = \_ -> pure Nothing, tfcReadCode = pure ""}
+
+
+dummyTwoSaConfig :: TwoSaConfig
+dummyTwoSaConfig = TwoSaConfig{tscPickDevice = pure . head, tscReadCode = pure ""}
 
 
 spec :: Spec
@@ -242,7 +250,7 @@ instance Functor TestM where
 
 
 instance Applicative TestM where
-  pure a = TestM $ \s -> (a, s)
+  pure a = TestM (a,)
   TestM mf <*> TestM ma = TestM $ \s ->
     let (f, s') = mf s
         (a, s'') = ma s'
