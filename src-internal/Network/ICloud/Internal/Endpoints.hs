@@ -21,6 +21,7 @@ module Network.ICloud.Internal.Endpoints
   , validateBase
   , accountLoginBase
   , twoSvTrust
+  , twoFaOptionsBase
   , verifySecurityCodeReq
   , validateVerification
   , sendVerification
@@ -207,6 +208,11 @@ accountLoginBase = (`extendPath` "/accountLogin") . epSetup
 -- | build the basic @Request@ to that makes the saved credentials trusted
 twoSvTrust :: Endpoints -> Request
 twoSvTrust = (`extendPath` "/2sv/trust") . toGet . epAuth
+
+
+-- | build the @Request@ to fetch the 2FA options after the 409 from signin/complete
+twoFaOptionsBase :: Endpoints -> Request
+twoFaOptionsBase = toGet . epAuth
 
 
 -- | build the @Request@ to that verifies makes a security code

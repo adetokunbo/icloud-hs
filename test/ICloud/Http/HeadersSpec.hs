@@ -11,7 +11,7 @@ import Data.Maybe (fromJust)
 import ICloud.Mock (Scenario (..), defaultScenario, withMockAppCapturing)
 import Network.HTTP.Client (Request (..), defaultManagerSettings, defaultRequest, newManager)
 import Network.HTTP.Types (RequestHeaders, hAccept, hContentType, methodPost)
-import Network.ICloud.Http (login, loginWith, mkApiWith)
+import Network.ICloud.Http (fetchTrustData, login, loginWith, mkApiWith)
 import Network.ICloud.Http.Endpoints (Endpoints (..))
 import Network.ICloud.Internal.Session (SavedHeaders (..), savedHeadersPath)
 import Network.ICloud.Session (Credentials (..), Session (..))
@@ -82,6 +82,11 @@ spec = describe "Network.ICloud.Http request headers" $ do
       headersFor "/setup/ws/1/validateVerificationCode" captured
         `shouldSatisfy` (\hs -> hasJsonContentHeaders hs && hasWidgetKey hs)
 
+  it "GET /appleauth/auth sends scnt, X-Apple-ID-Session-Id, and X-Apple-Widget-Key" $
+    withCapturedFetchTrustData $ \captured ->
+      headersFor "/appleauth/auth" captured
+        `shouldSatisfy` (\hs -> hasWidgetKey hs && hasScnt hs && hasSessionId hs)
+
 
 withCapturedLogin :: (FilePath -> IO ()) -> ([(ByteString, RequestHeaders)] -> IO ()) -> IO ()
 withCapturedLogin setup action =
@@ -117,10 +122,29 @@ withCapturedTwoSa action =
       action captured
 
 
+withCapturedFetchTrustData :: ([(ByteString, RequestHeaders)] -> IO ()) -> IO ()
+withCapturedFetchTrustData action =
+  withSystemTempDirectory "icloud-auth-headers-trustdata" $ \tmpDir -> do
+    writeSavedHeadersWithSession tmpDir
+    withMockAppCapturing defaultScenario $ \serverPort capturedRef -> do
+      mgr <- newManager defaultManagerSettings
+      api <- mkApiWith (testSession tmpDir) (testEndpoints serverPort) mgr
+      _ <- fetchTrustData api
+      captured <- readIORef capturedRef
+      action captured
+
+
 writeSavedHeaders :: FilePath -> IO ()
 writeSavedHeaders tmpDir = do
   let creds = Credentials "alice@example.com" "password123"
       hdrs = SavedHeaders Nothing Nothing Nothing (Just "test-token") Nothing Nothing
+  encodeFile (savedHeadersPath tmpDir creds) hdrs
+
+
+writeSavedHeadersWithSession :: FilePath -> IO ()
+writeSavedHeadersWithSession tmpDir = do
+  let creds = Credentials "alice@example.com" "password123"
+      hdrs = SavedHeaders Nothing Nothing (Just "test-session-id") Nothing Nothing (Just "test-scnt")
   encodeFile (savedHeadersPath tmpDir creds) hdrs
 
 
@@ -151,6 +175,16 @@ hasOrigin (Just hs) = any (\(n, _) -> n == "Origin") hs
 
 hasJsonContentHeaders :: Maybe RequestHeaders -> Bool
 hasJsonContentHeaders hs = hasJsonAccept hs && hasJsonContentType hs
+
+
+hasScnt :: Maybe RequestHeaders -> Bool
+hasScnt Nothing = False
+hasScnt (Just hs) = any (\(n, _) -> n == "scnt") hs
+
+
+hasSessionId :: Maybe RequestHeaders -> Bool
+hasSessionId Nothing = False
+hasSessionId (Just hs) = any (\(n, _) -> n == "X-Apple-ID-Session-Id") hs
 
 
 testSession :: FilePath -> Session

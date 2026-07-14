@@ -44,6 +44,9 @@ module Network.ICloud.Http
   , login
   , loginWith
 
+    -- * Fetching two-factor options
+  , fetchTrustData
+
     -- * Completing two-factor challenges
   , completeTwoFactor
   , completeTwoFactorWith
@@ -128,6 +131,7 @@ import Network.ICloud.Internal.Endpoints
   , signinCompleteBase
   , signinInitBase
   , toPut
+  , twoFaOptionsBase
   , twoSvTrust
   , validateBase
   , validateVerification
@@ -185,7 +189,8 @@ import Network.ICloud.Internal.Session
   , updateSessionSavedHeaders
   )
 import Network.ICloud.Internal.Trust
-  ( pleaseReadCode
+  ( TrustData
+  , pleaseReadCode
   , selectSetupDevice
   )
 import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..))
@@ -466,6 +471,14 @@ instance LoginEvent (ReaderT Api IO) where
 
 parseAccountData :: Value -> AccountData
 parseAccountData v = fromMaybe unknownAccountData $ parseMaybe parseJSON v
+
+
+-- | Fetch the 2FA options immediately after the 409 from signin/complete
+fetchTrustData :: Api -> IO TrustData
+fetchTrustData api = do
+  savedHdrs <- loadSavedHeaders (apiSession api)
+  let req = withHeaders (requiredHeaders savedHdrs) (twoFaOptionsBase (apiEndpoints api))
+  callApi api req >>= extractOr'
 
 
 -- | Complete a pending 2FA (auth-endpoint) challenge

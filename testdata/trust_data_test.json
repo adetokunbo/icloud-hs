@@ -1,0 +1,13 @@
+{
+  "securityCode": {
+    "length": 6,
+    "tooManyCodesSent": false,
+    "tooManyCodesValidated": false,
+    "securityCodeLocked": false,
+    "securityCodeCooldown": false
+  },
+  "trustedPhoneNumbers": [
+    { "id": 1, "numberWithDialCode": "+81 •• •••• •34", "pushMode": "sms" }
+  ],
+  "noTrustedDevices": false
+}

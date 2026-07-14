@@ -9,13 +9,14 @@ SPDX-License-Identifier: BSD3
 -}
 module ICloud.TrustSpec (spec, encode, genTrustData, genTrustedList) where
 
-import Data.Aeson (Key, Value (..), decode, encode)
+import Data.Aeson (Key, Value (..), decode, eitherDecodeFileStrict, encode)
 import Data.Aeson.KeyMap (fromList)
 import Data.Maybe (catMaybes)
 import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified ICloud.Examples as Examples
 import Network.ICloud.Internal.Trust
+import Paths_icloud_auth (getDataFileName)
 import System.IO.Silently (silence)
 import Test.Hspec
   ( Spec
@@ -44,6 +45,10 @@ spec = describe "module Network.ICloud.Trust" $ do
   describe "TrustData" $ do
     context "parsing generated examples to/from JSON" $ do
       it "should succeed" prop_jsonRoundtripTrustData
+    context "parsing a hand-crafted Apple-shaped fixture" $ do
+      it "should succeed" $ do
+        result <- eitherDecodeFileStrict =<< getDataFileName "testdata/trust_data_test.json"
+        result `shouldBe` Right expectedTrustData
 
   describe "Setup2SADevice" $ do
     context "parsing generated examples to/from JSON" $ do
@@ -172,3 +177,12 @@ genExWord = elements Examples.wordz
 
 genExWordMaybe :: Gen (Maybe Text)
 genExWordMaybe = frequency [(1, pure Nothing), (1, Just <$> genExWord)]
+
+
+expectedTrustData :: TrustData
+expectedTrustData =
+  TrustData
+    { tdList = TrustedPhoneNumbers [TrustedPhone 1 "+81 \x2022\x2022 \x2022\x2022\x2022\x2022 \x2022\&34" (Just "sms")]
+    , tdSecurityCode = CodeStatus 6 False False False False
+    , tdNoTrustedDevices = False
+    }

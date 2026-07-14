@@ -64,6 +64,7 @@ withMockAppCapturing scenario action = do
   login2sa <- LBS.readFile =<< getDataFileName "testdata/login_2sa_test.json"
   loginWorking <- LBS.readFile =<< getDataFileName "testdata/login_working_test.json"
   listDevices <- LBS.readFile =<< getDataFileName "testdata/trusted_devices_test.json"
+  trustData <- LBS.readFile =<< getDataFileName "testdata/trust_data_test.json"
   codeAttemptsRef <- newIORef (0 :: Int)
   accountLoginRef <- newIORef (0 :: Int)
   capturedRef <- newIORef []
@@ -77,6 +78,7 @@ withMockAppCapturing scenario action = do
           login2sa
           loginWorking
           listDevices
+          trustData
           codeAttemptsRef
           accountLoginRef
     )
@@ -86,6 +88,7 @@ withMockAppCapturing scenario action = do
 mockApp
   :: Scenario
   -> IORef [(ByteString, RequestHeaders)]
+  -> LBS.ByteString
   -> LBS.ByteString
   -> LBS.ByteString
   -> LBS.ByteString
@@ -102,6 +105,7 @@ mockApp
   login2sa
   loginWorking
   listDevices
+  trustData
   codeAttemptsRef
   accountLoginRef
   req
@@ -111,6 +115,8 @@ mockApp
         segs = pathInfo req
         json st body = responseLBS st jsonHeaders body
     resp <- case (method, segs) of
+      ("GET", ["appleauth", "auth"]) ->
+        pure $ json status200 trustData
       ("POST", ["appleauth", "auth", "signin", "init"]) ->
         pure $ json status200 srpInit
       ("POST", ["appleauth", "auth", "signin", "complete"]) ->
