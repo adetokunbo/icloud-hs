@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
@@ -159,7 +158,7 @@ import Network.ICloud.Internal.Http
 import Network.ICloud.Internal.HttpErrors
   ( ApiResponse
   , AuthError (..)
-  , ExtractOr (..)
+  , extractOr
   )
 import Network.ICloud.Internal.LoginFSM
   ( AfterAcctLogin (..)
@@ -636,7 +635,7 @@ asJson resp = case eitherDecode resp of
   Right x -> pure x
 
 
-extractOr' :: (ExtractOr a b) => Response (b a) -> IO a
+extractOr' :: Response (ApiResponse a) -> IO a
 extractOr' r | statusCode (responseStatus r) >= 400 = throwIO $ UnexpectedResponse $ showStatusOf r
 extractOr' r = extractOr $ responseBody r
 
@@ -699,12 +698,11 @@ callHandlingResponse
   :: (FromJSON a)
   => (Endpoints -> b -> Request)
   -> (Request -> Request)
-  -> (Response (ApiResponse a) -> IO a)
   -> Api
   -> b
   -> IO a
-callHandlingResponse mkReq modReq handleResponse api@Api{apiEndpoints} x =
-  callApi api (modReq $ mkReq apiEndpoints x) >>= handleResponse
+callHandlingResponse mkReq modReq api@Api{apiEndpoints} x =
+  callApi api (modReq $ mkReq apiEndpoints x) >>= extractOr'
 
 
 -- | @HeaderName@ used to represent API session data
@@ -747,7 +745,7 @@ parseSigninInitReply o =
 signinInit :: Api -> FromClient -> IO SigninInitReply
 signinInit api other = do
   savedHdrs <- loadSavedHeaders (apiSession api)
-  callHandlingResponse signinInitReq (withHeaders (authHeaders api savedHdrs)) extractOr' api other
+  callHandlingResponse signinInitReq (withHeaders (authHeaders api savedHdrs)) api other
 
 
 runSigninInit :: Api -> FromClient -> IO (FromServer, KeyDeriver)
@@ -864,7 +862,7 @@ accountLogin :: Api -> IO Value
 accountLogin api@Api{apiEndpoints = ep} = do
   savedHdrs <- loadSavedHeaders $ apiSession api
   let hdrs = homeHeaders ep
-  callHandlingResponse accountLoginReq (withHeaders hdrs) extractOr' api savedHdrs
+  callHandlingResponse accountLoginReq (withHeaders hdrs) api savedHdrs
 
 
 accountLoginReq :: Endpoints -> SavedHeaders -> Request

@@ -11,16 +11,14 @@ import Data.Aeson (Value (..), decode, encode, object)
 import Data.Aeson.Key (fromText)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
-import Data.Maybe (catMaybes, fromMaybe)
+import Data.Maybe (catMaybes)
 import Data.Text (Text)
 import qualified ICloud.Examples as Examples
 import Network.ICloud.Internal.HttpErrors
   ( ApiError (..)
   , ApiResponse (..)
   , AuthError (..)
-  , ExtractOr (..)
-  , SEReply
-  , extractOrRetry
+  , extractOr
   )
 import Test.Hspec (Spec, context, describe, it, shouldReturn)
 import Test.QuickCheck
@@ -108,11 +106,6 @@ authErrorSpec = describe "AuthError" $ do
       catchAuthError' (extractOr (Failed (ApiError "bad" (Just "E1"))))
         `shouldReturn` Right (ServiceError "bad" (Just "E1"))
 
-  context "extractOrRetry on a non-retryable service error" $ do
-    it "throws ServiceError" $
-      catchAuthError' (extractOrRetry nonRetryReply)
-        `shouldReturn` Right (ServiceError "some error:" Nothing)
-
 
 catchAuthError :: AuthError -> IO (Either AuthError AuthError)
 catchAuthError e = try (throwIO e)
@@ -123,9 +116,3 @@ catchAuthError' action =
   try action >>= \case
     Left e -> pure (Right e)
     Right _ -> pure (Left (UnexpectedResponse "expected AuthError but got success"))
-
-
-nonRetryReply :: SEReply ()
-nonRetryReply =
-  let json = "{\"service_errors\":[{\"code\":0,\"title\":\"t\",\"message\":\"some error\"}]}"
-   in fromMaybe (error "nonRetryReply: bad fixture") (decode json)

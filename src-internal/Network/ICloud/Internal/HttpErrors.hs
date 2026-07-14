@@ -1,6 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 {- |
@@ -21,16 +18,8 @@ module Network.ICloud.Internal.HttpErrors
     -- * Public exception type
   , AuthError (..)
 
-    -- * Service-error reply
-
-    {- | 'SEReply' is the result type of 'extractOrRetry'; its type name must be
-    in scope for callers that construct or annotate values of this type.
-    -}
-  , SEReply
-  , extractOrRetry
-
-    -- * Extraction class
-  , ExtractOr (..)
+    -- * Extracting results
+  , extractOr
   )
 where
 
@@ -39,17 +28,13 @@ import Control.Exception (Exception, throwIO)
 import Data.Aeson
   ( FromJSON (..)
   , Object
-  , genericParseJSON
   , withObject
   , (.:)
   , (.:?)
   )
-import Data.Aeson.Casing (aesonPrefix, snakeCase)
 import Data.Aeson.KeyMap (member)
 import Data.Aeson.Types (Parser)
 import Data.Text (Text)
-import qualified Data.Text as Text
-import GHC.Generics (Generic)
 
 
 -- | Represents an API response that may succeed or fail with @ApiError@
@@ -92,9 +77,10 @@ data AuthError
 instance Exception AuthError
 
 
-instance ExtractOr a ApiResponse where
-  extractOr (Succeeded x) = pure x
-  extractOr (Failed x) = throwIO $ ServiceError (aeReason x) (aeCode x)
+-- | Extract the result from an 'ApiResponse', throwing 'ServiceError' on failure.
+extractOr :: ApiResponse a -> IO a
+extractOr (Succeeded x) = pure x
+extractOr (Failed x) = throwIO $ ServiceError (aeReason x) (aeCode x)
 
 
 {-
@@ -120,85 +106,3 @@ parseApiError o =
       orError = o .: "error" <|> (if hasError then pure "unknown error" else empty)
       code = o .: "errorCode" <|> o .:? "serverErrorCode"
    in ApiError <$> reason <*> code
-
-
-data SvcError
-  = SvcError
-  { seCode :: !Int
-  , seTitle :: !Text
-  , seMessage :: !Text
-  }
-  deriving (Eq, Show, Generic)
-
-
-instance FromJSON SvcError where
-  parseJSON = genericParseJSON $ aesonPrefix snakeCase
-
-
-class IsBadCode a where
-  isBadCode :: a -> Bool
-
-
-instance IsBadCode SvcError where
-  isBadCode = (== "Incorrect verification code") . seMessage
-
-
-instance IsBadCode [SvcError] where
-  isBadCode = any isBadCode
-
-
-showSvcErrors :: SvcErrors -> Text
-showSvcErrors (SvcErrors Nothing) = "unexpected non-service error response"
-showSvcErrors (SvcErrors (Just xs)) = Text.concat $ map ((<> ":") . seMessage) xs
-
-
--- | A response that might contain service errors
-newtype SEReply a = SEReply
-  { unSEReply :: Either SvcErrors a
-  }
-  deriving (Eq, Show, Generic)
-
-
-{- | Specifies a function that extracts a result from an 'SEReply' indicating if a
-   retry should be attempted
-
-a result of @Nothing@ indicates a retry is necessary
--}
-extractOrRetry :: SEReply a -> IO (Maybe a)
-extractOrRetry (SEReply (Right x)) = pure (Just x)
-extractOrRetry (SEReply (Left se)) | isBadCode se = pure Nothing
-extractOrRetry (SEReply (Left se)) = throwIO $ ServiceError (showSvcErrors se) Nothing
-
-
-instance (FromJSON a) => FromJSON (SEReply a) where
-  parseJSON =
-    let parseJSON' v = (Left <$> parseJSON v) <|> (Right <$> parseJSON v)
-     in fmap SEReply . parseJSON'
-
-
-newtype SvcErrors = SvcErrors {unSvcErrors :: Maybe [SvcError]}
-  deriving (Eq, Show)
-
-
-instance FromJSON SvcErrors where
-  parseJSON = withObject "SvcErrors" (fmap SvcErrors . parseSvcErrors)
-
-
-instance IsBadCode SvcErrors where
-  isBadCode (SvcErrors Nothing) = False
-  isBadCode (SvcErrors (Just xs)) = isBadCode xs
-
-
-parseSvcErrors :: Object -> Parser (Maybe [SvcError])
-parseSvcErrors o = o .:? "service_errors"
-
-
--- | Specifies a function that extracts a result from a container in IO
-class ExtractOr a b where
-  -- | extract a result type from containing type in IO, reporting errors in IO
-  extractOr :: b a -> IO a
-
-
-instance ExtractOr a SEReply where
-  extractOr (SEReply (Right a)) = pure a
-  extractOr (SEReply (Left se)) = throwIO $ ServiceError (showSvcErrors se) Nothing
