@@ -26,6 +26,7 @@ import Test.Hspec
   , describe
   , it
   , shouldBe
+  , shouldReturn
   )
 import Test.Main (withStdin)
 import Test.QuickCheck
@@ -105,6 +106,35 @@ spec = describe "module Network.ICloud.Trust" $ do
       context "is the maximum number" $ do
         it "should succeed" (prop_selectsWithMaxIndex selectSetupDevice genSetup2SADevice)
 
+  describe "selectTwoFaPhone" $ do
+    context "when noTrustedDevices is True" $ do
+      it "returns the first phone without prompting" $
+        silence (selectTwoFaPhone (mkTrustData True [twoFaPhone1, twoFaPhone2]))
+          `shouldReturn` Just twoFaPhone1
+      it "returns Nothing when the phone list is empty" $
+        silence (selectTwoFaPhone (mkTrustData True []))
+          `shouldReturn` Nothing
+    context "when noTrustedDevices is False" $ do
+      context "and the phone list is empty" $ do
+        it "returns Nothing without prompting" $
+          silence (selectTwoFaPhone (mkTrustData False []))
+            `shouldReturn` Nothing
+      context "and the user presses Enter" $ do
+        it "returns Nothing" $
+          withStdin "\n" $
+            silence (selectTwoFaPhone (mkTrustData False [twoFaPhone1]))
+              `shouldReturn` Nothing
+      context "and the user enters a valid index" $ do
+        it "returns the selected phone" $
+          withStdin "2" $
+            silence (selectTwoFaPhone (mkTrustData False [twoFaPhone1, twoFaPhone2]))
+              `shouldReturn` Just twoFaPhone2
+      context "and the user first enters an invalid index" $ do
+        it "retries and returns the selected phone" $
+          withStdin (toS ("99\n1" :: String)) $
+            silence (selectTwoFaPhone (mkTrustData False [twoFaPhone1, twoFaPhone2]))
+              `shouldReturn` Just twoFaPhone1
+
 
 prop_jsonRoundtripTrustData :: Property
 prop_jsonRoundtripTrustData = forAll genTrustData $ \td ->
@@ -156,6 +186,23 @@ genTrustedList =
     [ (1, TrustedPhoneNumbers <$> listOf1 genTrustedPhone)
     , (1, TrustedDevices <$> listOf1 genTrustedDevice)
     ]
+
+
+twoFaPhone1 :: TrustedPhone
+twoFaPhone1 = TrustedPhone 1 "+81 test-1" (Just "sms")
+
+
+twoFaPhone2 :: TrustedPhone
+twoFaPhone2 = TrustedPhone 2 "+1 test-2" Nothing
+
+
+mkTrustData :: Bool -> [TrustedPhone] -> TrustData
+mkTrustData noDevices phones =
+  TrustData
+    { tdList = TrustedPhoneNumbers phones
+    , tdSecurityCode = CodeStatus 6 False False False False
+    , tdNoTrustedDevices = noDevices
+    }
 
 
 useIOSelector :: (Eq a) => ([a] -> IO a) -> (Int, a, [a]) -> IO Bool
