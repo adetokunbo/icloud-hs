@@ -102,6 +102,17 @@ spec = describe "Network.ICloud.Http.login" $ do
         captured <- readIORef capturedRef
         map fst captured `shouldSatisfy` elem "/appleauth/auth"
 
+  it "completes 2FA via device push after retrying when the first code is wrong" $ do
+    codeRef <- newIORef ["wrongcode", "123456"]
+    let readCode = do
+          codes <- readIORef codeRef
+          case codes of
+            [] -> fail "no more codes"
+            (c : rest) -> writeIORef codeRef rest >> pure c
+    withFreshMockApi "icloud-auth-2fa-retry" defaultScenario{snAccountLoginNeeds2FA = 1, snVerifyDeviceCodeFails = True} $ \api ->
+      isAuthenticated <$> loginWith readCode (\_ -> pure Nothing) (\_ -> pure testDevice) api
+        `shouldReturn` True
+
   it "throws UnexpectedResponse with 2FA locked message when the server signals the account is locked" $
     withFreshMockApi "icloud-auth-2fa-locked" defaultScenario{snAccountLoginNeeds2FA = 1, snVerifyCodeLocks = True} $ \api -> do
       result <- try (loginWith (pure "wrongcode") (\_ -> pure Nothing) (\_ -> pure testDevice) api) :: IO (Either AuthError AuthState)

@@ -35,6 +35,8 @@ data Scenario = Scenario
   -- ^ when True, signin/complete returns 401 with no body or Content-Type
   , snVerifyCodeLocks :: Bool
   -- ^ when True, POST verify/trusteddevice/securitycode returns 400 and GET /appleauth/auth returns locked trust data
+  , snVerifyDeviceCodeFails :: Bool
+  -- ^ when True, the first POST verify/trusteddevice/securitycode returns 400 (non-locking retry)
   }
 
 
@@ -48,6 +50,7 @@ defaultScenario =
     , snAccountLoginNeeds2FA = 0
     , snSrpCompleteEmptyError = False
     , snVerifyCodeLocks = False
+    , snVerifyDeviceCodeFails = False
     }
 
 
@@ -76,6 +79,7 @@ withMockAppCapturing scenario action = do
   listDevices <- LBS.readFile =<< getDataFileName "testdata/trusted_devices_test.json"
   trustData <- LBS.readFile =<< getDataFileName "testdata/trust_data_test.json"
   codeAttemptsRef <- newIORef (0 :: Int)
+  deviceCodeAttemptsRef <- newIORef (0 :: Int)
   accountLoginRef <- newIORef (0 :: Int)
   capturedRef <- newIORef []
   testWithApplication
@@ -90,6 +94,7 @@ withMockAppCapturing scenario action = do
           listDevices
           trustData
           codeAttemptsRef
+          deviceCodeAttemptsRef
           accountLoginRef
     )
     (\port -> action port capturedRef)
@@ -106,6 +111,7 @@ mockApp
   -> LBS.ByteString
   -> IORef Int
   -> IORef Int
+  -> IORef Int
   -> Application
 mockApp
   scenario
@@ -117,6 +123,7 @@ mockApp
   listDevices
   trustData
   codeAttemptsRef
+  deviceCodeAttemptsRef
   accountLoginRef
   req
   respond = do
@@ -142,11 +149,16 @@ mockApp
         pure $ json status200 "{}"
       ("PUT", ["appleauth", "auth", "verify", "trusteddevice", "securitycode"]) ->
         pure $ responseLBS status204 [] ""
-      ("POST", ["appleauth", "auth", "verify", "trusteddevice", "securitycode"]) ->
+      ("POST", ["appleauth", "auth", "verify", "trusteddevice", "securitycode"]) -> do
+        n <- readIORef deviceCodeAttemptsRef
+        writeIORef deviceCodeAttemptsRef (n + 1)
         pure $
           if snVerifyCodeLocks scenario
             then responseLBS status400 [] ""
-            else json status200 "{}"
+            else
+              if snVerifyDeviceCodeFails scenario && n == 0
+                then responseLBS status400 [] ""
+                else json status200 "{}"
       ("PUT", ["appleauth", "auth", "verify", "phone"]) ->
         pure $ json status200 "{}"
       ("POST", ["appleauth", "auth", "verify", "phone", "securitycode"]) ->
