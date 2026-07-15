@@ -7,7 +7,7 @@ Copyright   : (c) 2023 Tim Emiola
 Maintainer  : Tim Emiola <adetokunbo@emio.la>
 SPDX-License-Identifier: BSD3
 -}
-module ICloud.TrustSpec (spec, encode, genTrustData, genTrustedList) where
+module ICloud.TrustSpec (spec, encode, genTrustData, genTrustedList, jsonKeysOf) where
 
 import Data.Aeson (Key, ToJSON (..), Value (..), decode, eitherDecodeFileStrict, encode)
 import Data.Aeson.KeyMap (fromList)

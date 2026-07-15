@@ -12,11 +12,13 @@ module ICloud.SessionSpec (spec) where
 
 import Control.Monad (when)
 import Data.Aeson (decode, eitherDecodeFileStrict, encode, encodeFile)
+import Data.List (sort)
 import qualified Data.Map.Strict as Map
 import Data.String (IsString (..))
 import Data.Text (Text)
 import qualified Data.Text.IO as Text
 import Data.Word (Word16)
+import ICloud.TrustSpec (jsonKeysOf)
 import Network.ICloud.Internal.Session
   ( SavedHeaders (..)
   , accountDataRequires2FA
@@ -95,9 +97,17 @@ sessionSpec = describe "module Network.ICloud.Session" $ do
       it "should be computed correctly" $ do
         let want = "/tmp/icloud_authspec/myaccountid-applecom.client-id.txt"
         clientIdPath topDir exampleCred `shouldBe` want
+  savedHeadersFieldNamesSpec
   loadSessionSpec
   loadSavedHeadersSpec
   updateSessionSavedHeadersSpec
+
+
+savedHeadersFieldNamesSpec :: Spec
+savedHeadersFieldNamesSpec = describe "SavedHeaders JSON field names" $ do
+  it "uses the expected field names" $
+    jsonKeysOf (SavedHeaders (Just "a") (Just "b") (Just "c") (Just "d") (Just "e"))
+      `shouldBe` Just (sort ["country", "session_id", "session_token", "trust_token", "counter"])
 
 
 loadSessionSpec :: Spec
