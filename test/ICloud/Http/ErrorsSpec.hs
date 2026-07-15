@@ -20,7 +20,7 @@ import Network.ICloud.Internal.HttpErrors
   , AuthError (..)
   , extractOr
   )
-import Test.Hspec (Spec, context, describe, it, shouldReturn)
+import Test.Hspec (Spec, context, describe, it, shouldBe, shouldReturn)
 import Test.QuickCheck
   ( Gen
   , Property
@@ -105,6 +105,18 @@ authErrorSpec = describe "AuthError" $ do
     it "throws ServiceError with the ApiError reason and code" $
       catchAuthError' (extractOr (Failed (ApiError "bad" (Just "E1"))))
         `shouldReturn` Right (ServiceError "bad" (Just "E1"))
+
+  context "extractOr on a Succeeded ApiResponse" $ do
+    it "returns the wrapped value" $
+      extractOr (Succeeded (42 :: Int)) `shouldReturn` 42
+
+  context "ApiResponse FromJSON" $ do
+    it "parses a success body as Succeeded" $
+      (decode "{\"length\":6}" :: Maybe (ApiResponse Value))
+        `shouldBe` Just (Succeeded (object [("length", Number 6)]))
+    it "parses an error body as Failed" $
+      (decode "{\"errorMessage\":\"oops\"}" :: Maybe (ApiResponse Value))
+        `shouldBe` Just (Failed (ApiError "oops" Nothing))
 
 
 catchAuthError :: AuthError -> IO (Either AuthError AuthError)
