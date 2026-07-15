@@ -274,8 +274,7 @@ genSaveHeaders :: Gen SavedHeaders
 genSaveHeaders =
   let arb pre = frequency [(2, pure Nothing), (1, Just <$> genIndexedSuffix pre)]
    in SavedHeaders
-        <$> arb "auth-attributes-"
-        <*> arb "country-"
+        <$> arb "country-"
         <*> arb "session-id-"
         <*> arb "session-token-"
         <*> arb "trust-token-"

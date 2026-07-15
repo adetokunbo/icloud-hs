@@ -78,8 +78,7 @@ import Data.UUID.V4 (nextRandom)
 import GHC.Generics (Generic)
 import Network.HTTP.Types.Header (Header)
 import Network.ICloud.Internal.Http
-  ( hAuthAttributes
-  , hCounter
+  ( hCounter
   , hCountry
   , hSessionId
   , hSessionToken
@@ -94,8 +93,7 @@ import System.FilePath ((</>))
 updateSavedHeaders :: [Header] -> SavedHeaders -> SavedHeaders
 updateSavedHeaders hs sd =
   sd
-    { shAuthAttributes = (toS <$> lookup hAuthAttributes hs) <|> shAuthAttributes sd
-    , shCountry = (toS <$> lookup hCountry hs) <|> shCountry sd
+    { shCountry = (toS <$> lookup hCountry hs) <|> shCountry sd
     , shSessionId = (toS <$> lookup hSessionId hs) <|> shSessionId sd
     , shSessionToken = (toS <$> lookup hSessionToken hs) <|> shSessionToken sd
     , shTrustToken = (toS <$> lookup hTrustToken hs) <|> shTrustToken sd
@@ -332,8 +330,7 @@ loginMsgBase = (<> ".last-logon.json") . sprucedName
 
 -- | Data obtained from HTTP response headers that define a user session
 data SavedHeaders = SavedHeaders
-  { shAuthAttributes :: !(Maybe Text)
-  , shCountry :: !(Maybe Text)
+  { shCountry :: !(Maybe Text)
   , shSessionId :: !(Maybe Text)
   , shSessionToken :: !(Maybe Text)
   , shTrustToken :: !(Maybe Text)
@@ -353,7 +350,7 @@ instance ToJSON SavedHeaders where
 
 -- | A @SavedHeaders@ with nothing set
 pristine :: SavedHeaders
-pristine = SavedHeaders Nothing Nothing Nothing Nothing Nothing Nothing
+pristine = SavedHeaders Nothing Nothing Nothing Nothing Nothing
 
 
 {- | Update the stored saved headers

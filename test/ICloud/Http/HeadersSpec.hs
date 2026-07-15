@@ -147,14 +147,14 @@ withCapturedFetchTrustData action =
 writeSavedHeaders :: FilePath -> IO ()
 writeSavedHeaders tmpDir = do
   let creds = Credentials "alice@example.com" "password123"
-      hdrs = SavedHeaders Nothing Nothing Nothing (Just "test-token") Nothing Nothing
+      hdrs = SavedHeaders Nothing Nothing (Just "test-token") Nothing Nothing
   encodeFile (savedHeadersPath tmpDir creds) hdrs
 
 
 writeSavedHeadersWithSession :: FilePath -> IO ()
 writeSavedHeadersWithSession tmpDir = do
   let creds = Credentials "alice@example.com" "password123"
-      hdrs = SavedHeaders Nothing Nothing (Just "test-session-id") Nothing Nothing (Just "test-scnt")
+      hdrs = SavedHeaders Nothing (Just "test-session-id") Nothing Nothing (Just "test-scnt")
   encodeFile (savedHeadersPath tmpDir creds) hdrs
 
 
