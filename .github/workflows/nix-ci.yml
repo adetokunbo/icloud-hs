@@ -29,6 +29,7 @@ jobs:
     - uses: cachix/cachix-action@v17
       with:
         name: adetokunbo-open
+        authToken: "${{ secrets.CACHIX_TOKEN }}"
     - uses: nix-community/cache-nix-action@v7
       with:
         primary-key: nix-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/*.nix') }}
