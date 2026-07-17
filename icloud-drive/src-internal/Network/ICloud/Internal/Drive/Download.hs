@@ -35,7 +35,8 @@ import Network.HTTP.Client
 import Network.HTTP.Types (hContentType, methodPost, statusCode)
 import Network.ICloud.Http (Api, rawRequest)
 import Network.ICloud.Internal.Drive.Endpoints
-  ( DriveEndpoints
+  ( CloudScope
+  , DriveEndpoints
   , appLibrariesReq
   , commitUploadReq
   , createFolderBody
@@ -71,7 +72,7 @@ import Network.ICloud.Internal.Drive.NodeData
 
 
 -- | Fetch metadata for a single node.
-fetchNode :: Api -> DriveEndpoints -> DriveNodeId -> IO DriveNode
+fetchNode :: Api -> DriveEndpoints s -> DriveNodeId -> IO DriveNode
 fetchNode api ep nid = do
   resp <- rawRequest api (nodeReq ep nid)
   checkStatus "fetchNode" resp
@@ -80,7 +81,7 @@ fetchNode api ep nid = do
 
 
 -- | Fetch the immediate children of a folder.
-fetchChildren :: Api -> DriveEndpoints -> DriveNodeId -> IO [DriveNode]
+fetchChildren :: Api -> DriveEndpoints s -> DriveNodeId -> IO [DriveNode]
 fetchChildren api ep nid = do
   resp <- rawRequest api (nodeReq ep nid)
   checkStatus "fetchChildren" resp
@@ -89,7 +90,7 @@ fetchChildren api ep nid = do
 
 
 -- | Download the contents of a file node as a lazy 'LBS.ByteString'.
-fetchFile :: Api -> DriveEndpoints -> FileData -> IO LBS.ByteString
+fetchFile :: Api -> DriveEndpoints s -> FileData -> IO LBS.ByteString
 fetchFile api ep fd
   | fdSize fd == Nothing = pure LBS.empty
   | otherwise = do
@@ -104,7 +105,7 @@ fetchFile api ep fd
 
 
 -- | Fetch and parse the @retrieveAppLibraries@ response as @[AppLibrary]@.
-fetchAppLibraries :: Api -> DriveEndpoints -> IO [AppLibrary]
+fetchAppLibraries :: Api -> DriveEndpoints s -> IO [AppLibrary]
 fetchAppLibraries api ep = do
   resp <- rawRequest api (appLibrariesReq ep)
   checkStatus "fetchAppLibraries" resp
@@ -113,7 +114,7 @@ fetchAppLibraries api ep = do
 
 
 -- | Fetch the raw JSON body from @GET retrieveAppLibraries@.
-fetchAppLibrariesRaw :: Api -> DriveEndpoints -> IO LBS.ByteString
+fetchAppLibrariesRaw :: Api -> DriveEndpoints s -> IO LBS.ByteString
 fetchAppLibrariesRaw api ep = do
   resp <- rawRequest api (appLibrariesReq ep)
   checkStatus "fetchAppLibrariesRaw" resp
@@ -121,7 +122,7 @@ fetchAppLibrariesRaw api ep = do
 
 
 -- | Create a new folder under the given parent node.
-execCreateFolder :: Api -> DriveEndpoints -> DriveNodeId -> Text -> IO ()
+execCreateFolder :: Api -> DriveEndpoints CloudScope -> DriveNodeId -> Text -> IO ()
 execCreateFolder api ep parentId name = do
   resp <- rawRequest api req
   checkStatus "createFolder" resp
@@ -134,7 +135,7 @@ execCreateFolder api ep parentId name = do
 
 
 -- | Rename a drive node (folder or file).
-execRenameNode :: Api -> DriveEndpoints -> DriveNode -> Text -> IO ()
+execRenameNode :: Api -> DriveEndpoints CloudScope -> DriveNode -> Text -> IO ()
 execRenameNode api ep node name = do
   resp <- rawRequest api req
   checkStatus "renameNode" resp
@@ -147,7 +148,7 @@ execRenameNode api ep node name = do
 
 
 -- | Move a drive node (folder or file) to the trash.
-execDeleteNode :: Api -> DriveEndpoints -> DriveNode -> IO ()
+execDeleteNode :: Api -> DriveEndpoints CloudScope -> DriveNode -> IO ()
 execDeleteNode api ep node = do
   resp <- rawRequest api req
   checkStatus "deleteNode" resp
@@ -162,7 +163,7 @@ execDeleteNode api ep node = do
 {- | Upload file content into a folder using the 3-step iCloud Drive upload
 protocol.
 -}
-execUploadFile :: Api -> DriveEndpoints -> FolderData -> Text -> LBS.ByteString -> IO ()
+execUploadFile :: Api -> DriveEndpoints CloudScope -> FolderData -> Text -> LBS.ByteString -> IO ()
 execUploadFile api ep folder filename content = do
   let zone = fnZone folder
       tokenBody = uploadTokenBodyBytes filename (LBS.length content)
@@ -278,7 +279,7 @@ uploadBoundary :: BS8.ByteString
 uploadBoundary = "WebKitFormBoundaryicloud"
 
 
-nodeReq :: DriveEndpoints -> DriveNodeId -> Request
+nodeReq :: DriveEndpoints s -> DriveNodeId -> Request
 nodeReq ep nid =
   (nodeDetailsReq ep)
     { requestBody = RequestBodyLBS (nodeDetailsBody nid)

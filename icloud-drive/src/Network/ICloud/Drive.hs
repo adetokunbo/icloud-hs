@@ -70,11 +70,12 @@ import Network.ICloud.Internal.Drive.Download
 import Network.ICloud.Internal.Drive.Endpoints
   ( DriveEndpoints
   , mkDriveEndpoints
+  , toAppScope
   )
 
 
 -- | Fetch the root folder of the main CloudDocs tree.
-driveRoot :: Api -> DriveEndpoints -> IO FolderData
+driveRoot :: Api -> DriveEndpoints CloudScope -> IO FolderData
 driveRoot api ep = do
   node <- fetchNode api ep rootNodeId
   case node of
@@ -83,49 +84,54 @@ driveRoot api ep = do
 
 
 -- | Fetch the immediate children of a folder.
-listFolder :: Api -> DriveEndpoints -> DriveNodeId -> IO [DriveNode]
+listFolder :: Api -> DriveEndpoints s -> DriveNodeId -> IO [DriveNode]
 listFolder = fetchChildren
 
 
--- | Fetch the documents folder for a specific app bundle.
-driveAppNode :: Api -> DriveEndpoints -> BundleId -> IO FolderData
+{- | Fetch the documents folder for a specific app bundle.
+
+Returns an 'AppScope' endpoint together with the folder.  The 'AppScope'
+endpoint may only be used for read operations ('listFolder', 'downloadFile');
+passing it to any mutation raises a compile error.
+-}
+driveAppNode :: Api -> DriveEndpoints CloudScope -> BundleId -> IO (DriveEndpoints AppScope, FolderData)
 driveAppNode api ep bid = do
   node <- fetchNode api ep (appNodeId bid)
   case node of
-    DriveFolder fd -> pure fd
+    DriveFolder fd -> pure (toAppScope ep, fd)
     DriveFile _ -> fail "driveAppNode: unexpected file node"
 
 
 -- | Download the contents of a file as a lazy 'LBS.ByteString'.
-downloadFile :: Api -> DriveEndpoints -> FileData -> IO LBS.ByteString
+downloadFile :: Api -> DriveEndpoints s -> FileData -> IO LBS.ByteString
 downloadFile = fetchFile
 
 
 -- | Create a new folder inside an existing folder.
-createFolder :: Api -> DriveEndpoints -> DriveNodeId -> Text -> IO ()
+createFolder :: Api -> DriveEndpoints CloudScope -> DriveNodeId -> Text -> IO ()
 createFolder = execCreateFolder
 
 
 -- | Rename a node (folder or file) to a new name.
-renameNode :: Api -> DriveEndpoints -> DriveNode -> Text -> IO ()
+renameNode :: Api -> DriveEndpoints CloudScope -> DriveNode -> Text -> IO ()
 renameNode = execRenameNode
 
 
 -- | Move a node (folder or file) to the trash.
-deleteNode :: Api -> DriveEndpoints -> DriveNode -> IO ()
+deleteNode :: Api -> DriveEndpoints CloudScope -> DriveNode -> IO ()
 deleteNode = execDeleteNode
 
 
 -- | List the app libraries registered with this account's iCloud Drive.
-listAppLibraries :: Api -> DriveEndpoints -> IO [AppLibrary]
+listAppLibraries :: Api -> DriveEndpoints s -> IO [AppLibrary]
 listAppLibraries = fetchAppLibraries
 
 
 -- | Fetch the raw JSON body from @GET retrieveAppLibraries@.
-listAppLibrariesRaw :: Api -> DriveEndpoints -> IO LBS.ByteString
+listAppLibrariesRaw :: Api -> DriveEndpoints s -> IO LBS.ByteString
 listAppLibrariesRaw = fetchAppLibrariesRaw
 
 
 -- | Upload a file into a folder.
-uploadFile :: Api -> DriveEndpoints -> FolderData -> Text -> LBS.ByteString -> IO ()
+uploadFile :: Api -> DriveEndpoints CloudScope -> FolderData -> Text -> LBS.ByteString -> IO ()
 uploadFile = execUploadFile

@@ -45,7 +45,7 @@ spec = describe "Network.ICloud.Drive" $ do
 
 -- Mock servers
 
-withUploadMock :: (Int -> Application) -> (DriveEndpoints -> Api -> IO a) -> IO a
+withUploadMock :: (Int -> Application) -> (DriveEndpoints CloudScope -> Api -> IO a) -> IO a
 withUploadMock mkApp action =
   withSystemTempDirectory "icloud-drive-upload" $ \tmpDir -> do
     portRef <- newIORef 0
@@ -55,8 +55,8 @@ withUploadMock mkApp action =
       action ep api
  where
   dynApp portRef mk req respond = do
-    port <- readIORef portRef
-    mk port req respond
+    serverPort <- readIORef portRef
+    mk serverPort req respond
 
 
 uploadOkApp :: Int -> Application
@@ -99,7 +99,7 @@ commitErrorApp serverPort req respond
       respond $ responseLBS status400 [] "bad request"
 
 
-mkEpAndApi :: Int -> FilePath -> IO (DriveEndpoints, Api)
+mkEpAndApi :: Int -> FilePath -> IO (DriveEndpoints CloudScope, Api)
 mkEpAndApi serverPort tmpDir = do
   let baseUrl = Text.pack $ "http://127.0.0.1:" ++ show serverPort
   ep <- mkDriveEndpoints (testAccountData baseUrl) (testSession tmpDir)

@@ -51,7 +51,7 @@ spec = describe "Network.ICloud.Drive" $ do
 
 -- Mock servers
 
-withNodeMock :: LBS.ByteString -> (DriveEndpoints -> Api -> IO a) -> IO a
+withNodeMock :: LBS.ByteString -> (DriveEndpoints CloudScope -> Api -> IO a) -> IO a
 withNodeMock nodeJson action =
   withSystemTempDirectory "icloud-drive-mock" $ \tmpDir ->
     testWithApplication (pure (nodeApp nodeJson)) $ \serverPort -> do
@@ -59,7 +59,7 @@ withNodeMock nodeJson action =
       action ep api
 
 
-withDownloadMock :: (DriveEndpoints -> Api -> IO a) -> IO a
+withDownloadMock :: (DriveEndpoints CloudScope -> Api -> IO a) -> IO a
 withDownloadMock action =
   withSystemTempDirectory "icloud-drive-download" $ \tmpDir -> do
     portRef <- newIORef 0
@@ -92,7 +92,7 @@ downloadApp portRef req respond = do
         else respond $ responseLBS status404 [] "not found"
 
 
-mkEpAndApi :: Int -> FilePath -> IO (DriveEndpoints, Api)
+mkEpAndApi :: Int -> FilePath -> IO (DriveEndpoints CloudScope, Api)
 mkEpAndApi serverPort tmpDir = do
   let baseUrl = Text.pack $ "http://127.0.0.1:" ++ show serverPort
   ep <- mkDriveEndpoints (testAccountData baseUrl) (testSession tmpDir)

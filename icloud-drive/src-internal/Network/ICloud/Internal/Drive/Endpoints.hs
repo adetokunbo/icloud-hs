@@ -4,7 +4,10 @@
 
 module Network.ICloud.Internal.Drive.Endpoints
   ( DriveEndpoints
+  , CloudScope
+  , AppScope
   , mkDriveEndpoints
+  , toAppScope
   , nodeDetailsReq
   , nodeDetailsBody
   , appLibrariesReq
@@ -37,8 +40,16 @@ import Network.ICloud.Internal.Drive.Node (DriveNodeId (..))
 import Network.ICloud.Session (AccountData (..), Session (..))
 
 
+-- | Tag for the main CloudDocs tree; permits all drive operations.
+data CloudScope
+
+
+-- | Tag for an app sandbox; permits only read operations.
+data AppScope
+
+
 -- | Base requests and client ID needed to call the iCloud Drive API.
-data DriveEndpoints = DriveEndpoints
+data DriveEndpoints s = DriveEndpoints
   { deServiceReq :: !Request
   -- ^ base request targeting the Drive service root (@drivews@)
   , deDocReq :: !Request
@@ -53,7 +64,7 @@ data DriveEndpoints = DriveEndpoints
 Fails if the @drivews@ or @docws@ service URLs are absent from the account
 data.
 -}
-mkDriveEndpoints :: AccountData -> Session -> IO DriveEndpoints
+mkDriveEndpoints :: AccountData -> Session -> IO (DriveEndpoints CloudScope)
 mkDriveEndpoints ad sess = do
   svcReq <- lookupAndParse "drivews" (adWebservices ad)
   docReq <- lookupAndParse "docws" (adWebservices ad)
@@ -63,8 +74,14 @@ mkDriveEndpoints ad sess = do
   pure DriveEndpoints{deServiceReq, deDocReq, deClientId}
 
 
+-- | Downgrade a 'CloudScope' endpoint to 'AppScope' for use with app sandboxes.
+toAppScope :: DriveEndpoints CloudScope -> DriveEndpoints AppScope
+toAppScope DriveEndpoints{deServiceReq, deDocReq, deClientId} =
+  DriveEndpoints{deServiceReq, deDocReq, deClientId}
+
+
 -- | Build the @POST retrieveItemDetailsInFolders@ request.
-nodeDetailsReq :: DriveEndpoints -> Request
+nodeDetailsReq :: DriveEndpoints s -> Request
 nodeDetailsReq ep =
   withClientId ep $
     (deServiceReq ep)
@@ -80,7 +97,7 @@ nodeDetailsBody (DriveNodeId nid) =
 
 
 -- | Build the @GET retrieveAppLibraries@ request.
-appLibrariesReq :: DriveEndpoints -> Request
+appLibrariesReq :: DriveEndpoints s -> Request
 appLibrariesReq ep =
   withClientId ep $
     (deServiceReq ep)
@@ -90,7 +107,7 @@ appLibrariesReq ep =
 
 
 -- | Build the @GET download/by_id@ request for a file in the given zone.
-downloadTokenReq :: Text -> Text -> DriveEndpoints -> Request
+downloadTokenReq :: Text -> Text -> DriveEndpoints s -> Request
 downloadTokenReq docId zone ep =
   (deDocReq ep)
     { path = stripTrailingSlash (path (deDocReq ep)) <> "/ws/" <> BS8.pack (Text.unpack zone) <> "/download/by_id"
@@ -104,7 +121,7 @@ downloadTokenReq docId zone ep =
 
 
 -- | Build the @POST createFolders@ request.
-createFolderReq :: DriveEndpoints -> Request
+createFolderReq :: DriveEndpoints s -> Request
 createFolderReq ep =
   withClientId ep $
     (deServiceReq ep)
@@ -114,7 +131,7 @@ createFolderReq ep =
 
 
 -- | Build the JSON request body for @createFolders@.
-createFolderBody :: DriveEndpoints -> DriveNodeId -> Text -> LBS.ByteString
+createFolderBody :: DriveEndpoints s -> DriveNodeId -> Text -> LBS.ByteString
 createFolderBody ep (DriveNodeId parentId) name =
   encode $
     object
@@ -124,7 +141,7 @@ createFolderBody ep (DriveNodeId parentId) name =
 
 
 -- | Build the @POST renameItems@ request.
-renameNodeReq :: DriveEndpoints -> Request
+renameNodeReq :: DriveEndpoints s -> Request
 renameNodeReq ep =
   withClientId ep $
     (deServiceReq ep)
@@ -142,7 +159,7 @@ renameNodeBody (DriveNodeId nid) etag name =
 
 
 -- | Build the @POST moveItemsToTrash@ request.
-deleteNodeReq :: DriveEndpoints -> Request
+deleteNodeReq :: DriveEndpoints s -> Request
 deleteNodeReq ep =
   withClientId ep $
     (deServiceReq ep)
@@ -152,7 +169,7 @@ deleteNodeReq ep =
 
 
 -- | Build the JSON request body for @moveItemsToTrash@.
-deleteNodeBody :: DriveEndpoints -> DriveNodeId -> Text -> LBS.ByteString
+deleteNodeBody :: DriveEndpoints s -> DriveNodeId -> Text -> LBS.ByteString
 deleteNodeBody ep (DriveNodeId nid) etag =
   encode $
     object
@@ -160,7 +177,7 @@ deleteNodeBody ep (DriveNodeId nid) etag =
 
 
 -- | Build the @POST upload/web@ request for the given zone.
-uploadTokenReq :: Text -> DriveEndpoints -> Request
+uploadTokenReq :: Text -> DriveEndpoints s -> Request
 uploadTokenReq zone ep =
   withClientId ep $
     (deDocReq ep)
@@ -174,7 +191,7 @@ uploadTokenReq zone ep =
 
 
 -- | Build the @POST update/documents@ commit request for the given zone.
-commitUploadReq :: Text -> DriveEndpoints -> Request
+commitUploadReq :: Text -> DriveEndpoints s -> Request
 commitUploadReq zone ep =
   withClientId ep $
     (deDocReq ep)
@@ -217,6 +234,6 @@ lookupAndParse key ws =
     Just url -> parseRequest (Text.unpack url)
 
 
-withClientId :: DriveEndpoints -> Request -> Request
+withClientId :: DriveEndpoints s -> Request -> Request
 withClientId ep req =
   req{queryString = "clientId=" <> BS8.pack (Text.unpack (deClientId ep))}

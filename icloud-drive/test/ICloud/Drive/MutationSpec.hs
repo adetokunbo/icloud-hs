@@ -58,7 +58,7 @@ spec = describe "Network.ICloud.Drive" $ do
 
 -- Mock servers
 
-withMock :: Application -> (DriveEndpoints -> Api -> IO a) -> IO a
+withMock :: Application -> (DriveEndpoints CloudScope -> Api -> IO a) -> IO a
 withMock app action =
   withSystemTempDirectory "icloud-drive-mutation" $ \tmpDir ->
     testWithApplication (pure app) $ \serverPort -> do
@@ -94,7 +94,7 @@ errorApp :: Application
 errorApp _req respond = respond $ responseLBS status400 [] "bad request"
 
 
-mkEpAndApi :: Int -> FilePath -> IO (DriveEndpoints, Api)
+mkEpAndApi :: Int -> FilePath -> IO (DriveEndpoints CloudScope, Api)
 mkEpAndApi serverPort tmpDir = do
   let baseUrl = Text.pack $ "http://127.0.0.1:" ++ show serverPort
   ep <- mkDriveEndpoints (testAccountData baseUrl) (testSession tmpDir)

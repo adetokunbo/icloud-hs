@@ -38,9 +38,14 @@ module Network.ICloud.Drive.Node
     -- * App library
   , AppLibrary (..)
   , AppLibraryIcon (..)
+
+    -- * Endpoint scopes
+  , CloudScope
+  , AppScope
   )
 where
 
+import Network.ICloud.Internal.Drive.Endpoints (AppScope, CloudScope)
 import Network.ICloud.Internal.Drive.Node
   ( AppLibrary (..)
   , AppLibraryIcon (..)
