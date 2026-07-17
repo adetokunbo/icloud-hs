@@ -1,0 +1,103 @@
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_HADDOCK prune #-}
+
+module Network.ICloud.Internal.Drive.Download
+  ( fetchNode
+  , fetchChildren
+  , fetchFile
+  )
+where
+
+import Data.Aeson (Value, eitherDecode)
+import Data.Aeson.Types (parseEither)
+import qualified Data.ByteString.Lazy as LBS
+import Data.Text (Text)
+import qualified Data.Text as Text
+import Network.HTTP.Client
+  ( Request
+  , RequestBody (..)
+  , Response (..)
+  , parseRequest
+  , requestBody
+  , requestHeaders
+  )
+import Network.HTTP.Types (hContentType, statusCode)
+import Network.ICloud.Http (Api, rawRequest)
+import Network.ICloud.Internal.Drive.Endpoints
+  ( DriveEndpoints
+  , downloadTokenReq
+  , nodeDetailsBody
+  , nodeDetailsReq
+  )
+import Network.ICloud.Internal.Drive.Node
+  ( DriveNode
+  , DriveNodeId
+  , FileData (..)
+  )
+import Network.ICloud.Internal.Drive.NodeData
+  ( parseChildrenResponse
+  , parseDownloadUrl
+  , parseNodeResponse
+  )
+
+
+-- | Fetch metadata for a single node.
+fetchNode :: Api -> DriveEndpoints -> DriveNodeId -> IO DriveNode
+fetchNode api ep nid = do
+  resp <- rawRequest api (nodeReq ep nid)
+  checkStatus "fetchNode" resp
+  body <- decodeBody "fetchNode" resp
+  either fail pure $ parseEither parseNodeResponse body
+
+
+-- | Fetch the immediate children of a folder.
+fetchChildren :: Api -> DriveEndpoints -> DriveNodeId -> IO [DriveNode]
+fetchChildren api ep nid = do
+  resp <- rawRequest api (nodeReq ep nid)
+  checkStatus "fetchChildren" resp
+  body <- decodeBody "fetchChildren" resp
+  either fail pure $ parseEither parseChildrenResponse body
+
+
+-- | Download the contents of a file node as a lazy 'LBS.ByteString'.
+fetchFile :: Api -> DriveEndpoints -> FileData -> IO LBS.ByteString
+fetchFile api ep fd
+  | fdSize fd == Nothing = pure LBS.empty
+  | otherwise = do
+      tokenResp <- rawRequest api (downloadTokenReq (fdDocId fd) (fdZone fd) ep)
+      checkStatus "fetchFile (token)" tokenResp
+      tokenBody <- decodeBody "fetchFile (token)" tokenResp
+      url <- either fail pure $ parseEither parseDownloadUrl tokenBody
+      contentReq <- getReqFromUrl url
+      contentResp <- rawRequest api contentReq
+      checkStatus "fetchFile (content)" contentResp
+      pure $ responseBody contentResp
+
+
+nodeReq :: DriveEndpoints -> DriveNodeId -> Request
+nodeReq ep nid =
+  (nodeDetailsReq ep)
+    { requestBody = RequestBodyLBS (nodeDetailsBody nid)
+    , requestHeaders =
+        (hContentType, "application/json") : requestHeaders (nodeDetailsReq ep)
+    }
+
+
+getReqFromUrl :: Text -> IO Request
+getReqFromUrl = parseRequest . Text.unpack
+
+
+checkStatus :: String -> Response a -> IO ()
+checkStatus ctx resp =
+  let code = statusCode (responseStatus resp)
+   in if code >= 400
+        then fail $ ctx <> ": HTTP " <> show code
+        else pure ()
+
+
+decodeBody :: String -> Response LBS.ByteString -> IO Value
+decodeBody ctx resp =
+  case eitherDecode (responseBody resp) of
+    Left err -> fail $ ctx <> ": JSON decode error: " <> err
+    Right v -> pure v
