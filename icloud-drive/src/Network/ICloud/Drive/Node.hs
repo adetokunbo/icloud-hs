@@ -30,11 +30,17 @@ module Network.ICloud.Drive.Node
   , rootNodeId
   , appNodeId
   , BundleId (..)
+
+    -- * App library
+  , AppLibrary (..)
+  , AppLibraryIcon (..)
   )
 where
 
 import Network.ICloud.Internal.Drive.Node
-  ( BundleId (..)
+  ( AppLibrary (..)
+  , AppLibraryIcon (..)
+  , BundleId (..)
   , DriveNode (..)
   , DriveNodeId (..)
   , FileData (..)

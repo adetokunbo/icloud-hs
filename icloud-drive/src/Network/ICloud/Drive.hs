@@ -38,6 +38,7 @@ module Network.ICloud.Drive
   , downloadFile
 
     -- * Discovery
+  , listAppLibraries
   , listAppLibrariesRaw
 
     -- * Re-exports
@@ -49,7 +50,8 @@ import qualified Data.ByteString.Lazy as LBS
 import Network.ICloud.Drive.Node
 import Network.ICloud.Http (Api)
 import Network.ICloud.Internal.Drive.Download
-  ( fetchAppLibrariesRaw
+  ( fetchAppLibraries
+  , fetchAppLibrariesRaw
   , fetchChildren
   , fetchFile
   , fetchNode
@@ -88,9 +90,11 @@ downloadFile :: Api -> DriveEndpoints -> FileData -> IO LBS.ByteString
 downloadFile = fetchFile
 
 
-{- | Fetch the raw JSON body from @GET retrieveAppLibraries@.
+-- | List the app libraries registered with this account's iCloud Drive.
+listAppLibraries :: Api -> DriveEndpoints -> IO [AppLibrary]
+listAppLibraries = fetchAppLibraries
 
-Use this to inspect the live response shape before implementing 'listAppLibraries'.
--}
+
+-- | Fetch the raw JSON body from @GET retrieveAppLibraries@.
 listAppLibrariesRaw :: Api -> DriveEndpoints -> IO LBS.ByteString
 listAppLibrariesRaw = fetchAppLibrariesRaw

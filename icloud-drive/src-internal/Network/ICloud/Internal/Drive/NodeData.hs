@@ -5,6 +5,7 @@ module Network.ICloud.Internal.Drive.NodeData
   ( parseNodeResponse
   , parseChildrenResponse
   , parseDownloadUrl
+  , parseAppLibrariesResponse
   )
 where
 
@@ -25,7 +26,10 @@ import Data.Time (UTCTime, ZonedTime, zonedTimeToUTC)
 import Data.Time.Format.ISO8601 (iso8601ParseM)
 import qualified Data.Vector as V
 import Network.ICloud.Internal.Drive.Node
-  ( DriveNode (..)
+  ( AppLibrary (..)
+  , AppLibraryIcon (..)
+  , BundleId (..)
+  , DriveNode (..)
   , DriveNodeId (..)
   , FileData (..)
   , FolderData (..)
@@ -104,6 +108,39 @@ parseItems o = do
 nothingIfZero :: Maybe Int64 -> Maybe Int64
 nothingIfZero (Just 0) = Nothing
 nothingIfZero x = x
+
+
+-- | Parse the @retrieveAppLibraries@ response body as a list of 'AppLibrary'.
+parseAppLibrariesResponse :: Value -> Parser [AppLibrary]
+parseAppLibrariesResponse = withObject "app libraries response" $ \o -> do
+  items <- o .: "items"
+  mapM parseAppLibrary items
+
+
+parseAppLibrary :: Value -> Parser AppLibrary
+parseAppLibrary = withObject "AppLibrary" $ \o -> do
+  docwsid <- o .: "docwsid"
+  bid <- parseBundleId docwsid
+  name <- o .:? "name"
+  dc <- o .: "dateCreated" >>= parseTimestamp
+  rawIcons <- fromMaybe [] <$> o .:? "icons"
+  icons <- mapM parseAppLibraryIcon rawIcons
+  pure AppLibrary{alBundleId = bid, alName = name, alDateCreated = dc, alIcons = icons}
+
+
+parseBundleId :: Text -> Parser BundleId
+parseBundleId docwsid =
+  case Text.stripPrefix "appDocuments_" docwsid of
+    Just bid -> pure (BundleId bid)
+    Nothing -> fail $ "AppLibrary: unexpected docwsid format: " <> Text.unpack docwsid
+
+
+parseAppLibraryIcon :: Value -> Parser AppLibraryIcon
+parseAppLibraryIcon = withObject "AppLibraryIcon" $ \o ->
+  AppLibraryIcon
+    <$> o .: "url"
+    <*> o .: "type"
+    <*> o .: "size"
 
 
 -- | Parse an ISO 8601 timestamp in either UTC (@Z@) or offset (@±HH:MM@) form.

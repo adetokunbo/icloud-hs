@@ -6,6 +6,7 @@ module Network.ICloud.Internal.Drive.Download
   ( fetchNode
   , fetchChildren
   , fetchFile
+  , fetchAppLibraries
   , fetchAppLibrariesRaw
   )
 where
@@ -33,12 +34,14 @@ import Network.ICloud.Internal.Drive.Endpoints
   , nodeDetailsReq
   )
 import Network.ICloud.Internal.Drive.Node
-  ( DriveNode
+  ( AppLibrary
+  , DriveNode
   , DriveNodeId
   , FileData (..)
   )
 import Network.ICloud.Internal.Drive.NodeData
-  ( parseChildrenResponse
+  ( parseAppLibrariesResponse
+  , parseChildrenResponse
   , parseDownloadUrl
   , parseNodeResponse
   )
@@ -75,6 +78,15 @@ fetchFile api ep fd
       contentResp <- rawRequest api contentReq
       checkStatus "fetchFile (content)" contentResp
       pure $ responseBody contentResp
+
+
+-- | Fetch and parse the @retrieveAppLibraries@ response as @[AppLibrary]@.
+fetchAppLibraries :: Api -> DriveEndpoints -> IO [AppLibrary]
+fetchAppLibraries api ep = do
+  resp <- rawRequest api (appLibrariesReq ep)
+  checkStatus "fetchAppLibraries" resp
+  body <- decodeBody "fetchAppLibraries" resp
+  either fail pure $ parseEither parseAppLibrariesResponse body
 
 
 -- | Fetch the raw JSON body from @GET retrieveAppLibraries@.

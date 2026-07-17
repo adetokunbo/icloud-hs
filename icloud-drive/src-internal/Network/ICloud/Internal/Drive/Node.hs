@@ -16,6 +16,10 @@ module Network.ICloud.Internal.Drive.Node
   , FolderData (..)
   , FileData (..)
   , fileName
+
+    -- * App library
+  , AppLibrary (..)
+  , AppLibraryIcon (..)
   )
 where
 
@@ -94,3 +98,29 @@ fileName :: FileData -> Text
 fileName fd = case fdExtension fd of
   Nothing -> fdName fd
   Just ext -> fdName fd <> Text.pack "." <> ext
+
+
+-- | Metadata for an app library entry from @retrieveAppLibraries@.
+data AppLibrary = AppLibrary
+  { alBundleId :: !BundleId
+  -- ^ the app's bundle identifier (use with 'appNodeId' or 'driveAppNode')
+  , alName :: !(Maybe Text)
+  -- ^ human-readable display name (e.g. @"Pages"@); absent for some apps
+  , alDateCreated :: !UTCTime
+  -- ^ when this library was registered with iCloud Drive
+  , alIcons :: ![AppLibraryIcon]
+  -- ^ app icon URLs at various sizes; empty when not provided
+  }
+  deriving (Eq, Show)
+
+
+-- | A single icon entry within an 'AppLibrary'.
+data AppLibraryIcon = AppLibraryIcon
+  { aliUrl :: !Text
+  -- ^ URL of the icon image
+  , aliIconType :: !Text
+  -- ^ platform tag (e.g. @"IOS"@, @"MAC"@)
+  , aliSize :: !Int
+  -- ^ icon dimension in points (e.g. @120@)
+  }
+  deriving (Eq, Show)
