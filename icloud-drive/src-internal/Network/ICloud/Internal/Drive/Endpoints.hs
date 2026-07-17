@@ -14,6 +14,7 @@ where
 
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as LBS
+import Data.CaseInsensitive (mk)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
@@ -22,7 +23,7 @@ import Network.HTTP.Client
   ( Request (..)
   , parseRequest
   )
-import Network.HTTP.Types (methodGet, methodPost)
+import Network.HTTP.Types (HeaderName, hAccept, hReferer, hUserAgent, methodGet, methodPost)
 import Network.ICloud.Internal.Drive.Node (DriveNodeId (..))
 import Network.ICloud.Session (AccountData (..), Session (..))
 
@@ -45,9 +46,11 @@ data.
 -}
 mkDriveEndpoints :: AccountData -> Session -> IO DriveEndpoints
 mkDriveEndpoints ad sess = do
-  deServiceReq <- lookupAndParse "drivews" (adWebservices ad)
-  deDocReq <- lookupAndParse "docws" (adWebservices ad)
-  let deClientId = sessionClientId sess
+  svcReq <- lookupAndParse "drivews" (adWebservices ad)
+  docReq <- lookupAndParse "docws" (adWebservices ad)
+  let deServiceReq = addDriveHeaders svcReq
+      deDocReq = addDriveHeaders docReq
+      deClientId = sessionClientId sess
   pure DriveEndpoints{deServiceReq, deDocReq, deClientId}
 
 
@@ -56,7 +59,7 @@ nodeDetailsReq :: DriveEndpoints -> Request
 nodeDetailsReq ep =
   withClientId ep $
     (deServiceReq ep)
-      { path = path (deServiceReq ep) <> "/retrieveItemDetailsInFolders"
+      { path = stripTrailingSlash (path (deServiceReq ep)) <> "/retrieveItemDetailsInFolders"
       , method = methodPost
       }
 
@@ -72,7 +75,7 @@ appLibrariesReq :: DriveEndpoints -> Request
 appLibrariesReq ep =
   withClientId ep $
     (deServiceReq ep)
-      { path = path (deServiceReq ep) <> "/retrieveAppLibraries"
+      { path = stripTrailingSlash (path (deServiceReq ep)) <> "/retrieveAppLibraries"
       , method = methodGet
       }
 
@@ -81,7 +84,7 @@ appLibrariesReq ep =
 downloadTokenReq :: Text -> Text -> DriveEndpoints -> Request
 downloadTokenReq docId zone ep =
   (deDocReq ep)
-    { path = path (deDocReq ep) <> "/ws/" <> BS8.pack (Text.unpack zone) <> "/download/by_id"
+    { path = stripTrailingSlash (path (deDocReq ep)) <> "/ws/" <> BS8.pack (Text.unpack zone) <> "/download/by_id"
     , method = methodGet
     , queryString =
         "clientId="
@@ -89,6 +92,29 @@ downloadTokenReq docId zone ep =
           <> "&document_id="
           <> BS8.pack (Text.unpack docId)
     }
+
+
+addDriveHeaders :: Request -> Request
+addDriveHeaders req = req{requestHeaders = driveHeaders <> requestHeaders req}
+
+
+driveHeaders :: [(HeaderName, BS8.ByteString)]
+driveHeaders =
+  [ (hAccept, "application/json")
+  , (hUserAgent, "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36")
+  , (mk "Origin", icloudHome)
+  , (hReferer, icloudHome <> "/")
+  ]
+
+
+icloudHome :: BS8.ByteString
+icloudHome = "https://www.icloud.com"
+
+
+stripTrailingSlash :: BS8.ByteString -> BS8.ByteString
+stripTrailingSlash bs
+  | not (BS8.null bs) && BS8.last bs == '/' = BS8.init bs
+  | otherwise = bs
 
 
 lookupAndParse :: Text -> Map Text Text -> IO Request

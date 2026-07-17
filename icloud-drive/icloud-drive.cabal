@@ -35,6 +35,22 @@ source-repository head
   location: https://github.com/adetokunbo/icloud-auth.git
   subdir:   icloud-drive
 
+executable icloud-drive
+  main-is:          CmdLine.hs
+  hs-source-dirs:   app
+  default-language: Haskell2010
+  ghc-options:      -Wall -fwarn-tabs
+  build-depends:
+    , base                 >=4.12 && <5
+    , bytestring           >=0.10.8 && <0.11 || >=0.11.3 && <0.13
+    , directory            >=1.3 && <1.4
+    , filepath             >=1.4 && <1.6
+    , http-client-tls      >=0.3 && <0.4
+    , icloud-auth
+    , icloud-drive
+    , optparse-applicative >=0.18 && <0.19
+    , xdg-basedir          >=0.2 && <0.3
+
 library icloud-drive-internal
   exposed-modules:
     Network.ICloud.Internal.Drive.Download
@@ -47,6 +63,7 @@ library icloud-drive-internal
     , aeson-casing         >=0.1 && <0.3
     , base                 >=4.12 && <5
     , bytestring           >=0.10.8 && <0.11 || >=0.11.3 && <0.13
+    , case-insensitive     >=1.2 && <1.3
     , containers           >=0.6 && <0.8
     , http-client          >=0.5 && <0.8
     , http-types           >=0.12.1 && <0.13
