@@ -74,6 +74,14 @@ spec = describe "Network.ICloud.Internal.Drive.NodeData" $ do
         Right (_ : lib : _) -> alIcons lib `shouldBe` []
         Right _ -> expectationFailure "expected at least two items"
 
+    it "uses zone as BundleId when docwsid is 'documents'" $ do
+      v <- decodeOrFail zoneDocwsidJson
+      case parseEither parseAppLibrariesResponse v of
+        Left err -> expectationFailure err
+        Right (lib : _) ->
+          alBundleId lib `shouldBe` BundleId "iCloud.com.fogcreek.trello"
+        Right [] -> expectationFailure "expected non-empty list"
+
     it "fails when docwsid is absent" $ do
       v <- decodeOrFail missingDocwsidJson
       case parseEither parseAppLibrariesResponse v of
@@ -105,6 +113,19 @@ twoItemsJson =
   \,\"supportedTypes\":[\"public.item\",\"com.apple.mail.email\"]\
   \}\
   \]}"
+
+
+zoneDocwsidJson :: LBS.ByteString
+zoneDocwsidJson =
+  "{\"items\":[{\"dateCreated\":\"2020-01-31T09:20:56Z\"\
+  \,\"drivewsid\":\"FOLDER::iCloud.com.fogcreek.trello::documents\"\
+  \,\"docwsid\":\"documents\"\
+  \,\"zone\":\"iCloud.com.fogcreek.trello\"\
+  \,\"name\":\"Trello\"\
+  \,\"type\":\"APP_LIBRARY\"\
+  \,\"maxDepth\":\"ANY\"\
+  \,\"supportedTypes\":[\"public.item\"]\
+  \}]}"
 
 
 missingDocwsidJson :: LBS.ByteString

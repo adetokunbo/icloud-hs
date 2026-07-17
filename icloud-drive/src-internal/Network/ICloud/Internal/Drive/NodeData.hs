@@ -122,7 +122,8 @@ parseAppLibrariesResponse = withObject "app libraries response" $ \o -> do
 parseAppLibrary :: Value -> Parser AppLibrary
 parseAppLibrary = withObject "AppLibrary" $ \o -> do
   docwsid <- o .: "docwsid"
-  bid <- parseBundleId docwsid
+  zone <- o .: "zone"
+  bid <- parseBundleId docwsid zone
   name <- o .:? "name"
   dc <- o .: "dateCreated" >>= parseTimestamp
   rawIcons <- fromMaybe [] <$> o .:? "icons"
@@ -130,11 +131,13 @@ parseAppLibrary = withObject "AppLibrary" $ \o -> do
   pure AppLibrary{alBundleId = bid, alName = name, alDateCreated = dc, alIcons = icons}
 
 
-parseBundleId :: Text -> Parser BundleId
-parseBundleId docwsid =
+parseBundleId :: Text -> Text -> Parser BundleId
+parseBundleId docwsid zone =
   case Text.stripPrefix "appDocuments_" docwsid of
     Just bid -> pure (BundleId bid)
-    Nothing -> fail $ "AppLibrary: unexpected docwsid format: " <> Text.unpack docwsid
+    Nothing
+      | docwsid == "documents" -> pure (BundleId zone)
+      | otherwise -> fail $ "AppLibrary: unexpected docwsid format: " <> Text.unpack docwsid
 
 
 parseAppLibraryIcon :: Value -> Parser AppLibraryIcon
