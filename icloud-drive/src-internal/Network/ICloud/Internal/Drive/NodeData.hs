@@ -21,6 +21,7 @@ import Data.Aeson
   , (.:?)
   )
 import Data.Aeson.Types (Parser)
+import Data.Functor ((<&>))
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -67,7 +68,7 @@ parseDownloadUrl = withObject "download response" $ \o -> do
   case (dataToken, pkgToken) of
     (Just dt, _) -> withObject "data_token" (.: "url") dt
     (_, Just pt) -> withObject "package_token" (.: "url") pt
-    _ -> fail "download response: neither data_token nor package_token found"
+    _other -> fail "download response: neither data_token nor package_token found"
 
 
 parseNode :: Value -> Parser DriveNode
@@ -80,8 +81,7 @@ parseNode = withObject "DriveNode" $ \o -> do
 
 parseFolderData :: Object -> Parser FolderData
 parseFolderData o =
-  FolderData
-    <$> (DriveNodeId <$> o .: "drivewsid")
+  (FolderData . DriveNodeId <$> (o .: "drivewsid"))
     <*> o .: "etag"
     <*> o .: "name"
     <*> o .: "zone"
@@ -90,8 +90,7 @@ parseFolderData o =
 
 parseFileData :: Object -> Parser FileData
 parseFileData o =
-  FileData
-    <$> (DriveNodeId <$> o .: "drivewsid")
+  (FileData . DriveNodeId <$> (o .: "drivewsid"))
     <*> o .: "docwsid"
     <*> o .: "etag"
     <*> o .: "name"
@@ -104,7 +103,7 @@ parseFileData o =
 
 parseItems :: Object -> Parser [DriveNode]
 parseItems o = do
-  items <- o .:? "items" >>= pure . fromMaybe []
+  items <- (o .:? "items") <&> fromMaybe []
   mapM parseNode items
 
 
