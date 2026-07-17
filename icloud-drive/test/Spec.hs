@@ -4,13 +4,14 @@
 
 module Main where
 
+import qualified ICloud.Drive.NodeSpec as DriveNode
 import qualified ICloud.DriveSpec as Drive
-import System.IO (
-  BufferMode (..),
-  hSetBuffering,
-  stderr,
-  stdout,
- )
+import System.IO
+  ( BufferMode (..)
+  , hSetBuffering
+  , stderr
+  , stdout
+  )
 import Test.Hspec
 
 
@@ -19,4 +20,5 @@ main = do
   hSetBuffering stdout NoBuffering
   hSetBuffering stderr NoBuffering
   hspec $ do
+    DriveNode.spec
     Drive.spec

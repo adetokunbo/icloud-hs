@@ -21,7 +21,7 @@ import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Data.Time (UTCTime)
+import Data.Time (UTCTime, ZonedTime, zonedTimeToUTC)
 import Data.Time.Format.ISO8601 (iso8601ParseM)
 import qualified Data.Vector as V
 import Network.ICloud.Internal.Drive.Node
@@ -109,6 +109,9 @@ nothingIfZero x = x
 -- | Parse an ISO 8601 timestamp in either UTC (@Z@) or offset (@±HH:MM@) form.
 parseTimestamp :: Text -> Parser UTCTime
 parseTimestamp t =
-  case iso8601ParseM (Text.unpack t) of
-    Just ut -> pure ut
-    Nothing -> fail $ "invalid ISO 8601 timestamp: " <> Text.unpack t
+  let s = Text.unpack t
+   in case (iso8601ParseM s :: Maybe UTCTime) of
+        Just ut -> pure ut
+        Nothing -> case (iso8601ParseM s :: Maybe ZonedTime) of
+          Just zt -> pure (zonedTimeToUTC zt)
+          Nothing -> fail $ "invalid ISO 8601 timestamp: " <> s
