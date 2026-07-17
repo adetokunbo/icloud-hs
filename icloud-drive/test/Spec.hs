@@ -6,6 +6,7 @@ module Main where
 
 import qualified ICloud.Drive.AppLibrarySpec as DriveAppLibrary
 import qualified ICloud.Drive.EndpointsSpec as DriveEndpoints
+import qualified ICloud.Drive.MutationSpec as DriveMutation
 import qualified ICloud.Drive.NodeSpec as DriveNode
 import qualified ICloud.DriveSpec as Drive
 import System.IO
@@ -26,3 +27,4 @@ main = do
     DriveAppLibrary.spec
     DriveEndpoints.spec
     Drive.spec
+    DriveMutation.spec

@@ -8,6 +8,8 @@ module Network.ICloud.Internal.Drive.Download
   , fetchFile
   , fetchAppLibraries
   , fetchAppLibrariesRaw
+  , execCreateFolder
+  , execRenameNode
   )
 where
 
@@ -29,15 +31,21 @@ import Network.ICloud.Http (Api, rawRequest)
 import Network.ICloud.Internal.Drive.Endpoints
   ( DriveEndpoints
   , appLibrariesReq
+  , createFolderBody
+  , createFolderReq
   , downloadTokenReq
   , nodeDetailsBody
   , nodeDetailsReq
+  , renameNodeBody
+  , renameNodeReq
   )
 import Network.ICloud.Internal.Drive.Node
   ( AppLibrary
   , DriveNode
   , DriveNodeId
   , FileData (..)
+  , nodeEtag
+  , nodeId
   )
 import Network.ICloud.Internal.Drive.NodeData
   ( parseAppLibrariesResponse
@@ -95,6 +103,32 @@ fetchAppLibrariesRaw api ep = do
   resp <- rawRequest api (appLibrariesReq ep)
   checkStatus "fetchAppLibrariesRaw" resp
   pure $ responseBody resp
+
+
+-- | Create a new folder under the given parent node.
+execCreateFolder :: Api -> DriveEndpoints -> DriveNodeId -> Text -> IO ()
+execCreateFolder api ep parentId name = do
+  resp <- rawRequest api req
+  checkStatus "createFolder" resp
+ where
+  req =
+    (createFolderReq ep)
+      { requestBody = RequestBodyLBS (createFolderBody ep parentId name)
+      , requestHeaders = (hContentType, "application/json") : requestHeaders (createFolderReq ep)
+      }
+
+
+-- | Rename a drive node (folder or file).
+execRenameNode :: Api -> DriveEndpoints -> DriveNode -> Text -> IO ()
+execRenameNode api ep node name = do
+  resp <- rawRequest api req
+  checkStatus "renameNode" resp
+ where
+  req =
+    (renameNodeReq ep)
+      { requestBody = RequestBodyLBS (renameNodeBody (nodeId node) (nodeEtag node) name)
+      , requestHeaders = (hContentType, "application/json") : requestHeaders (renameNodeReq ep)
+      }
 
 
 nodeReq :: DriveEndpoints -> DriveNodeId -> Request

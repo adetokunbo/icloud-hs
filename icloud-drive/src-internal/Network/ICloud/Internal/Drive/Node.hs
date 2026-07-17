@@ -16,6 +16,8 @@ module Network.ICloud.Internal.Drive.Node
   , FolderData (..)
   , FileData (..)
   , fileName
+  , nodeId
+  , nodeEtag
 
     -- * App library
   , AppLibrary (..)
@@ -98,6 +100,18 @@ fileName :: FileData -> Text
 fileName fd = case fdExtension fd of
   Nothing -> fdName fd
   Just ext -> fdName fd <> Text.pack "." <> ext
+
+
+-- | Extract the stable identifier from any node.
+nodeId :: DriveNode -> DriveNodeId
+nodeId (DriveFolder fd) = fnId fd
+nodeId (DriveFile fd) = fdId fd
+
+
+-- | Extract the version tag from any node.
+nodeEtag :: DriveNode -> Text
+nodeEtag (DriveFolder fd) = fnEtag fd
+nodeEtag (DriveFile fd) = fdEtag fd
 
 
 -- | Metadata for an app library entry from @retrieveAppLibraries@.

@@ -25,6 +25,10 @@ module Network.ICloud.Drive.Node
   , FileData (..)
   , fileName
 
+    -- * Node helpers
+  , nodeId
+  , nodeEtag
+
     -- * Identifiers
   , DriveNodeId (..)
   , rootNodeId
@@ -47,6 +51,8 @@ import Network.ICloud.Internal.Drive.Node
   , FolderData (..)
   , appNodeId
   , fileName
+  , nodeEtag
+  , nodeId
   , rootNodeId
   )
 

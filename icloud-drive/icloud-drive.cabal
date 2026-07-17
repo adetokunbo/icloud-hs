@@ -97,6 +97,7 @@ test-suite test
   other-modules:
     ICloud.Drive.AppLibrarySpec
     ICloud.Drive.EndpointsSpec
+    ICloud.Drive.MutationSpec
     ICloud.Drive.NodeSpec
     ICloud.DriveSpec
   default-language: Haskell2010

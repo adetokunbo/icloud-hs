@@ -37,6 +37,10 @@ module Network.ICloud.Drive
     -- * Downloading
   , downloadFile
 
+    -- * Mutations
+  , createFolder
+  , renameNode
+
     -- * Discovery
   , listAppLibraries
   , listAppLibrariesRaw
@@ -47,10 +51,13 @@ module Network.ICloud.Drive
 where
 
 import qualified Data.ByteString.Lazy as LBS
+import Data.Text (Text)
 import Network.ICloud.Drive.Node
 import Network.ICloud.Http (Api)
 import Network.ICloud.Internal.Drive.Download
-  ( fetchAppLibraries
+  ( execCreateFolder
+  , execRenameNode
+  , fetchAppLibraries
   , fetchAppLibrariesRaw
   , fetchChildren
   , fetchFile
@@ -88,6 +95,16 @@ driveAppNode api ep bid = do
 -- | Download the contents of a file as a lazy 'LBS.ByteString'.
 downloadFile :: Api -> DriveEndpoints -> FileData -> IO LBS.ByteString
 downloadFile = fetchFile
+
+
+-- | Create a new folder inside an existing folder.
+createFolder :: Api -> DriveEndpoints -> DriveNodeId -> Text -> IO ()
+createFolder = execCreateFolder
+
+
+-- | Rename a node (folder or file) to a new name.
+renameNode :: Api -> DriveEndpoints -> DriveNode -> Text -> IO ()
+renameNode = execRenameNode
 
 
 -- | List the app libraries registered with this account's iCloud Drive.

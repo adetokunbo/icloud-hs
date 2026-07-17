@@ -9,9 +9,14 @@ module Network.ICloud.Internal.Drive.Endpoints
   , nodeDetailsBody
   , appLibrariesReq
   , downloadTokenReq
+  , createFolderReq
+  , createFolderBody
+  , renameNodeReq
+  , renameNodeBody
   )
 where
 
+import Data.Aeson (encode, object, (.=))
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as LBS
 import Data.CaseInsensitive (mk)
@@ -92,6 +97,44 @@ downloadTokenReq docId zone ep =
           <> "&document_id="
           <> BS8.pack (Text.unpack docId)
     }
+
+
+-- | Build the @POST createFolders@ request.
+createFolderReq :: DriveEndpoints -> Request
+createFolderReq ep =
+  withClientId ep $
+    (deServiceReq ep)
+      { path = stripTrailingSlash (path (deServiceReq ep)) <> "/createFolders"
+      , method = methodPost
+      }
+
+
+-- | Build the JSON request body for @createFolders@.
+createFolderBody :: DriveEndpoints -> DriveNodeId -> Text -> LBS.ByteString
+createFolderBody ep (DriveNodeId parentId) name =
+  encode $
+    object
+      [ "destinationDrivewsId" .= parentId
+      , "folders" .= [object ["clientId" .= deClientId ep, "name" .= name]]
+      ]
+
+
+-- | Build the @POST renameItems@ request.
+renameNodeReq :: DriveEndpoints -> Request
+renameNodeReq ep =
+  withClientId ep $
+    (deServiceReq ep)
+      { path = stripTrailingSlash (path (deServiceReq ep)) <> "/renameItems"
+      , method = methodPost
+      }
+
+
+-- | Build the JSON request body for @renameItems@.
+renameNodeBody :: DriveNodeId -> Text -> Text -> LBS.ByteString
+renameNodeBody (DriveNodeId nid) etag name =
+  encode $
+    object
+      ["items" .= [object ["drivewsid" .= nid, "etag" .= etag, "name" .= name]]]
 
 
 addDriveHeaders :: Request -> Request
