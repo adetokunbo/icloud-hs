@@ -11,27 +11,33 @@ module Network.ICloud.Internal.Drive.Download
   , execCreateFolder
   , execRenameNode
   , execDeleteNode
+  , execUploadFile
   )
 where
 
-import Data.Aeson (Value, eitherDecode)
+import Data.Aeson (Value, eitherDecode, encode, object, (.=))
 import Data.Aeson.Types (parseEither)
+import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as LBS
+import Data.Int (Int64)
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Data.Time.Clock.POSIX (getPOSIXTime)
 import Network.HTTP.Client
   ( Request
   , RequestBody (..)
   , Response (..)
+  , method
   , parseRequest
   , requestBody
   , requestHeaders
   )
-import Network.HTTP.Types (hContentType, statusCode)
+import Network.HTTP.Types (hContentType, methodPost, statusCode)
 import Network.ICloud.Http (Api, rawRequest)
 import Network.ICloud.Internal.Drive.Endpoints
   ( DriveEndpoints
   , appLibrariesReq
+  , commitUploadReq
   , createFolderBody
   , createFolderReq
   , deleteNodeBody
@@ -41,20 +47,26 @@ import Network.ICloud.Internal.Drive.Endpoints
   , nodeDetailsReq
   , renameNodeBody
   , renameNodeReq
+  , uploadTokenReq
   )
 import Network.ICloud.Internal.Drive.Node
   ( AppLibrary
   , DriveNode
   , DriveNodeId
   , FileData (..)
+  , FolderData (..)
+  , folderDocId
   , nodeEtag
   , nodeId
   )
 import Network.ICloud.Internal.Drive.NodeData
-  ( parseAppLibrariesResponse
+  ( UploadReceipt (..)
+  , parseAppLibrariesResponse
   , parseChildrenResponse
   , parseDownloadUrl
   , parseNodeResponse
+  , parseUploadReceiptResponse
+  , parseUploadTokenResponse
   )
 
 
@@ -145,6 +157,125 @@ execDeleteNode api ep node = do
       { requestBody = RequestBodyLBS (deleteNodeBody ep (nodeId node) (nodeEtag node))
       , requestHeaders = (hContentType, "application/json") : requestHeaders (deleteNodeReq ep)
       }
+
+
+{- | Upload file content into a folder using the 3-step iCloud Drive upload
+protocol.
+-}
+execUploadFile :: Api -> DriveEndpoints -> FolderData -> Text -> LBS.ByteString -> IO ()
+execUploadFile api ep folder filename content = do
+  let zone = fnZone folder
+      tokenBody = uploadTokenBodyBytes filename (LBS.length content)
+      tokenReq' =
+        (uploadTokenReq zone ep)
+          { requestBody = RequestBodyLBS tokenBody
+          , requestHeaders = (hContentType, "text/plain") : requestHeaders (uploadTokenReq zone ep)
+          }
+  tokenResp <- rawRequest api tokenReq'
+  checkStatus "uploadFile (token)" tokenResp
+  tokenVal <- decodeBody "uploadFile (token)" tokenResp
+  (docId, uploadUrl) <- either fail pure $ parseEither parseUploadTokenResponse tokenVal
+  uploadReq <- buildUploadReq filename content uploadUrl
+  uploadResp <- rawRequest api uploadReq
+  checkStatus "uploadFile (content)" uploadResp
+  uploadVal <- decodeBody "uploadFile (content)" uploadResp
+  receipt <- either fail pure $ parseEither parseUploadReceiptResponse uploadVal
+  nowMs <- currentTimeMs
+  let fDocId = folderDocId folder
+      commitBody = buildCommitBody docId fDocId filename receipt nowMs
+      commitReq' =
+        (commitUploadReq zone ep)
+          { requestBody = RequestBodyLBS commitBody
+          , requestHeaders = (hContentType, "text/plain") : requestHeaders (commitUploadReq zone ep)
+          }
+  commitResp <- rawRequest api commitReq'
+  checkStatus "uploadFile (commit)" commitResp
+
+
+uploadTokenBodyBytes :: Text -> Int64 -> LBS.ByteString
+uploadTokenBodyBytes filename size =
+  encode $
+    object
+      [ "filename" .= filename
+      , "type" .= ("FILE" :: Text)
+      , "content_type" .= ("" :: Text)
+      , "size" .= size
+      ]
+
+
+buildUploadReq :: Text -> LBS.ByteString -> Text -> IO Request
+buildUploadReq filename content url = do
+  req <- getReqFromUrl url
+  let body = buildMultipartBody filename content
+      ct = "multipart/form-data; boundary=" <> uploadBoundary
+  pure
+    req
+      { requestBody = RequestBodyLBS body
+      , requestHeaders = (hContentType, ct) : requestHeaders req
+      , method = methodPost
+      }
+
+
+buildMultipartBody :: Text -> LBS.ByteString -> LBS.ByteString
+buildMultipartBody filename content =
+  let fn = LBS.fromStrict (BS8.pack (Text.unpack filename))
+      bd = LBS.fromStrict ("--" <> uploadBoundary)
+   in bd
+        <> "\r\nContent-Disposition: form-data; name=\""
+        <> fn
+        <> "\"; filename=\""
+        <> fn
+        <> "\"\r\nContent-Type: application/octet-stream\r\n\r\n"
+        <> content
+        <> "\r\n"
+        <> bd
+        <> "--\r\n"
+
+
+buildCommitBody :: Text -> Text -> Text -> UploadReceipt -> Int64 -> LBS.ByteString
+buildCommitBody docId folderId filename receipt nowMs =
+  encode $
+    object
+      [ "data" .= dataObj
+      , "command" .= ("add_file" :: Text)
+      , "create_short_guid" .= True
+      , "document_id" .= docId
+      , "path"
+          .= object
+            [ "starting_document_id" .= folderId
+            , "path" .= filename
+            ]
+      , "allow_conflict" .= True
+      , "file_flags"
+          .= object
+            [ "is_writable" .= True
+            , "is_executable" .= False
+            , "is_hidden" .= False
+            ]
+      , "mtime" .= nowMs
+      , "btime" .= nowMs
+      ]
+ where
+  dataObj = object $ baseData ++ receiptField
+  baseData =
+    [ "signature" .= urFileChecksum receipt
+    , "wrapping_key" .= urWrappingKey receipt
+    , "reference_signature" .= urReferenceChecksum receipt
+    , "size" .= urSize receipt
+    ]
+  receiptField = case urReceipt receipt of
+    Nothing -> []
+    Just r -> ["receipt" .= r]
+
+
+currentTimeMs :: IO Int64
+currentTimeMs = do
+  t <- getPOSIXTime
+  pure $ round (t * 1000)
+
+
+uploadBoundary :: BS8.ByteString
+uploadBoundary = "WebKitFormBoundaryicloud"
 
 
 nodeReq :: DriveEndpoints -> DriveNodeId -> Request

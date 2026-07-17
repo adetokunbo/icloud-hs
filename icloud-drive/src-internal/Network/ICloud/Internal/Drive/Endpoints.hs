@@ -15,6 +15,8 @@ module Network.ICloud.Internal.Drive.Endpoints
   , renameNodeBody
   , deleteNodeReq
   , deleteNodeBody
+  , uploadTokenReq
+  , commitUploadReq
   )
 where
 
@@ -155,6 +157,34 @@ deleteNodeBody ep (DriveNodeId nid) etag =
   encode $
     object
       ["items" .= [object ["drivewsid" .= nid, "etag" .= etag, "clientId" .= deClientId ep]]]
+
+
+-- | Build the @POST upload/web@ request for the given zone.
+uploadTokenReq :: Text -> DriveEndpoints -> Request
+uploadTokenReq zone ep =
+  withClientId ep $
+    (deDocReq ep)
+      { path =
+          stripTrailingSlash (path (deDocReq ep))
+            <> "/ws/"
+            <> BS8.pack (Text.unpack zone)
+            <> "/upload/web"
+      , method = methodPost
+      }
+
+
+-- | Build the @POST update/documents@ commit request for the given zone.
+commitUploadReq :: Text -> DriveEndpoints -> Request
+commitUploadReq zone ep =
+  withClientId ep $
+    (deDocReq ep)
+      { path =
+          stripTrailingSlash (path (deDocReq ep))
+            <> "/ws/"
+            <> BS8.pack (Text.unpack zone)
+            <> "/update/documents"
+      , method = methodPost
+      }
 
 
 addDriveHeaders :: Request -> Request

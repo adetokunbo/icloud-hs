@@ -41,6 +41,7 @@ module Network.ICloud.Drive
   , createFolder
   , renameNode
   , deleteNode
+  , uploadFile
 
     -- * Discovery
   , listAppLibraries
@@ -59,6 +60,7 @@ import Network.ICloud.Internal.Drive.Download
   ( execCreateFolder
   , execDeleteNode
   , execRenameNode
+  , execUploadFile
   , fetchAppLibraries
   , fetchAppLibrariesRaw
   , fetchChildren
@@ -122,3 +124,8 @@ listAppLibraries = fetchAppLibraries
 -- | Fetch the raw JSON body from @GET retrieveAppLibraries@.
 listAppLibrariesRaw :: Api -> DriveEndpoints -> IO LBS.ByteString
 listAppLibrariesRaw = fetchAppLibrariesRaw
+
+
+-- | Upload a file into a folder.
+uploadFile :: Api -> DriveEndpoints -> FolderData -> Text -> LBS.ByteString -> IO ()
+uploadFile = execUploadFile

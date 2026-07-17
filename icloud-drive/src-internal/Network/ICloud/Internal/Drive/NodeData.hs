@@ -6,6 +6,9 @@ module Network.ICloud.Internal.Drive.NodeData
   , parseChildrenResponse
   , parseDownloadUrl
   , parseAppLibrariesResponse
+  , UploadReceipt (..)
+  , parseUploadTokenResponse
+  , parseUploadReceiptResponse
   )
 where
 
@@ -141,6 +144,42 @@ parseAppLibraryIcon = withObject "AppLibraryIcon" $ \o ->
     <$> o .: "url"
     <*> o .: "type"
     <*> o .: "size"
+
+
+-- | Checksum metadata returned after uploading file content (step 2 of upload).
+data UploadReceipt = UploadReceipt
+  { urFileChecksum :: !Text
+  , urWrappingKey :: !Text
+  , urReferenceChecksum :: !Text
+  , urSize :: !Int64
+  , urReceipt :: !(Maybe Text)
+  }
+
+
+-- | Parse the @upload/web@ response to extract @(document_id, upload_url)@.
+parseUploadTokenResponse :: Value -> Parser (Text, Text)
+parseUploadTokenResponse = withArray "upload token response" $ \arr ->
+  case V.toList arr of
+    [] -> fail "upload token response: empty array"
+    (v : _) ->
+      withObject "upload token" (\o -> (,) <$> o .: "document_id" <*> o .: "url") v
+
+
+-- | Parse the multipart-upload response body to extract 'UploadReceipt'.
+parseUploadReceiptResponse :: Value -> Parser UploadReceipt
+parseUploadReceiptResponse = withObject "upload receipt response" $ \o -> do
+  sf <- o .: "singleFile"
+  withObject "singleFile" parseReceiptFields sf
+
+
+parseReceiptFields :: Object -> Parser UploadReceipt
+parseReceiptFields o =
+  UploadReceipt
+    <$> o .: "fileChecksum"
+    <*> o .: "wrappingKey"
+    <*> o .: "referenceChecksum"
+    <*> o .: "size"
+    <*> o .:? "receipt"
 
 
 -- | Parse an ISO 8601 timestamp in either UTC (@Z@) or offset (@±HH:MM@) form.

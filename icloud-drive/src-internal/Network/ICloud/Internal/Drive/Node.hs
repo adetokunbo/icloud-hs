@@ -18,6 +18,7 @@ module Network.ICloud.Internal.Drive.Node
   , fileName
   , nodeId
   , nodeEtag
+  , folderDocId
 
     -- * App library
   , AppLibrary (..)
@@ -26,6 +27,7 @@ module Network.ICloud.Internal.Drive.Node
 where
 
 import Data.Int (Int64)
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Time (UTCTime)
@@ -112,6 +114,14 @@ nodeId (DriveFile fd) = fdId fd
 nodeEtag :: DriveNode -> Text
 nodeEtag (DriveFolder fd) = fnEtag fd
 nodeEtag (DriveFile fd) = fdEtag fd
+
+
+-- | Derive the @docwsid@ of a folder from its 'DriveNodeId' and zone.
+folderDocId :: FolderData -> Text
+folderDocId fd =
+  let DriveNodeId nid = fnId fd
+      prefix = "FOLDER::" <> fnZone fd <> "::"
+  in fromMaybe nid (Text.stripPrefix prefix nid)
 
 
 -- | Metadata for an app library entry from @retrieveAppLibraries@.
