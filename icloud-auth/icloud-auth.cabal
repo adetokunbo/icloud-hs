@@ -13,7 +13,7 @@ description:
   This library is unofficial and not supported by Apple. It may break
   without warning if Apple changes their authentication protocol.
 license:            BSD-3-Clause
-license-file:       LICENSE
+license-file:       ../LICENSE
 maintainer:         Tim Emiola <adetokunbo@emio.la>
 category:           Network
 build-type:         Simple
