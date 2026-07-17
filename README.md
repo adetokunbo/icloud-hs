@@ -8,7 +8,7 @@
 
 `icloud-auth` allows logon to [iCloud] servers; upon provision of the username and
 password, it retrieves and stores an authorization token, for use in programmatic
-sessions with other iCloud services
+sessions with other iCloud services.
 
 
 ## Warning - use at your own risk
@@ -16,84 +16,80 @@ sessions with other iCloud services
 - It is unofficial, *not* supported by Apple, and not guaranteed to work.
 
 - The iCloud service APIs it uses are not officially documented and can be
-changed at any time. Use at your own risk; in the worst case, Apple might ban
-your account!
+  changed at any time. Use at your own risk; in the worst case, Apple might ban
+  your account!
 
 
-### Regular reauthentication 
+## Reauthentication
 
-Note: The retrieved authorization token expires, after which re-authentication
-is required. There is no way to control to the duratiion, it is set by iCloud
-itself. At the time of writing (2024/10). the duration is two months.
+The retrieved authorization token expires, after which re-authentication is
+required. The expiry duration is set by iCloud; at the time of writing it is
+approximately two months.
 
 
-### Usage
+## Usage
 
-#### Securely store your access credentials
+### Store your credentials
 
-Store your Apple ID and password in XDG-CONFIG-HOME/hs-icloud-auth/credential.json
-E.g, use the following bash snippet, updating it with your username and password
-accordingly
+Save your Apple ID and password to `$XDG_CONFIG_HOME/hs-icloud-auth/credential.json`:
 
-```
-$ ICLOUD_AUTH_CONF="${XDG_CONFIG_HOME:=${HOME}/.config}/hs-icloud-auth"
-$ mkdir -p $ICLOUD_AUTH_CONF
-$ cat << EOF > $ICLOUD_AUTH_CONF/credential.json
-{ 
-  "accountName":  "your-username",
-  "password": "your-password"
+```bash
+ICLOUD_AUTH_CONF="${XDG_CONFIG_HOME:=${HOME}/.config}/hs-icloud-auth"
+mkdir -p "$ICLOUD_AUTH_CONF"
+cat << EOF > "$ICLOUD_AUTH_CONF/credential.json"
+{
+  "accountName": "your-apple-id@example.com",
+  "password":    "your-password"
 }
 EOF
+chmod 600 "$ICLOUD_AUTH_CONF/credential.json"
 ```
 
-Ensure the 'credential.json' is only readable by you:
+### Typical usage
 
-```
-$ chmod 600 $XDG_CONFIG_HOME/hs-icloud-auth/credential.json
-```
-
-### Design Details
-
-#### From [icloudpy][]
-
-- obtain the cookie and session file basenames using spruced accountName
-  - the spruced accountName the accountName filtered using Char#isAlphaNum
-
-#### data types
+Create an `Api` handle with `mkApi`, then call `login`.  The full sign-in flow
+— SRP credential exchange, any 2FA or 2SA challenge, and the final account-login
+request — runs automatically, prompting the terminal for verification codes when
+needed.
 
 ```haskell
+import Network.ICloud.Http (mkApi, login, AuthState (..))
+import Network.ICloud.Http.Endpoints (Realm (..))
 
--- | don't derive Show to avoid the risk of logging a password
-data Credentials = Credentials
-  { credAccountName :: !Text
-  , credPassword    :: !Text
-  } deriving (Eq)
-
-
--- | don't derive Show to avoid the risk of logging a password
-data Session = Session
-  { sessionCreds :: !Credentials
-  , sessionTopDir :: !FilePath!
-  } deriving (Eq)
-
-data SavedHeaders = SavedHeaders
-  { shCountry        :: !(Maybe Text)
-  , shSessionId      :: !(Maybe Text)
-  , shSessionToken   :: !(Maybe Text)
-  , shTrustToken     :: !(Maybe Text)
-  , shCounter        :: !(Maybe Text)
-  } deriving (Eq, Show)
+example :: IO ()
+example = do
+  api <- mkApi GlobalRealm  -- or ChinaRealm for mainland China accounts
+  result <- login api
+  case result of
+    Authenticated _session _accountData -> putStrLn "Authenticated!"
+    _                                   -> putStrLn "Unexpected result"
 ```
 
-#### states
+### Injectable callbacks
+
+Pass your own callbacks to `loginWith` to replace the interactive prompts —
+useful in automation or tests.  The snippet below shows the code-reader; the
+phone-selector and device-selector arguments follow the same pattern.
 
 ```haskell
+import Network.ICloud.Http (loginWith)
+import qualified Data.Text.IO as Text
 
+exampleWith :: Api -> IO AuthState
+exampleWith api = loginWith readCode (\_ -> pure Nothing) (\ds -> pure (head ds)) api
+ where
+  readCode codeLen = do
+    Text.putStrLn $ "Enter the " <> Text.pack (show codeLen) <> "-digit verification code:"
+    Text.getLine
 ```
+
+If you already hold a `Requires2FA` or `Requires2SA` value from a prior call,
+resume with `completeTwoFactor` / `completeTwoFactorWith` or `complete2SA` /
+`complete2SAWith`.
+
 
 [hackage-deps-badge]: <https://img.shields.io/hackage-deps/v/icloud-auth.svg>
 [hackage-deps]:       <http://packdeps.haskellers.com/feed?needle=icloud-auth>
 [hackage-badge]:      <https://img.shields.io/hackage/v/icloud-auth.svg>
 [hackage]:            <https://hackage.haskell.org/package/icloud-auth>
 [iCloud]:             <https://www.icloud.com/>
-[icloudpy]:           <https://github.com/mandarons/icloudpy">
