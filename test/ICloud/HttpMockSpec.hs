@@ -113,6 +113,15 @@ spec = describe "Network.ICloud.Http.login" $ do
       isAuthenticated <$> loginWith (\_ -> readCode) (\_ -> pure Nothing) (\_ -> pure testDevice) api
         `shouldReturn` True
 
+  it "retries signin/init and completes login when first response is 421" $
+    loginShouldAuthenticate defaultScenario{snSrpInitReturnsRetryCode = Just 421}
+
+  it "retries signin/init and completes login when first response is 450" $
+    loginShouldAuthenticate defaultScenario{snSrpInitReturnsRetryCode = Just 450}
+
+  it "retries signin/init and completes login when first response is 500" $
+    loginShouldAuthenticate defaultScenario{snSrpInitReturnsRetryCode = Just 500}
+
   it "throws UnexpectedResponse with 2FA locked message when the server signals the account is locked" $
     withFreshMockApi "icloud-auth-2fa-locked" defaultScenario{snAccountLoginNeeds2FA = 1, snVerifyCodeLocks = True} $ \api -> do
       result <- try (loginWith (\_ -> pure "wrongcode") (\_ -> pure Nothing) (\_ -> pure testDevice) api) :: IO (Either AuthError AuthState)

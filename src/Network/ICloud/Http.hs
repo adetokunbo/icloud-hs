@@ -151,6 +151,7 @@ import Network.ICloud.Internal.Http
   , SrpContext (..)
   , hCounter
   , hSessionId
+  , needsRetry
   , phoneCodeBody
   , phoneTriggerBody
   , validateSetupBody
@@ -589,15 +590,9 @@ rawRequest' mayRetry api req = do
   resp <- usingCookiesFromFile jarPath req $ flip httpLbs mgr
   updateSessionSavedHeaders s $ updateSavedHeaders $ responseHeaders resp
   mapM_ (\(ApiLogger logFn) -> logFn req resp) mbLogger
-  if mayRetry && needsRetry resp
+  if mayRetry && needsRetry (statusCode (responseStatus resp))
     then rawRequest' False api req
     else pure resp
-
-
-needsRetry :: Response a -> Bool
-needsRetry resp =
-  let status = statusCode $ responseStatus resp
-   in status == 421 || status == 450 || status == 500
 
 
 {- | Make a session request to obtain a JSON payload

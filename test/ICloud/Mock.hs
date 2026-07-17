@@ -12,7 +12,7 @@ where
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
-import Network.HTTP.Types (HeaderName, RequestHeaders, hContentType, status200, status204, status400, status401, status404, status409)
+import Network.HTTP.Types (HeaderName, RequestHeaders, hContentType, mkStatus, status200, status204, status400, status401, status404, status409)
 import Network.Wai (Application, pathInfo, rawPathInfo, requestHeaders, requestMethod, responseLBS)
 import Network.Wai.Handler.Warp (testWithApplication)
 import Paths_icloud_auth (getDataFileName)
@@ -37,6 +37,8 @@ data Scenario = Scenario
   -- ^ when True, POST verify/trusteddevice/securitycode returns 400 and GET /appleauth/auth returns locked trust data
   , snVerifyDeviceCodeFails :: Bool
   -- ^ when True, the first POST verify/trusteddevice/securitycode returns 400 (non-locking retry)
+  , snSrpInitReturnsRetryCode :: Maybe Int
+  -- ^ when Just n, signin/init returns status n on the first call, then succeeds
   }
 
 
@@ -51,6 +53,7 @@ defaultScenario =
     , snSrpCompleteEmptyError = False
     , snVerifyCodeLocks = False
     , snVerifyDeviceCodeFails = False
+    , snSrpInitReturnsRetryCode = Nothing
     }
 
 
@@ -81,6 +84,7 @@ withMockAppCapturing scenario action = do
   codeAttemptsRef <- newIORef (0 :: Int)
   deviceCodeAttemptsRef <- newIORef (0 :: Int)
   accountLoginRef <- newIORef (0 :: Int)
+  srpInitRetryRef <- newIORef (0 :: Int)
   capturedRef <- newIORef []
   testWithApplication
     ( pure $
@@ -96,6 +100,7 @@ withMockAppCapturing scenario action = do
           codeAttemptsRef
           deviceCodeAttemptsRef
           accountLoginRef
+          srpInitRetryRef
     )
     (\port -> action port capturedRef)
 
@@ -112,6 +117,7 @@ mockApp
   -> IORef Int
   -> IORef Int
   -> IORef Int
+  -> IORef Int
   -> Application
 mockApp
   scenario
@@ -125,6 +131,7 @@ mockApp
   codeAttemptsRef
   deviceCodeAttemptsRef
   accountLoginRef
+  srpInitRetryRef
   req
   respond = do
     modifyIORef' capturedRef ((rawPathInfo req, requestHeaders req) :)
@@ -136,8 +143,12 @@ mockApp
         pure $
           json status200 $
             if snVerifyCodeLocks scenario then lockedTrustData else trustData
-      ("POST", ["appleauth", "auth", "signin", "init"]) ->
-        pure $ json status200 srpInit
+      ("POST", ["appleauth", "auth", "signin", "init"]) -> do
+        n <- readIORef srpInitRetryRef
+        writeIORef srpInitRetryRef (n + 1)
+        pure $ case snSrpInitReturnsRetryCode scenario of
+          Just code | n == 0 -> responseLBS (mkStatus code "") [] ""
+          _ -> json status200 srpInit
       ("POST", ["appleauth", "auth", "signin", "complete"]) ->
         pure $
           if snSrpCompleteEmptyError scenario

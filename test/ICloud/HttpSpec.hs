@@ -22,6 +22,7 @@ import Network.ICloud.Internal.Http
   , hSessionId
   , hSessionToken
   , hTrustToken
+  , needsRetry
   , phoneCodeBody
   , phoneTriggerBody
   , validateSetupBody
@@ -47,6 +48,7 @@ import Test.QuickCheck
 spec :: Spec
 spec = describe "module Network.ICloud.Http" $ do
   updateSavedHeadersSpec
+  needsRetrySpec
   passwordProtocolSpec
   validateSetupBodySpec
   phoneCodeBodySpec
@@ -83,6 +85,15 @@ sdChecks =
   , (hTrustToken, shTrustToken)
   , (hCounter, shCounter)
   ]
+
+
+needsRetrySpec :: Spec
+needsRetrySpec = describe "needsRetry" $ do
+  it "is True for 421" $ needsRetry 421 `shouldBe` True
+  it "is True for 450" $ needsRetry 450 `shouldBe` True
+  it "is True for 500" $ needsRetry 500 `shouldBe` True
+  it "is False for 200" $ needsRetry 200 `shouldBe` False
+  it "is False for 400" $ needsRetry 400 `shouldBe` False
 
 
 passwordProtocolSpec :: Spec

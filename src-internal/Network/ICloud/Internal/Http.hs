@@ -6,6 +6,7 @@ module Network.ICloud.Internal.Http
   ( validateSetupBody
   , phoneCodeBody
   , phoneTriggerBody
+  , needsRetry
   , PasswordProtocol (..)
   , KeyDeriver (..)
   , SrpContext (..)
@@ -104,6 +105,11 @@ phoneTriggerBody tp =
       [ ("phoneNumber", Object $ fromList [("id", Number $ fromIntegral $ tpnId tp)])
       , ("mode", String $ maybe "sms" id $ tpnPushMode tp)
       ]
+
+
+-- | True when the HTTP status code warrants a single automatic retry
+needsRetry :: Int -> Bool
+needsRetry status = status == 421 || status == 450 || status == 500
 
 
 -- | Build the JSON body to verify an SMS code received on the given phone
