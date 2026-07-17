@@ -10,6 +10,7 @@ module Network.ICloud.Internal.Drive.Download
   , fetchAppLibrariesRaw
   , execCreateFolder
   , execRenameNode
+  , execDeleteNode
   )
 where
 
@@ -33,6 +34,8 @@ import Network.ICloud.Internal.Drive.Endpoints
   , appLibrariesReq
   , createFolderBody
   , createFolderReq
+  , deleteNodeBody
+  , deleteNodeReq
   , downloadTokenReq
   , nodeDetailsBody
   , nodeDetailsReq
@@ -128,6 +131,19 @@ execRenameNode api ep node name = do
     (renameNodeReq ep)
       { requestBody = RequestBodyLBS (renameNodeBody (nodeId node) (nodeEtag node) name)
       , requestHeaders = (hContentType, "application/json") : requestHeaders (renameNodeReq ep)
+      }
+
+
+-- | Move a drive node (folder or file) to the trash.
+execDeleteNode :: Api -> DriveEndpoints -> DriveNode -> IO ()
+execDeleteNode api ep node = do
+  resp <- rawRequest api req
+  checkStatus "deleteNode" resp
+ where
+  req =
+    (deleteNodeReq ep)
+      { requestBody = RequestBodyLBS (deleteNodeBody ep (nodeId node) (nodeEtag node))
+      , requestHeaders = (hContentType, "application/json") : requestHeaders (deleteNodeReq ep)
       }
 
 

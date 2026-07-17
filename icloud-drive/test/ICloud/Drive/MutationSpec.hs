@@ -44,6 +44,17 @@ spec = describe "Network.ICloud.Drive" $ do
       withMock errorApp $ \ep api ->
         renameNode api ep testFolderNode "Renamed Folder" `shouldThrow` anyException
 
+  describe "deleteNode" $ do
+    it "returns () when deleting a folder" $
+      withMock deleteOkApp $ \ep api ->
+        deleteNode api ep testFolderNode `shouldReturn` ()
+    it "returns () when deleting a file" $
+      withMock deleteOkApp $ \ep api ->
+        deleteNode api ep testFileNode `shouldReturn` ()
+    it "raises an error on HTTP failure" $
+      withMock errorApp $ \ep api ->
+        deleteNode api ep testFolderNode `shouldThrow` anyException
+
 
 -- Mock servers
 
@@ -66,6 +77,14 @@ createOkApp req respond
 renameOkApp :: Application
 renameOkApp req respond
   | "/renameItems" `BS.isSuffixOf` rawPathInfo req =
+      respond $ responseLBS status200 jsonHeaders "{}"
+  | otherwise =
+      respond $ responseLBS status400 [] "unexpected path"
+
+
+deleteOkApp :: Application
+deleteOkApp req respond
+  | "/moveItemsToTrash" `BS.isSuffixOf` rawPathInfo req =
       respond $ responseLBS status200 jsonHeaders "{}"
   | otherwise =
       respond $ responseLBS status400 [] "unexpected path"

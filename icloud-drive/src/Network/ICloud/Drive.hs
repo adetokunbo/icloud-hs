@@ -40,6 +40,7 @@ module Network.ICloud.Drive
     -- * Mutations
   , createFolder
   , renameNode
+  , deleteNode
 
     -- * Discovery
   , listAppLibraries
@@ -56,6 +57,7 @@ import Network.ICloud.Drive.Node
 import Network.ICloud.Http (Api)
 import Network.ICloud.Internal.Drive.Download
   ( execCreateFolder
+  , execDeleteNode
   , execRenameNode
   , fetchAppLibraries
   , fetchAppLibrariesRaw
@@ -105,6 +107,11 @@ createFolder = execCreateFolder
 -- | Rename a node (folder or file) to a new name.
 renameNode :: Api -> DriveEndpoints -> DriveNode -> Text -> IO ()
 renameNode = execRenameNode
+
+
+-- | Move a node (folder or file) to the trash.
+deleteNode :: Api -> DriveEndpoints -> DriveNode -> IO ()
+deleteNode = execDeleteNode
 
 
 -- | List the app libraries registered with this account's iCloud Drive.

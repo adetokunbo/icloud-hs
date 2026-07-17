@@ -13,6 +13,8 @@ module Network.ICloud.Internal.Drive.Endpoints
   , createFolderBody
   , renameNodeReq
   , renameNodeBody
+  , deleteNodeReq
+  , deleteNodeBody
   )
 where
 
@@ -135,6 +137,24 @@ renameNodeBody (DriveNodeId nid) etag name =
   encode $
     object
       ["items" .= [object ["drivewsid" .= nid, "etag" .= etag, "name" .= name]]]
+
+
+-- | Build the @POST moveItemsToTrash@ request.
+deleteNodeReq :: DriveEndpoints -> Request
+deleteNodeReq ep =
+  withClientId ep $
+    (deServiceReq ep)
+      { path = stripTrailingSlash (path (deServiceReq ep)) <> "/moveItemsToTrash"
+      , method = methodPost
+      }
+
+
+-- | Build the JSON request body for @moveItemsToTrash@.
+deleteNodeBody :: DriveEndpoints -> DriveNodeId -> Text -> LBS.ByteString
+deleteNodeBody ep (DriveNodeId nid) etag =
+  encode $
+    object
+      ["items" .= [object ["drivewsid" .= nid, "etag" .= etag, "clientId" .= deClientId ep]]]
 
 
 addDriveHeaders :: Request -> Request
