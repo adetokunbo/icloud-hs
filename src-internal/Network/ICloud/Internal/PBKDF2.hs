@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE BinaryLiterals #-}
-{-# OPTIONS_HADDOCK prune not-home #-}
+{-# OPTIONS_HADDOCK prune #-}
 
 {- |
 Module      : Network.ICloud.PBKDF2

@@ -17,10 +17,23 @@ then pass the result to 'Network.ICloud.Http.mkApi' or supply it directly to
 -}
 module Network.ICloud.Http.Endpoints
   ( -- * Region selection
+
+    {- | The two regional iCloud endpoint sets.
+
+    * 'Usual' — @icloud.com@ family; for users outside mainland China.
+    * 'China' — @icloud.com.cn@ family; required for mainland China accounts.
+    -}
     Realm (..)
+    -- | Return the 'Endpoints' for the given 'Realm'.
   , realmEndpoints
 
     -- * Endpoint bundle
+
+    {- | Base URLs and default request templates for the iCloud HTTP API.
+
+    Passed to 'Network.ICloud.Http.mkApi' or 'Network.ICloud.Http.mkApiWith'
+    to construct properly-targeted API calls.
+    -}
   , Endpoints (..)
   )
 where

@@ -2,7 +2,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# OPTIONS_HADDOCK prune not-home #-}
+{-# OPTIONS_HADDOCK prune #-}
 
 {- |
 Module      : Network.ICloud.Internal.LoginFSM

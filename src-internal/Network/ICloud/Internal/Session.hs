@@ -2,7 +2,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
-{-# OPTIONS_HADDOCK prune not-home #-}
+{-# OPTIONS_HADDOCK prune #-}
 
 module Network.ICloud.Internal.Session
   ( -- * Credentials
@@ -101,12 +101,6 @@ updateSavedHeaders hs sd =
     }
 
 
-{- | Persistent data identifying a user and their local authentication state.
-
-Holds the credentials used to authenticate, the directory where session files
-are stored (cookies, saved headers, account data), and the per-client OAuth
-state identifier.
--}
 data Session = Session
   { sessionCreds :: !Credentials
   -- ^ the credentials used to authenticate
@@ -155,14 +149,6 @@ saveLoginMsg :: Session -> Value -> IO ()
 saveLoginMsg Session{sessionCreds = creds, sessionTopDir = topDir} = saveValue (loginMsgPath topDir creds)
 
 
-{- | Structured account information returned by the account-login endpoint.
-
-The 'adHsaVersion' field determines which two-factor flow applies:
-
-* @0@ — unknown (used as a sentinel when no account data is available)
-* @1@ — legacy two-step authentication (2SA); handled via the setup endpoint
-* @2@ — modern two-factor authentication (2FA); handled via the auth endpoint
--}
 data AccountData = AccountData
   { adHsaVersion :: !Int
   -- ^ HSA protocol version; drives the two-factor flow selection
@@ -258,9 +244,6 @@ credentialsPath :: FilePath -> FilePath
 credentialsPath topDir = topDir </> "credentials.json"
 
 
-{- | Write 'Credentials' to @$XDG_CONFIG_HOME\/hs-icloud-auth\/credentials.json@,
-creating the directory if it does not exist.
--}
 saveCredentials :: Credentials -> IO ()
 saveCredentials creds = getUserConfigDir appBase >>= (`saveCredentialsTo` creds)
 
@@ -272,12 +255,6 @@ saveCredentialsTo topDir creds = do
   encodeFile (credentialsPath topDir) creds
 
 
-{- | The account ID and password used to sign in to iCloud.
-
-Expected to be read from
-@$XDG_CONFIG_HOME\/hs-icloud-auth\/credentials.json@ with the fields
-@accountName@ and @password@.
--}
 data Credentials = Credentials
   { credAccountName :: !Text
   -- ^ the account ID; typically an email address
@@ -384,15 +361,6 @@ updateSessionSavedHeaders s modSavedHeaders = do
   doesFileExist dataPath >>= loadLast >>= updateAndSave
 
 
-{- | Load a 'Session' from the local filesystem.
-
-Reads 'Credentials' from
-@$XDG_CONFIG_HOME\/hs-icloud-auth\/credentials.json@ and initialises the
-session working directory (creating it if absent). A per-client ID is read
-from disk if one exists, or generated and saved for future runs.
-
-Throws an 'IOError' if the credentials file is absent or cannot be parsed.
--}
 loadSession :: IO Session
 loadSession = do
   sessionTopDir <- getUserConfigDir appBase

@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_HADDOCK prune not-home #-}
+{-# OPTIONS_HADDOCK prune #-}
 
 module Network.ICloud.Internal.Trust
   ( -- * data types
@@ -90,13 +90,6 @@ pleaseChooseN low high = do
     Just x -> pure x
 
 
-{- | Interactively prompt the user to enter the verification code sent to their
-trusted phone or device. The first argument is the expected code length, used to
-make the prompt more specific (e.g. @"6-digit"@).
-
-Used as the default code-reading action in 'Network.ICloud.Http.login'. Supply
-an alternative via 'Network.ICloud.Http.loginWith' for testing or automation.
--}
 pleaseReadCode :: Word8 -> IO Text
 pleaseReadCode len = do
   let prefix = "Please enter the " +| len |+ "-digit code you just received"
@@ -129,7 +122,6 @@ instance ToJSON CodeStatus where
   toEncoding = genericToEncoding simpleOptions
 
 
--- | Information about trusted phone number
 data TrustedPhone = TrustedPhone
   { tpnId :: !Word8
   , tpnNumberWithDialCode :: !Text
@@ -194,12 +186,6 @@ trustedListOptions =
   )
 
 
-{- | The two-factor challenge data returned by the auth endpoint after SRP sign-in.
-
-Describes which trusted contacts are available to receive a verification code
-('tdList'), the current state of the security-code gate ('tdSecurityCode'),
-and whether any trusted devices are registered ('tdNoTrustedDevices').
--}
 data TrustData = TrustData
   { tdList :: !TrustedList
   -- ^ trusted phones or devices that can receive a verification code
@@ -250,11 +236,6 @@ instance FromJSON TrustData where
   parseJSON = parseJSONTrustData
 
 
-{- | A 2SA device from the setup endpoint.
-
-Stored as the raw JSON object so the entire dict can be echoed back to
-sendVerificationCode and augmented for validateVerificationCode.
--}
 newtype Setup2SADevice = Setup2SADevice {setup2SAFields :: Object}
   deriving (Eq, Show)
 
@@ -267,7 +248,6 @@ instance ToJSON Setup2SADevice where
   toJSON (Setup2SADevice o) = Object o
 
 
--- | Extract a human-readable label from a @Setup2SADevice@, preferring @phoneNumber@ then @name@.
 setup2SADeviceLabel :: Setup2SADevice -> Text
 setup2SADeviceLabel (Setup2SADevice o) = fromMaybe "(unknown)" $ do
   v <- lookup "phoneNumber" pairs <|> lookup "name" pairs
@@ -278,12 +258,6 @@ setup2SADeviceLabel (Setup2SADevice o) = fromMaybe "(unknown)" $ do
   pairs = toList o
 
 
-{- | Interactively prompt the user to choose between device push and SMS for HSA2 2FA.
-
-If no trusted devices are registered ('tdNoTrustedDevices' is @True@), the first
-trusted phone is selected automatically.  Otherwise, the user is prompted to press
-Enter for device push or enter a number to receive an SMS code.
--}
 selectTwoFaPhone :: TrustData -> IO (Maybe TrustedPhone)
 selectTwoFaPhone td =
   let phones = case tdList td of
@@ -307,12 +281,6 @@ selectTwoFaPhone td =
         _ -> pickPhoneOrDevice phones
 
 
-{- | Interactively prompt the user to select a device from a list of 2SA setup devices.
-
-Used as the default device-selection action in 'Network.ICloud.Http.complete2SA'.
-Supply an alternative via 'Network.ICloud.Http.complete2SAWith' for testing or
-automation.
--}
 selectSetupDevice :: [Setup2SADevice] -> IO Setup2SADevice
 selectSetupDevice xs = do
   when (null xs) $ fail "no 2SA devices available"

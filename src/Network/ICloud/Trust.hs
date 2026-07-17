@@ -25,16 +25,57 @@ Supply your own alternatives via 'Network.ICloud.Http.loginWith' and
 -}
 module Network.ICloud.Trust
   ( -- * Two-factor challenge data
+
+    {- | The two-factor challenge data returned by the auth endpoint after SRP sign-in.
+
+    Describes which trusted contacts are available to receive a verification code
+    ('tdList'), the current state of the security-code gate ('tdSecurityCode'),
+    and whether any trusted devices are registered ('tdNoTrustedDevices').
+    -}
     TrustData (..)
+    -- | Information about a trusted phone number.
   , TrustedPhone (..)
 
     -- * Legacy two-step device
+
+    {- | A 2SA device from the setup endpoint.
+
+    Stored as the raw JSON object so the entire dict can be echoed back to
+    @sendVerificationCode@ and augmented for @validateVerificationCode@.
+    -}
   , Setup2SADevice (..)
+    {- | Extract a human-readable label from a 'Setup2SADevice', preferring
+    @phoneNumber@ then @name@.
+    -}
   , setup2SADeviceLabel
 
     -- * Interactive prompts
+
+    {- | Interactively prompt the user to enter the verification code sent to
+    their trusted phone or device. The first argument is the expected code
+    length, used to make the prompt more specific (e.g. @"6-digit"@).
+
+    Used as the default code-reading action in 'Network.ICloud.Http.login'.
+    Supply an alternative via 'Network.ICloud.Http.loginWith' for testing or
+    automation.
+    -}
   , pleaseReadCode
+    {- | Interactively prompt the user to choose between device push and SMS
+    for HSA2 2FA.
+
+    If no trusted devices are registered ('tdNoTrustedDevices' is @True@), the
+    first trusted phone is selected automatically. Otherwise, the user is
+    prompted to press Enter for device push or enter a number to receive an SMS
+    code.
+    -}
   , selectTwoFaPhone
+    {- | Interactively prompt the user to select a device from a list of 2SA
+    setup devices.
+
+    Used as the default device-selection action in
+    'Network.ICloud.Http.complete2SA'. Supply an alternative via
+    'Network.ICloud.Http.complete2SAWith' for testing or automation.
+    -}
   , selectSetupDevice
   )
 where

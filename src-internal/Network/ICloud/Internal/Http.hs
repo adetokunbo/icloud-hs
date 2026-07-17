@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_HADDOCK prune not-home #-}
+{-# OPTIONS_HADDOCK prune #-}
 
 module Network.ICloud.Internal.Http
   ( validateSetupBody
