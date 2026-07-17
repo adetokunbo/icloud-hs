@@ -2,9 +2,23 @@ module Main where
 
 import Control.Exception (catch, displayException)
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Text as Text
 import Network.HTTP.Client.TLS (newTlsManager)
-import Network.ICloud.Drive (listAppLibrariesRaw, mkDriveEndpoints)
-import Network.ICloud.Http (AuthError, AuthState (..), fileLogger, login, mkApiWith, withLogger)
+import Network.ICloud.Drive
+  ( CloudScope
+  , DriveEndpoints
+  , DriveNode (..)
+  , FileData (..)
+  , FolderData (..)
+  , driveRoot
+  , fileName
+  , fnId
+  , fnName
+  , listAppLibrariesRaw
+  , listFolder
+  , mkDriveEndpoints
+  )
+import Network.ICloud.Http (Api, AuthError, AuthState (..), fileLogger, login, mkApiWith, withLogger)
 import Network.ICloud.Http.Endpoints (Realm (..), realmEndpoints)
 import Network.ICloud.Session (loadSession)
 import Options.Applicative
@@ -16,13 +30,14 @@ import System.IO (IOMode (..), withFile)
 
 
 data Command
-  = ListAppLibraries ListOpts
+  = ListAppLibraries CommonOpts
+  | ListRoot CommonOpts
 
 
-data ListOpts = ListOpts
-  { listChina :: Bool
-  , listLog :: Bool
-  , listLogFile :: Maybe FilePath
+data CommonOpts = CommonOpts
+  { optChina :: Bool
+  , optLog :: Bool
+  , optLogFile :: Maybe FilePath
   }
 
 
@@ -32,15 +47,21 @@ commandParser =
     ( command
         "list-app-libraries"
         ( info
-            (ListAppLibraries <$> listOptsParser)
+            (ListAppLibraries <$> commonOptsParser)
             (progDesc "Print raw JSON from retrieveAppLibraries")
         )
+        <> command
+          "list-root"
+          ( info
+              (ListRoot <$> commonOptsParser)
+              (progDesc "List immediate children of the top-level iCloud Drive folder")
+          )
     )
 
 
-listOptsParser :: Parser ListOpts
-listOptsParser =
-  ListOpts
+commonOptsParser :: Parser CommonOpts
+commonOptsParser =
+  CommonOpts
     <$> switch (long "china" <> help "Use mainland China endpoints")
     <*> switch (long "log" <> help "Append HTTP exchanges to the default log file")
     <*> optional
@@ -59,13 +80,41 @@ main = do
   cmd <- execParser cliParser
   case cmd of
     ListAppLibraries opts -> runListAppLibraries opts
+    ListRoot opts -> runListRoot opts
 
 
-runListAppLibraries :: ListOpts -> IO ()
-runListAppLibraries opts = do
+runListAppLibraries :: CommonOpts -> IO ()
+runListAppLibraries opts =
+  withDriveApi opts $ \api ep -> do
+    raw <- listAppLibrariesRaw api ep
+    LBS.putStr raw
+    putStrLn ""
+
+
+runListRoot :: CommonOpts -> IO ()
+runListRoot opts =
+  withDriveApi opts $ \api ep -> do
+    root <- driveRoot api ep
+    nodes <- listFolder api ep (fnId root)
+    mapM_ printNode nodes
+
+
+printNode :: DriveNode -> IO ()
+printNode (DriveFolder fd) =
+  putStrLn $ "FOLDER  " <> Text.unpack (fnName fd)
+printNode (DriveFile fd) =
+  putStrLn $ "FILE    " <> Text.unpack (fileName fd) <> sizeStr
+ where
+  sizeStr = case fdSize fd of
+    Nothing -> ""
+    Just n -> "  (" <> show n <> " bytes)"
+
+
+withDriveApi :: CommonOpts -> (Api -> DriveEndpoints CloudScope -> IO ()) -> IO ()
+withDriveApi opts action = do
   session <- loadSession
   mgr <- newTlsManager
-  let realm = if listChina opts then China else Usual
+  let realm = if optChina opts then China else Usual
   api0 <- mkApiWith session (realmEndpoints realm) mgr
   mbLogPath <- resolveLogTarget opts
   let run api = do
@@ -73,9 +122,7 @@ runListAppLibraries opts = do
         case result of
           Authenticated sess ad -> do
             ep <- mkDriveEndpoints ad sess
-            raw <- listAppLibrariesRaw api ep
-            LBS.putStr raw
-            putStrLn ""
+            action api ep
           _ -> do
             putStrLn "Not authenticated — run 'icloud-auth login' first."
             exitFailure
@@ -87,9 +134,9 @@ runListAppLibraries opts = do
     exitFailure
 
 
-resolveLogTarget :: ListOpts -> IO (Maybe FilePath)
-resolveLogTarget ListOpts{listLogFile = Just fp} = pure (Just fp)
-resolveLogTarget ListOpts{listLog = True} = Just <$> defaultLogFile
+resolveLogTarget :: CommonOpts -> IO (Maybe FilePath)
+resolveLogTarget CommonOpts{optLogFile = Just fp} = pure (Just fp)
+resolveLogTarget CommonOpts{optLog = True} = Just <$> defaultLogFile
 resolveLogTarget _ = pure Nothing
 
 

@@ -49,6 +49,7 @@ executable icloud-drive
     , icloud-auth
     , icloud-drive
     , optparse-applicative >=0.18 && <0.19
+    , text                 >=1.2.3 && <2.2
     , xdg-basedir          >=0.2 && <0.3
 
 library icloud-drive-internal
