@@ -91,14 +91,15 @@ pleaseChooseN low high = do
 
 
 {- | Interactively prompt the user to enter the verification code sent to their
-trusted phone or device.
+trusted phone or device. The first argument is the expected code length, used to
+make the prompt more specific (e.g. @"6-digit"@).
 
 Used as the default code-reading action in 'Network.ICloud.Http.login'. Supply
 an alternative via 'Network.ICloud.Http.loginWith' for testing or automation.
 -}
-pleaseReadCode :: IO Text
-pleaseReadCode = do
-  let prefix = "Please enter the n-digit code you just received"
+pleaseReadCode :: Word8 -> IO Text
+pleaseReadCode len = do
+  let prefix = "Please enter the " +| len |+ "-digit code you just received"
   Text.pack <$> promptNonEmpty prefix
 
 

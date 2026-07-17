@@ -181,11 +181,17 @@ runTwoSaScript s = completionOutcomeOf $ runTestM (twoSaProcess (TestState ()) d
 
 
 dummyTwoFaConfig :: TwoFaConfig
-dummyTwoFaConfig = TwoFaConfig{tfcPickPhone = \_ -> pure Nothing, tfcReadCode = pure ""}
+dummyTwoFaConfig = TwoFaConfig{tfcPickPhone = \_ -> pure Nothing, tfcReadCode = \_ -> pure ""}
 
 
 dummyTwoSaConfig :: TwoSaConfig
-dummyTwoSaConfig = TwoSaConfig{tscPickDevice = pure . head, tscReadCode = pure ""}
+dummyTwoSaConfig =
+  TwoSaConfig
+    { tscPickDevice = \case
+        (d : _) -> pure d
+        [] -> fail "dummyTwoSaConfig: empty device list"
+    , tscReadCode = pure ""
+    }
 
 
 spec :: Spec

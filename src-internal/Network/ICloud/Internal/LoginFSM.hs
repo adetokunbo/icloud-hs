@@ -18,6 +18,7 @@ module Network.ICloud.Internal.LoginFSM where
 import Data.Functor ((<&>))
 import Data.Kind (Type)
 import Data.Text (Text)
+import Data.Word (Word8)
 import Network.ICloud.Internal.Http (SrpContext (..))
 import Network.ICloud.Internal.Session (AccountData, Credentials, SavedHeaders)
 import Network.ICloud.Internal.Trust (Setup2SADevice, TrustData, TrustedPhone)
@@ -27,8 +28,8 @@ import Network.ICloud.Internal.Trust (Setup2SADevice, TrustData, TrustedPhone)
 data TwoFaConfig = TwoFaConfig
   { tfcPickPhone :: TrustData -> IO (Maybe TrustedPhone)
   -- ^ select a phone to receive an SMS code, or 'Nothing' to use a trusted device push
-  , tfcReadCode :: IO Text
-  -- ^ prompt the user for the verification code
+  , tfcReadCode :: Word8 -> IO Text
+  -- ^ prompt the user for the verification code; receives the expected digit count
   }
 
 

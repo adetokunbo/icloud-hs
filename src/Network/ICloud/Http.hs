@@ -109,7 +109,7 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time (getCurrentTime)
-import Data.Word (Word64)
+import Data.Word (Word64, Word8)
 import Network.HTTP.Client
   ( Manager
   , Request (..)
@@ -336,7 +336,7 @@ login = loginWith pleaseReadCode selectTwoFaPhone selectSetupDevice
 
 -- | Like 'login' with injectable code prompt, phone selector, and device selector, for testing
 loginWith
-  :: IO AuthCode
+  :: (Word8 -> IO AuthCode)
   -> (TrustData -> IO (Maybe TrustedPhone))
   -> ([Setup2SADevice] -> IO Setup2SADevice)
   -> Api
@@ -345,7 +345,7 @@ loginWith readCode pickPhone pickDevice api =
   runReaderT loginProcess api >>= \case
     LoginAuthenticated (AuthComplete _ ad) -> pure $ Authenticated (apiSession api) ad
     LoginNeedsTwoFa (NeedsTwoFa _) -> completeTwoFactorWith readCode pickPhone api
-    LoginNeedsTwoSa (TwoSaReady _ ds) -> complete2SAWith pickDevice readCode api ds
+    LoginNeedsTwoSa (TwoSaReady _ ds) -> complete2SAWith pickDevice (readCode 6) api ds
     LoginHaltCreds _ -> throwIO $ UnexpectedResponse "login halted: missing credentials"
     LoginHaltDir _ -> throwIO $ UnexpectedResponse "login halted: cannot create artifact directory"
     LoginHaltSrp _ -> throwIO $ UnexpectedResponse "login halted: invalid SRP server public value"
@@ -451,9 +451,9 @@ instance LoginEvent (ReaderT Api IO) where
     pure $ TwoFaVerifying creds td mbPhone
 
 
-  verifyTwoFa (TwoFaVerifying creds _td mbPhone) TwoFaConfig{tfcReadCode} = do
+  verifyTwoFa (TwoFaVerifying creds td mbPhone) TwoFaConfig{tfcReadCode} = do
     api <- ask
-    code <- liftIO tfcReadCode
+    code <- liftIO $ tfcReadCode (scLength (tdSecurityCode td))
     ok <- liftIO $ case mbPhone of
       Nothing -> verifyTwoFaCode api code
       Just phone -> verifySmsCode api phone code
@@ -542,7 +542,7 @@ completeTwoFactor api = completeTwoFactorWith pleaseReadCode (\_ -> pure Nothing
 
 
 -- | Like 'completeTwoFactor' with an injectable code prompt and phone selector, for testing
-completeTwoFactorWith :: IO AuthCode -> (TrustData -> IO (Maybe TrustedPhone)) -> Api -> IO AuthState
+completeTwoFactorWith :: (Word8 -> IO AuthCode) -> (TrustData -> IO (Maybe TrustedPhone)) -> Api -> IO AuthState
 completeTwoFactorWith readCode pickPhone api = do
   td <- fetchTrustData api
   let start = ReadyForTwoFa (sessionCreds (apiSession api)) td
@@ -556,7 +556,7 @@ completeTwoFactorWith readCode pickPhone api = do
 
 -- | Used when already holding a 'Requires2SA' result from 'completeTwoFactor' or 'completeTwoFactorWith'
 complete2SA :: Api -> [Setup2SADevice] -> IO AuthState
-complete2SA = complete2SAWith selectSetupDevice pleaseReadCode
+complete2SA = complete2SAWith selectSetupDevice (pleaseReadCode 6)
 
 
 -- | Like 'complete2SA' with injectable device selector and code prompt, for testing
