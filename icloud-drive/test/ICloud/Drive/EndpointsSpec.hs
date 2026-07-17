@@ -1,0 +1,94 @@
+{-# LANGUAGE OverloadedStrings #-}
+
+module ICloud.Drive.EndpointsSpec (spec) where
+
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Map.Strict as Map
+import Data.Text (Text)
+import Network.HTTP.Client (Request (..))
+import Network.HTTP.Types (methodGet, methodPost)
+import Network.ICloud.Internal.Drive.Endpoints
+  ( appLibrariesReq
+  , downloadTokenReq
+  , mkDriveEndpoints
+  , nodeDetailsBody
+  , nodeDetailsReq
+  )
+import Network.ICloud.Internal.Drive.Node (rootNodeId)
+import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..))
+import Test.Hspec
+
+
+spec :: Spec
+spec = describe "Network.ICloud.Internal.Drive.Endpoints" $ do
+  ep <- runIO (mkDriveEndpoints testAccountData testSession)
+
+  describe "nodeDetailsBody" $ do
+    it "encodes the node id and partialData=false" $
+      nodeDetailsBody rootNodeId
+        `shouldBe` ( "[{\"drivewsid\":\"FOLDER::com.apple.CloudDocs::root\""
+                       <> ",\"partialData\":false}]"
+                       :: LBS.ByteString
+                   )
+
+  describe "nodeDetailsReq" $ do
+    it "targets retrieveItemDetailsInFolders" $
+      path (nodeDetailsReq ep)
+        `shouldSatisfy` BS.isSuffixOf "/retrieveItemDetailsInFolders"
+    it "uses POST" $
+      method (nodeDetailsReq ep) `shouldBe` methodPost
+    it "includes clientId query param" $
+      queryString (nodeDetailsReq ep)
+        `shouldSatisfy` BS.isInfixOf "clientId=auth-test-client-id"
+
+  describe "appLibrariesReq" $ do
+    it "targets retrieveAppLibraries" $
+      path (appLibrariesReq ep)
+        `shouldSatisfy` BS.isSuffixOf "/retrieveAppLibraries"
+    it "uses GET" $
+      method (appLibrariesReq ep) `shouldBe` methodGet
+    it "includes clientId query param" $
+      queryString (appLibrariesReq ep)
+        `shouldSatisfy` BS.isInfixOf "clientId=auth-test-client-id"
+
+  describe "downloadTokenReq" $ do
+    let req = downloadTokenReq "DOC-001" "com.apple.CloudDocs" ep
+    it "targets /ws/<zone>/download/by_id" $
+      path req
+        `shouldSatisfy` BS.isSuffixOf "/ws/com.apple.CloudDocs/download/by_id"
+    it "uses GET" $
+      method req `shouldBe` methodGet
+    it "includes clientId in query string" $
+      queryString req `shouldSatisfy` BS.isInfixOf "clientId=auth-test-client-id"
+    it "includes document_id in query string" $
+      queryString req `shouldSatisfy` BS.isInfixOf "document_id=DOC-001"
+
+
+-- Fixtures
+
+testClientId :: Text
+testClientId = "auth-test-client-id"
+
+
+testAccountData :: AccountData
+testAccountData =
+  AccountData
+    { adHsaVersion = 2
+    , adHsaChallengeRequired = False
+    , adHsaTrustedBrowser = True
+    , adWebservices =
+        Map.fromList
+          [ ("drivews", "https://p31-drivews.icloud.com")
+          , ("docws", "https://p31-docws.icloud.com")
+          ]
+    }
+
+
+testSession :: Session
+testSession =
+  Session
+    { sessionCreds = Credentials{credAccountName = "test@example.com", credPassword = "test-pass"}
+    , sessionTopDir = "/tmp/test"
+    , sessionClientId = testClientId
+    }
