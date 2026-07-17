@@ -37,6 +37,9 @@ module Network.ICloud.Drive
     -- * Downloading
   , downloadFile
 
+    -- * App folders
+  , driveAppNodeById
+
     -- * Mutations
   , createFolder
   , renameNode
@@ -57,7 +60,8 @@ import Data.Text (Text)
 import Network.ICloud.Drive.Node
 import Network.ICloud.Http (Api)
 import Network.ICloud.Internal.Drive.Download
-  ( execCreateFolder
+  ( execAppNode
+  , execCreateFolder
   , execDeleteNode
   , execRenameNode
   , execUploadFile
@@ -86,6 +90,16 @@ driveRoot api ep = do
 -- | Fetch the immediate children of a folder.
 listFolder :: Api -> DriveEndpoints s -> DriveNodeId -> IO [DriveNode]
 listFolder = fetchChildren
+
+
+{- | Fetch an app's document folder by its stable node identifier.
+
+The 'DriveNodeId' should come from 'alNodeId' on an 'AppLibrary' returned by
+'listAppLibraries'.  The returned 'AppScope' endpoint permits only read
+operations ('listFolder', 'downloadFile').
+-}
+driveAppNodeById :: Api -> DriveEndpoints CloudScope -> DriveNodeId -> IO (DriveEndpoints AppScope, FolderData)
+driveAppNodeById = execAppNode
 
 
 {- | Fetch the documents folder for a specific app bundle.

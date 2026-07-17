@@ -121,13 +121,15 @@ folderDocId :: FolderData -> Text
 folderDocId fd =
   let DriveNodeId nid = fnId fd
       prefix = "FOLDER::" <> fnZone fd <> "::"
-  in fromMaybe nid (Text.stripPrefix prefix nid)
+   in fromMaybe nid (Text.stripPrefix prefix nid)
 
 
 -- | Metadata for an app library entry from @retrieveAppLibraries@.
 data AppLibrary = AppLibrary
   { alBundleId :: !BundleId
-  -- ^ the app's bundle identifier (use with 'appNodeId' or 'driveAppNode')
+  -- ^ the app's bundle identifier
+  , alNodeId :: !DriveNodeId
+  -- ^ the stable node identifier (@drivewsid@); use with 'driveAppNodeById'
   , alName :: !(Maybe Text)
   -- ^ human-readable display name (e.g. @"Pages"@); absent for some apps
   , alDateCreated :: !UTCTime

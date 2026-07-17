@@ -124,11 +124,12 @@ parseAppLibrary = withObject "AppLibrary" $ \o -> do
   docwsid <- o .: "docwsid"
   zone <- o .: "zone"
   bid <- parseBundleId docwsid zone
+  nid <- DriveNodeId <$> o .: "drivewsid"
   name <- o .:? "name"
   dc <- o .: "dateCreated" >>= parseTimestamp
   rawIcons <- fromMaybe [] <$> o .:? "icons"
   icons <- mapM parseAppLibraryIcon rawIcons
-  pure AppLibrary{alBundleId = bid, alName = name, alDateCreated = dc, alIcons = icons}
+  pure AppLibrary{alBundleId = bid, alNodeId = nid, alName = name, alDateCreated = dc, alIcons = icons}
 
 
 parseBundleId :: Text -> Text -> Parser BundleId

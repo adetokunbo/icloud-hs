@@ -8,6 +8,7 @@ module Network.ICloud.Internal.Drive.Download
   , fetchFile
   , fetchAppLibraries
   , fetchAppLibrariesRaw
+  , execAppNode
   , execCreateFolder
   , execRenameNode
   , execDeleteNode
@@ -35,7 +36,8 @@ import Network.HTTP.Client
 import Network.HTTP.Types (hContentType, methodPost, statusCode)
 import Network.ICloud.Http (Api, rawRequest)
 import Network.ICloud.Internal.Drive.Endpoints
-  ( CloudScope
+  ( AppScope
+  , CloudScope
   , DriveEndpoints
   , appLibrariesReq
   , commitUploadReq
@@ -48,11 +50,12 @@ import Network.ICloud.Internal.Drive.Endpoints
   , nodeDetailsReq
   , renameNodeBody
   , renameNodeReq
+  , toAppScope
   , uploadTokenReq
   )
 import Network.ICloud.Internal.Drive.Node
   ( AppLibrary
-  , DriveNode
+  , DriveNode (..)
   , DriveNodeId
   , FileData (..)
   , FolderData (..)
@@ -102,6 +105,15 @@ fetchFile api ep fd
       contentResp <- rawRequest api contentReq
       checkStatus "fetchFile (content)" contentResp
       pure $ responseBody contentResp
+
+
+-- | Fetch the app folder identified by its node ID, returning an 'AppScope' endpoint.
+execAppNode :: Api -> DriveEndpoints CloudScope -> DriveNodeId -> IO (DriveEndpoints AppScope, FolderData)
+execAppNode api ep nid = do
+  node <- fetchNode api ep nid
+  case node of
+    DriveFolder fd -> pure (toAppScope ep, fd)
+    DriveFile _ -> fail "driveAppNodeById: unexpected file node at app root"
 
 
 -- | Fetch and parse the @retrieveAppLibraries@ response as @[AppLibrary]@.
