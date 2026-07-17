@@ -63,6 +63,9 @@ module Network.ICloud.Http
   , AuthState (..)
   , ApiLogger
 
+    -- * Authenticated HTTP
+  , rawRequest
+
     -- * Logging
   , withLogger
   , fileLogger
