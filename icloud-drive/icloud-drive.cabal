@@ -94,5 +94,8 @@ test-suite test
     , icloud-auth
     , icloud-drive
     , icloud-drive:icloud-drive-internal
+    , temporary            >=1.2 && <1.4
     , text                 >=1.2.3 && <2.2
     , time                 >=1.9 && <1.15
+    , wai                  >=3.2 && <3.3
+    , warp                 >=3.2 && <3.5
