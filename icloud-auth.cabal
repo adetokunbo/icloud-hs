@@ -12,10 +12,24 @@ description:
 
   This library is unofficial and not supported by Apple. It may break
   without warning if Apple changes their authentication protocol.
+license:            BSD-3-Clause
+license-file:       LICENSE
+maintainer:         Tim Emiola <adetokunbo@emio.la>
+category:           Network
 build-type:         Simple
-extra-source-files:
+tested-with:
+    GHC == 8.10.7
+  , GHC == 9.0.2
+  , GHC == 9.2.8
+  , GHC == 9.4.8
+  , GHC == 9.6.7
+  , GHC == 9.8.4
+  , GHC == 9.10.2
+  , GHC == 9.12.1
+extra-doc-files:
   ChangeLog.md
-data-files: testdata/*_test.json
+  README.md
+data-files:         testdata/*.json
 
 source-repository head
   type:     git
