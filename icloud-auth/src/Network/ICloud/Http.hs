@@ -69,6 +69,7 @@ module Network.ICloud.Http
     -- * Logging
   , withLogger
   , fileLogger
+  , verboseLogger
 
     -- * Errors
   , AuthError (..)
@@ -103,6 +104,7 @@ import Data.Aeson.KeyMap (fromList)
 import Data.Aeson.Types (Parser, Value (..), parseMaybe)
 import Data.Base64.Types (extractBase64)
 import Data.ByteString (ByteString, isPrefixOf)
+import qualified Data.ByteString as BS
 import Data.ByteString.Base64 (decodeBase64Untyped, encodeBase64)
 import qualified Data.ByteString.Lazy as LBS
 import Data.CaseInsensitive (mk, original)
@@ -116,6 +118,7 @@ import Data.Word (Word64, Word8)
 import Network.HTTP.Client
   ( Manager
   , Request (..)
+  , RequestBody (..)
   , Response (..)
   , httpLbs
   )
@@ -310,6 +313,34 @@ fileLogger h = ApiLogger $ \req resp -> do
   hPutStrLn h ""
   LBS.hPutStr h (responseBody resp)
   hPutStrLn h "\n---"
+
+
+{- | Like 'fileLogger' but also logs the query string in the URL and the
+request body when present.
+-}
+verboseLogger :: Handle -> ApiLogger
+verboseLogger h = ApiLogger $ \req resp -> do
+  now <- getCurrentTime
+  let scheme = if secure req then "https" else "http" :: String
+      qs = if BS.null (queryString req) then "" else "?" <> toS (queryString req)
+      uri = scheme <> "://" <> toS (host req) <> toS (path req) <> qs
+      status = statusCode (responseStatus resp)
+      summary = show now <> " " <> toS (method req) <> " " <> uri <> " " <> show status
+      fmtHdr (name, val) = toS (original name) <> ": " <> toS val
+  hPutStrLn h summary
+  mapM_ (hPutStrLn h . fmtHdr) (requestHeaders req)
+  logReqBody (requestBody req)
+  hPutStrLn h ""
+  mapM_ (hPutStrLn h . fmtHdr) (responseHeaders resp)
+  hPutStrLn h ""
+  LBS.hPutStr h (responseBody resp)
+  hPutStrLn h "\n---"
+ where
+  logReqBody (RequestBodyLBS lbs)
+    | not (LBS.null lbs) = hPutStrLn h "" >> LBS.hPutStr h lbs
+  logReqBody (RequestBodyBS bs)
+    | not (BS.null bs) = hPutStrLn h "" >> LBS.hPutStr h (LBS.fromStrict bs)
+  logReqBody _ = pure ()
 
 
 {- | The result of a login attempt.
