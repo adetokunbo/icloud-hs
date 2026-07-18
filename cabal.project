@@ -1,6 +1,7 @@
 packages:
   icloud-auth/
   icloud-drive/
+  icloud-notes/
 
 source-repository-package
   type: git

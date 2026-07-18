@@ -22,6 +22,7 @@ jobs:
         package:
           - "icloud-auth"
           - "icloud-drive"
+          - "icloud-notes"
     env:
       CONFIG: "--enable-tests"
     steps:
