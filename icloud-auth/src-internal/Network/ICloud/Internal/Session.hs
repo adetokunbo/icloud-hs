@@ -26,7 +26,6 @@ module Network.ICloud.Internal.Session
   , updateSavedHeaders
   , pristine
   , saveLoginMsg
-  , loadLoginMsg
 
     -- * AccountData
   , AccountData (..)
@@ -148,16 +147,6 @@ loginMsgPath topDir creds = topDir </> Text.unpack (loginMsgBase creds)
 -- | Save the login message to user specific filepath
 saveLoginMsg :: Session -> Value -> IO ()
 saveLoginMsg Session{sessionCreds = creds, sessionTopDir = topDir} = saveValue (loginMsgPath topDir creds)
-
-
--- | Load the persisted login message; returns @Nothing@ if absent or unparseable
-loadLoginMsg :: Session -> IO (Maybe Value)
-loadLoginMsg Session{sessionCreds = creds, sessionTopDir = topDir} = do
-  let path = loginMsgPath topDir creds
-  exists <- doesFileExist path
-  if not exists
-    then pure Nothing
-    else eitherDecodeFileStrict path >>= either (const (pure Nothing)) (pure . Just)
 
 
 data AccountData = AccountData

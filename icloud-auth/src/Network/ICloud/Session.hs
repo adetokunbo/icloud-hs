@@ -69,16 +69,6 @@ module Network.ICloud.Session
     -}
   , loadSession
 
-    -- * Reading persisted login data
-
-    {- | Load the raw JSON body of the last successful login response.
-
-    Returns @Nothing@ if no login has been persisted yet for this session.
-    Useful for extracting fields (e.g. @dsInfo.dsid@) that are not captured
-    in 'AccountData'.
-    -}
-  , loadLoginMsg
-
     -- * Saving credentials
 
     {- | Write 'Credentials' to @$XDG_CONFIG_HOME\/hs-icloud-auth\/credentials.json@,
@@ -92,7 +82,6 @@ import Network.ICloud.Internal.Session
   ( AccountData (..)
   , Credentials (..)
   , Session (..)
-  , loadLoginMsg
   , loadSession
   , saveCredentials
   )
