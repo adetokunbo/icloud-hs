@@ -97,3 +97,10 @@ stack*.yaml.lock
 ### Nix ###
 result*
 .direnv
+
+
+### Claude ###
+.claude
+
+### Testing ###
+icloud-sessions
