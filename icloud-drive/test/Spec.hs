@@ -4,7 +4,6 @@
 
 module Main where
 
-import qualified ICloud.Drive.AppLibrarySpec as DriveAppLibrary
 import qualified ICloud.Drive.EndpointsSpec as DriveEndpoints
 import qualified ICloud.Drive.MutationSpec as DriveMutation
 import qualified ICloud.Drive.NodeSpec as DriveNode
@@ -25,7 +24,6 @@ main = do
   hSetBuffering stderr NoBuffering
   hspec $ do
     DriveNode.spec
-    DriveAppLibrary.spec
     DriveEndpoints.spec
     Drive.spec
     DriveMutation.spec

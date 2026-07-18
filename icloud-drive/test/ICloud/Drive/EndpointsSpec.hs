@@ -9,8 +9,7 @@ import Data.Text (Text)
 import Network.HTTP.Client (Request (..))
 import Network.HTTP.Types (methodGet, methodPost)
 import Network.ICloud.Internal.Drive.Endpoints
-  ( appLibrariesReq
-  , downloadTokenReq
+  ( downloadTokenReq
   , mkDriveEndpoints
   , nodeDetailsBody
   , nodeDetailsReq
@@ -40,16 +39,6 @@ spec = describe "Network.ICloud.Internal.Drive.Endpoints" $ do
       method (nodeDetailsReq ep) `shouldBe` methodPost
     it "includes clientId query param" $
       queryString (nodeDetailsReq ep)
-        `shouldSatisfy` BS.isInfixOf "clientId=auth-test-client-id"
-
-  describe "appLibrariesReq" $ do
-    it "targets retrieveAppLibraries" $
-      path (appLibrariesReq ep)
-        `shouldSatisfy` BS.isSuffixOf "/retrieveAppLibraries"
-    it "uses GET" $
-      method (appLibrariesReq ep) `shouldBe` methodGet
-    it "includes clientId query param" $
-      queryString (appLibrariesReq ep)
         `shouldSatisfy` BS.isInfixOf "clientId=auth-test-client-id"
 
   describe "downloadTokenReq" $ do
