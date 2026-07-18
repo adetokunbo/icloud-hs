@@ -1,24 +1,22 @@
 module Main where
 
 import Control.Exception (catch, displayException)
-import qualified Data.ByteString.Lazy as LBS
+import Data.List (find)
 import qualified Data.Text as Text
 import Network.HTTP.Client.TLS (newTlsManager)
 import Network.ICloud.Drive
   ( CloudScope
   , DriveEndpoints
   , DriveNode (..)
+  , DriveNodeId
   , FileData (..)
   , FolderData (..)
   , driveRoot
   , fileName
-  , fnId
-  , fnName
-  , listAppLibrariesRaw
   , listFolder
   , mkDriveEndpoints
   )
-import Network.ICloud.Http (Api, AuthError, AuthState (..), fileLogger, login, mkApiWith, withLogger)
+import Network.ICloud.Http (Api, AuthError, AuthState (..), fileLogger, login, mkApiWith, verboseLogger, withLogger)
 import Network.ICloud.Http.Endpoints (Realm (..), realmEndpoints)
 import Network.ICloud.Session (loadSession)
 import Options.Applicative
@@ -26,18 +24,25 @@ import System.Directory (createDirectoryIfMissing)
 import System.Environment.XDG.BaseDir (getUserCacheDir)
 import System.Exit (exitFailure)
 import System.FilePath ((</>))
-import System.IO (IOMode (..), withFile)
+import System.IO (IOMode (..), stdout, withFile)
 
 
 data Command
-  = ListAppLibraries CommonOpts
-  | ListRoot CommonOpts
+  = ListRoot CommonOpts
+  | ListFolder ListFolderOpts
+
+
+data ListFolderOpts = ListFolderOpts
+  { lfPath :: [Text.Text]
+  , lfCommon :: CommonOpts
+  }
 
 
 data CommonOpts = CommonOpts
   { optChina :: Bool
   , optLog :: Bool
   , optLogFile :: Maybe FilePath
+  , optLogBodies :: Bool
   }
 
 
@@ -45,18 +50,25 @@ commandParser :: Parser Command
 commandParser =
   subparser
     ( command
-        "list-app-libraries"
+        "list-root"
         ( info
-            (ListAppLibraries <$> commonOptsParser)
-            (progDesc "Print raw JSON from retrieveAppLibraries")
+            (ListRoot <$> commonOptsParser)
+            (progDesc "List immediate children of the top-level iCloud Drive folder")
         )
         <> command
-          "list-root"
+          "list-folder"
           ( info
-              (ListRoot <$> commonOptsParser)
-              (progDesc "List immediate children of the top-level iCloud Drive folder")
+              (ListFolder <$> listFolderOptsParser)
+              (progDesc "List contents of a folder at a slash-separated path from root")
           )
     )
+
+
+listFolderOptsParser :: Parser ListFolderOpts
+listFolderOptsParser =
+  ListFolderOpts
+    <$> fmap (filter (not . Text.null) . Text.splitOn (Text.pack "/") . Text.pack) (argument str (metavar "PATH" <> help "Slash-separated path from root (e.g. Documents/Work)"))
+    <*> commonOptsParser
 
 
 commonOptsParser :: Parser CommonOpts
@@ -66,6 +78,7 @@ commonOptsParser =
     <*> switch (long "log" <> help "Append HTTP exchanges to the default log file")
     <*> optional
       (strOption (long "log-file" <> metavar "FILE" <> help "Append HTTP exchanges to FILE"))
+    <*> switch (long "log-bodies" <> help "Include request bodies in the HTTP exchange log")
 
 
 cliParser :: ParserInfo Command
@@ -79,16 +92,8 @@ main :: IO ()
 main = do
   cmd <- execParser cliParser
   case cmd of
-    ListAppLibraries opts -> runListAppLibraries opts
     ListRoot opts -> runListRoot opts
-
-
-runListAppLibraries :: CommonOpts -> IO ()
-runListAppLibraries opts =
-  withDriveApi opts $ \api ep -> do
-    raw <- listAppLibrariesRaw api ep
-    LBS.putStr raw
-    putStrLn ""
+    ListFolder opts -> runListFolder opts
 
 
 runListRoot :: CommonOpts -> IO ()
@@ -97,6 +102,30 @@ runListRoot opts =
     root <- driveRoot api ep
     nodes <- listFolder api ep (fnId root)
     mapM_ printNode nodes
+
+
+runListFolder :: ListFolderOpts -> IO ()
+runListFolder opts =
+  withDriveApi (lfCommon opts) $ \api ep -> do
+    root <- driveRoot api ep
+    nid <- navigatePath api ep (fnId root) (lfPath opts)
+    nodes <- listFolder api ep nid
+    mapM_ printNode nodes
+
+
+navigatePath :: Api -> DriveEndpoints CloudScope -> DriveNodeId -> [Text.Text] -> IO DriveNodeId
+navigatePath _ _ nid [] = pure nid
+navigatePath api ep nid (seg : segs) = do
+  children <- listFolder api ep nid
+  case find (matchFolderName seg) children of
+    Nothing -> fail $ "Folder not found: " <> Text.unpack seg
+    Just (DriveFile _) -> fail $ "Not a folder: " <> Text.unpack seg
+    Just (DriveFolder fd) -> navigatePath api ep (fnId fd) segs
+
+
+matchFolderName :: Text.Text -> DriveNode -> Bool
+matchFolderName name (DriveFolder fd) = fnName fd == name
+matchFolderName _ (DriveFile _) = False
 
 
 printNode :: DriveNode -> IO ()
@@ -111,24 +140,27 @@ printNode (DriveFile fd) =
 
 
 withDriveApi :: CommonOpts -> (Api -> DriveEndpoints CloudScope -> IO ()) -> IO ()
-withDriveApi opts action = do
+withDriveApi opts runAction = do
   session <- loadSession
   mgr <- newTlsManager
   let realm = if optChina opts then China else Usual
   api0 <- mkApiWith session (realmEndpoints realm) mgr
   mbLogPath <- resolveLogTarget opts
-  let run api = do
+  let mkLogger = if optLogBodies opts then verboseLogger else fileLogger
+      run api = do
         result <- login api
         case result of
           Authenticated sess ad -> do
             ep <- mkDriveEndpoints ad sess
-            action api ep
+            runAction api ep
           _ -> do
             putStrLn "Not authenticated — run 'icloud-auth login' first."
             exitFailure
   let go = case mbLogPath of
-        Nothing -> run api0
-        Just fp -> withFile fp AppendMode $ \h -> run (withLogger (fileLogger h) api0)
+        Just fp -> withFile fp AppendMode $ \h -> run (withLogger (mkLogger h) api0)
+        Nothing
+          | optLogBodies opts -> run (withLogger (mkLogger stdout) api0)
+          | otherwise -> run api0
   go `catch` \e -> do
     putStrLn $ "Error: " <> displayException (e :: AuthError)
     exitFailure
