@@ -33,7 +33,7 @@ data-files:         testdata/*.json
 
 source-repository head
   type:     git
-  location: https://github.com/adetokunbo/icloud-auth.git
+  location: https://github.com/adetokunbo/icloud-hs.git
 
 library icloud-auth-internal
   exposed-modules:  Network.ICloud.Internal.Endpoints

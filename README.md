@@ -1,10 +1,10 @@
 # icloud-auth - unofficial auth for iCloud services
 
-[![GitHub CI](https://github.com/adetokunbo/icloud-auth/actions/workflows/cabal.yml/badge.svg)](https://github.com/adetokunbo/icloud-auth/actions)
+[![GitHub CI](https://github.com/adetokunbo/icloud-hs/actions/workflows/cabal.yml/badge.svg)](https://github.com/adetokunbo/icloud-hs/actions)
 [![Stackage Nightly](http://stackage.org/package/icloud-auth/badge/nightly)](http://stackage.org/nightly/package/icloud-auth)
 [![Hackage][hackage-badge]][hackage]
 [![Hackage Dependencies][hackage-deps-badge]][hackage-deps]
-[![BSD3](https://img.shields.io/badge/license-BSD3-green.svg?dummy)](https://github.com/adetokunbo/icloud-auth/blob/master/LICENSE)
+[![BSD3](https://img.shields.io/badge/license-BSD3-green.svg?dummy)](https://github.com/adetokunbo/icloud-hs/blob/master/LICENSE)
 
 `icloud-auth` allows logon to [iCloud] servers; upon provision of the username and
 password, it retrieves and stores an authorization token, for use in programmatic

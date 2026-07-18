@@ -32,7 +32,7 @@ extra-doc-files:
 
 source-repository head
   type:     git
-  location: https://github.com/adetokunbo/icloud-auth.git
+  location: https://github.com/adetokunbo/icloud-hs.git
   subdir:   icloud-drive
 
 executable icloud-drive

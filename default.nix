@@ -7,7 +7,7 @@ in
 } : pkgs.haskell-nix.cabalProject {
   # 'cleanGit' cleans a source directory based on the files known by git
   src = pkgs.haskell-nix.haskellLib.cleanGit {
-    name = "icloud-auth";
+    name = "icloud-hs";
     src = ./.;
   };
   compiler-nix-name = ghc;
