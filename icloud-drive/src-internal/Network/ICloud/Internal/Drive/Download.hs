@@ -6,9 +6,6 @@ module Network.ICloud.Internal.Drive.Download
   ( fetchNode
   , fetchChildren
   , fetchFile
-  , fetchAppLibraries
-  , fetchAppLibrariesRaw
-  , execAppNode
   , execCreateFolder
   , execRenameNode
   , execDeleteNode
@@ -36,10 +33,8 @@ import Network.HTTP.Client
 import Network.HTTP.Types (hContentType, methodPost, statusCode)
 import Network.ICloud.Http (Api, rawRequest)
 import Network.ICloud.Internal.Drive.Endpoints
-  ( AppScope
-  , CloudScope
+  ( CloudScope
   , DriveEndpoints
-  , appLibrariesReq
   , commitUploadReq
   , createFolderBody
   , createFolderReq
@@ -50,13 +45,11 @@ import Network.ICloud.Internal.Drive.Endpoints
   , nodeDetailsReq
   , renameNodeBody
   , renameNodeReq
-  , toAppScope
   , uploadTokenReq
   )
 import Network.ICloud.Internal.Drive.Node
-  ( AppLibrary
-  , DriveNode (..)
-  , DriveNodeId
+  ( DriveNode (..)
+  , DriveNodeId (..)
   , FileData (..)
   , FolderData (..)
   , folderDocId
@@ -65,7 +58,6 @@ import Network.ICloud.Internal.Drive.Node
   )
 import Network.ICloud.Internal.Drive.NodeData
   ( UploadReceipt (..)
-  , parseAppLibrariesResponse
   , parseChildrenResponse
   , parseDownloadUrl
   , parseNodeResponse
@@ -105,32 +97,6 @@ fetchFile api ep fd
       contentResp <- rawRequest api contentReq
       checkStatus "fetchFile (content)" contentResp
       pure $ responseBody contentResp
-
-
--- | Fetch the app folder identified by its node ID, returning an 'AppScope' endpoint.
-execAppNode :: Api -> DriveEndpoints CloudScope -> DriveNodeId -> IO (DriveEndpoints AppScope, FolderData)
-execAppNode api ep nid = do
-  node <- fetchNode api ep nid
-  case node of
-    DriveFolder fd -> pure (toAppScope ep, fd)
-    DriveFile _ -> fail "driveAppNodeById: unexpected file node at app root"
-
-
--- | Fetch and parse the @retrieveAppLibraries@ response as @[AppLibrary]@.
-fetchAppLibraries :: Api -> DriveEndpoints s -> IO [AppLibrary]
-fetchAppLibraries api ep = do
-  resp <- rawRequest api (appLibrariesReq ep)
-  checkStatus "fetchAppLibraries" resp
-  body <- decodeBody "fetchAppLibraries" resp
-  either fail pure $ parseEither parseAppLibrariesResponse body
-
-
--- | Fetch the raw JSON body from @GET retrieveAppLibraries@.
-fetchAppLibrariesRaw :: Api -> DriveEndpoints s -> IO LBS.ByteString
-fetchAppLibrariesRaw api ep = do
-  resp <- rawRequest api (appLibrariesReq ep)
-  checkStatus "fetchAppLibrariesRaw" resp
-  pure $ responseBody resp
 
 
 -- | Create a new folder under the given parent node.
@@ -293,11 +259,12 @@ uploadBoundary = "WebKitFormBoundaryicloud"
 
 nodeReq :: DriveEndpoints s -> DriveNodeId -> Request
 nodeReq ep nid =
-  (nodeDetailsReq ep)
+  base
     { requestBody = RequestBodyLBS (nodeDetailsBody nid)
-    , requestHeaders =
-        (hContentType, "application/json") : requestHeaders (nodeDetailsReq ep)
+    , requestHeaders = (hContentType, "application/json") : requestHeaders base
     }
+ where
+  base = nodeDetailsReq ep
 
 
 getReqFromUrl :: Text -> IO Request

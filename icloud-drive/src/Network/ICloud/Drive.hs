@@ -32,23 +32,15 @@ module Network.ICloud.Drive
     -- * Browsing
   , driveRoot
   , listFolder
-  , driveAppNode
 
     -- * Downloading
   , downloadFile
-
-    -- * App folders
-  , driveAppNodeById
 
     -- * Mutations
   , createFolder
   , renameNode
   , deleteNode
   , uploadFile
-
-    -- * Discovery
-  , listAppLibraries
-  , listAppLibrariesRaw
 
     -- * Re-exports
   , module Network.ICloud.Drive.Node
@@ -60,13 +52,10 @@ import Data.Text (Text)
 import Network.ICloud.Drive.Node
 import Network.ICloud.Http (Api)
 import Network.ICloud.Internal.Drive.Download
-  ( execAppNode
-  , execCreateFolder
+  ( execCreateFolder
   , execDeleteNode
   , execRenameNode
   , execUploadFile
-  , fetchAppLibraries
-  , fetchAppLibrariesRaw
   , fetchChildren
   , fetchFile
   , fetchNode
@@ -74,7 +63,6 @@ import Network.ICloud.Internal.Drive.Download
 import Network.ICloud.Internal.Drive.Endpoints
   ( DriveEndpoints
   , mkDriveEndpoints
-  , toAppScope
   )
 
 
@@ -90,30 +78,6 @@ driveRoot api ep = do
 -- | Fetch the immediate children of a folder.
 listFolder :: Api -> DriveEndpoints s -> DriveNodeId -> IO [DriveNode]
 listFolder = fetchChildren
-
-
-{- | Fetch an app's document folder by its stable node identifier.
-
-The 'DriveNodeId' should come from 'alNodeId' on an 'AppLibrary' returned by
-'listAppLibraries'.  The returned 'AppScope' endpoint permits only read
-operations ('listFolder', 'downloadFile').
--}
-driveAppNodeById :: Api -> DriveEndpoints CloudScope -> DriveNodeId -> IO (DriveEndpoints AppScope, FolderData)
-driveAppNodeById = execAppNode
-
-
-{- | Fetch the documents folder for a specific app bundle.
-
-Returns an 'AppScope' endpoint together with the folder.  The 'AppScope'
-endpoint may only be used for read operations ('listFolder', 'downloadFile');
-passing it to any mutation raises a compile error.
--}
-driveAppNode :: Api -> DriveEndpoints CloudScope -> BundleId -> IO (DriveEndpoints AppScope, FolderData)
-driveAppNode api ep bid = do
-  node <- fetchNode api ep (appNodeId bid)
-  case node of
-    DriveFolder fd -> pure (toAppScope ep, fd)
-    DriveFile _ -> fail "driveAppNode: unexpected file node"
 
 
 -- | Download the contents of a file as a lazy 'LBS.ByteString'.
@@ -134,16 +98,6 @@ renameNode = execRenameNode
 -- | Move a node (folder or file) to the trash.
 deleteNode :: Api -> DriveEndpoints CloudScope -> DriveNode -> IO ()
 deleteNode = execDeleteNode
-
-
--- | List the app libraries registered with this account's iCloud Drive.
-listAppLibraries :: Api -> DriveEndpoints s -> IO [AppLibrary]
-listAppLibraries = fetchAppLibraries
-
-
--- | Fetch the raw JSON body from @GET retrieveAppLibraries@.
-listAppLibrariesRaw :: Api -> DriveEndpoints s -> IO LBS.ByteString
-listAppLibrariesRaw = fetchAppLibrariesRaw
 
 
 -- | Upload a file into a folder.

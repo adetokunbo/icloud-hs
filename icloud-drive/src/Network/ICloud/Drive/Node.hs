@@ -10,9 +10,7 @@ Every item in Drive is either a 'FolderData' or a 'FileData', wrapped in a
 'DriveNode'. Folders are identified by a 'DriveNodeId'; files additionally
 carry a document identifier used for download.
 
-Use 'rootNodeId' to address the root of the main CloudDocs tree, or
-'appNodeId' to address the documents folder of a specific app by its
-'BundleId'.
+Use 'rootNodeId' to address the root of the main CloudDocs tree.
 -}
 module Network.ICloud.Drive.Node
   ( -- * Node sum type
@@ -32,29 +30,18 @@ module Network.ICloud.Drive.Node
     -- * Identifiers
   , DriveNodeId (..)
   , rootNodeId
-  , appNodeId
-  , BundleId (..)
-
-    -- * App library
-  , AppLibrary (..)
-  , AppLibraryIcon (..)
 
     -- * Endpoint scopes
   , CloudScope
-  , AppScope
   )
 where
 
-import Network.ICloud.Internal.Drive.Endpoints (AppScope, CloudScope)
+import Network.ICloud.Internal.Drive.Endpoints (CloudScope)
 import Network.ICloud.Internal.Drive.Node
-  ( AppLibrary (..)
-  , AppLibraryIcon (..)
-  , BundleId (..)
-  , DriveNode (..)
+  ( DriveNode (..)
   , DriveNodeId (..)
   , FileData (..)
   , FolderData (..)
-  , appNodeId
   , fileName
   , nodeEtag
   , nodeId

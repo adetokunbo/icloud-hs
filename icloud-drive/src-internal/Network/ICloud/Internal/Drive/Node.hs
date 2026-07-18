@@ -6,10 +6,6 @@ module Network.ICloud.Internal.Drive.Node
   ( -- * Node identifier
     DriveNodeId (..)
   , rootNodeId
-  , appNodeId
-
-    -- * App bundle identifier
-  , BundleId (..)
 
     -- * Node types
   , DriveNode (..)
@@ -19,10 +15,6 @@ module Network.ICloud.Internal.Drive.Node
   , nodeId
   , nodeEtag
   , folderDocId
-
-    -- * App library
-  , AppLibrary (..)
-  , AppLibraryIcon (..)
   )
 where
 
@@ -41,16 +33,6 @@ newtype DriveNodeId = DriveNodeId {unDriveNodeId :: Text}
 -- | The node ID for the root of the main CloudDocs tree.
 rootNodeId :: DriveNodeId
 rootNodeId = DriveNodeId "FOLDER::com.apple.CloudDocs::root"
-
-
--- | The node ID for the documents folder of a specific app bundle.
-appNodeId :: BundleId -> DriveNodeId
-appNodeId (BundleId b) = DriveNodeId $ "FOLDER::" <> b <> "::documents"
-
-
--- | An Apple app bundle identifier (e.g. @com.apple.Pages@).
-newtype BundleId = BundleId {unBundleId :: Text}
-  deriving (Eq, Show)
 
 
 -- | A node in the iCloud Drive tree — either a folder or a file.
@@ -122,31 +104,3 @@ folderDocId fd =
   let DriveNodeId nid = fnId fd
       prefix = "FOLDER::" <> fnZone fd <> "::"
    in fromMaybe nid (Text.stripPrefix prefix nid)
-
-
--- | Metadata for an app library entry from @retrieveAppLibraries@.
-data AppLibrary = AppLibrary
-  { alBundleId :: !BundleId
-  -- ^ the app's bundle identifier
-  , alNodeId :: !DriveNodeId
-  -- ^ the stable node identifier (@drivewsid@); use with 'driveAppNodeById'
-  , alName :: !(Maybe Text)
-  -- ^ human-readable display name (e.g. @"Pages"@); absent for some apps
-  , alDateCreated :: !UTCTime
-  -- ^ when this library was registered with iCloud Drive
-  , alIcons :: ![AppLibraryIcon]
-  -- ^ app icon URLs at various sizes; empty when not provided
-  }
-  deriving (Eq, Show)
-
-
--- | A single icon entry within an 'AppLibrary'.
-data AppLibraryIcon = AppLibraryIcon
-  { aliUrl :: !Text
-  -- ^ URL of the icon image
-  , aliIconType :: !Text
-  -- ^ platform tag (e.g. @"IOS"@, @"MAC"@)
-  , aliSize :: !Int
-  -- ^ icon dimension in points (e.g. @120@)
-  }
-  deriving (Eq, Show)

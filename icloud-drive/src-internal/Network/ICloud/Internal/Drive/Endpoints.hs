@@ -5,12 +5,9 @@
 module Network.ICloud.Internal.Drive.Endpoints
   ( DriveEndpoints
   , CloudScope
-  , AppScope
   , mkDriveEndpoints
-  , toAppScope
   , nodeDetailsReq
   , nodeDetailsBody
-  , appLibrariesReq
   , downloadTokenReq
   , createFolderReq
   , createFolderBody
@@ -44,10 +41,6 @@ import Network.ICloud.Session (AccountData (..), Session (..))
 data CloudScope
 
 
--- | Tag for an app sandbox; permits only read operations.
-data AppScope
-
-
 -- | Base requests and client ID needed to call the iCloud Drive API.
 data DriveEndpoints s = DriveEndpoints
   { deServiceReq :: !Request
@@ -74,12 +67,6 @@ mkDriveEndpoints ad sess = do
   pure DriveEndpoints{deServiceReq, deDocReq, deClientId}
 
 
--- | Downgrade a 'CloudScope' endpoint to 'AppScope' for use with app sandboxes.
-toAppScope :: DriveEndpoints CloudScope -> DriveEndpoints AppScope
-toAppScope DriveEndpoints{deServiceReq, deDocReq, deClientId} =
-  DriveEndpoints{deServiceReq, deDocReq, deClientId}
-
-
 -- | Build the @POST retrieveItemDetailsInFolders@ request.
 nodeDetailsReq :: DriveEndpoints s -> Request
 nodeDetailsReq ep =
@@ -93,17 +80,9 @@ nodeDetailsReq ep =
 -- | Build the JSON request body for @retrieveItemDetailsInFolders@.
 nodeDetailsBody :: DriveNodeId -> LBS.ByteString
 nodeDetailsBody (DriveNodeId nid) =
-  "[{\"drivewsid\":\"" <> LBS.fromStrict (BS8.pack (Text.unpack nid)) <> "\",\"partialData\":false}]"
-
-
--- | Build the @GET retrieveAppLibraries@ request.
-appLibrariesReq :: DriveEndpoints s -> Request
-appLibrariesReq ep =
-  withClientId ep $
-    (deServiceReq ep)
-      { path = stripTrailingSlash (path (deServiceReq ep)) <> "/retrieveAppLibraries"
-      , method = methodGet
-      }
+  "[{\"drivewsid\":\""
+    <> LBS.fromStrict (BS8.pack (Text.unpack nid))
+    <> "\",\"partialData\":false}]"
 
 
 -- | Build the @GET download/by_id@ request for a file in the given zone.

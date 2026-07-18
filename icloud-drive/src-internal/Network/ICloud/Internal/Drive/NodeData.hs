@@ -5,7 +5,6 @@ module Network.ICloud.Internal.Drive.NodeData
   ( parseNodeResponse
   , parseChildrenResponse
   , parseDownloadUrl
-  , parseAppLibrariesResponse
   , UploadReceipt (..)
   , parseUploadTokenResponse
   , parseUploadReceiptResponse
@@ -30,10 +29,7 @@ import Data.Time (UTCTime, ZonedTime, zonedTimeToUTC)
 import Data.Time.Format.ISO8601 (iso8601ParseM)
 import qualified Data.Vector as V
 import Network.ICloud.Internal.Drive.Node
-  ( AppLibrary (..)
-  , AppLibraryIcon (..)
-  , BundleId (..)
-  , DriveNode (..)
+  ( DriveNode (..)
   , DriveNodeId (..)
   , FileData (..)
   , FolderData (..)
@@ -110,43 +106,6 @@ parseItems o = do
 nothingIfZero :: Maybe Int64 -> Maybe Int64
 nothingIfZero (Just 0) = Nothing
 nothingIfZero x = x
-
-
--- | Parse the @retrieveAppLibraries@ response body as a list of 'AppLibrary'.
-parseAppLibrariesResponse :: Value -> Parser [AppLibrary]
-parseAppLibrariesResponse = withObject "app libraries response" $ \o -> do
-  items <- o .: "items"
-  mapM parseAppLibrary items
-
-
-parseAppLibrary :: Value -> Parser AppLibrary
-parseAppLibrary = withObject "AppLibrary" $ \o -> do
-  docwsid <- o .: "docwsid"
-  zone <- o .: "zone"
-  bid <- parseBundleId docwsid zone
-  nid <- DriveNodeId <$> o .: "drivewsid"
-  name <- o .:? "name"
-  dc <- o .: "dateCreated" >>= parseTimestamp
-  rawIcons <- fromMaybe [] <$> o .:? "icons"
-  icons <- mapM parseAppLibraryIcon rawIcons
-  pure AppLibrary{alBundleId = bid, alNodeId = nid, alName = name, alDateCreated = dc, alIcons = icons}
-
-
-parseBundleId :: Text -> Text -> Parser BundleId
-parseBundleId docwsid zone =
-  case Text.stripPrefix "appDocuments_" docwsid of
-    Just bid -> pure (BundleId bid)
-    Nothing
-      | docwsid == "documents" -> pure (BundleId zone)
-      | otherwise -> fail $ "AppLibrary: unexpected docwsid format: " <> Text.unpack docwsid
-
-
-parseAppLibraryIcon :: Value -> Parser AppLibraryIcon
-parseAppLibraryIcon = withObject "AppLibraryIcon" $ \o ->
-  AppLibraryIcon
-    <$> o .: "url"
-    <*> o .: "type"
-    <*> o .: "size"
 
 
 -- | Checksum metadata returned after uploading file content (step 2 of upload).
