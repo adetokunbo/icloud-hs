@@ -27,6 +27,7 @@ main = do
 module Network.ICloud.Drive
   ( -- * Setup
     DriveEndpoints
+  , CloudScope
   , mkDriveEndpoints
 
     -- * Browsing
@@ -61,7 +62,8 @@ import Network.ICloud.Internal.Drive.Download
   , fetchNode
   )
 import Network.ICloud.Internal.Drive.Endpoints
-  ( DriveEndpoints
+  ( CloudScope
+  , DriveEndpoints
   , mkDriveEndpoints
   )
 

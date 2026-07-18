@@ -23,28 +23,18 @@ module Network.ICloud.Drive.Node
   , FileData (..)
   , fileName
 
-    -- * Node helpers
-  , nodeId
-  , nodeEtag
-
     -- * Identifiers
   , DriveNodeId (..)
   , rootNodeId
-
-    -- * Endpoint scopes
-  , CloudScope
   )
 where
 
-import Network.ICloud.Internal.Drive.Endpoints (CloudScope)
 import Network.ICloud.Internal.Drive.Node
   ( DriveNode (..)
   , DriveNodeId (..)
   , FileData (..)
   , FolderData (..)
   , fileName
-  , nodeEtag
-  , nodeId
   , rootNodeId
   )
 
