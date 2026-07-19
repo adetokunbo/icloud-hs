@@ -53,6 +53,7 @@ library icloud-notes-internal
     Network.ICloud.Internal.Notes.CloudKit
     Network.ICloud.Internal.Notes.Download
     Network.ICloud.Internal.Notes.Endpoints
+    Network.ICloud.Internal.Notes.Note
     Network.ICloud.Internal.Notes.NoteData
   hs-source-dirs:   src-internal
   build-depends:
@@ -78,6 +79,7 @@ library
   hs-source-dirs:   src
   build-depends:
     , base                         >=4.12 && <5
+    , bytestring                   >=0.10.8 && <0.11 || >=0.11.3 && <0.13
     , icloud-auth
     , icloud-notes:icloud-notes-internal
     , text                         >=1.2.3 && <2.2

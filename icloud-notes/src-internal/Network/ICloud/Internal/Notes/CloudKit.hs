@@ -17,6 +17,7 @@ module Network.ICloud.Internal.Notes.CloudKit
   , CKLookupResponse (..)
   , CKZoneChangesZone (..)
   , CKZoneChangesResponse (..)
+  , parseMillisTimestamp
   )
 where
 
@@ -36,7 +37,13 @@ import Data.Int (Int64)
 import Data.Map.Strict (Map)
 import Data.Proxy (Proxy (..))
 import Data.Text (Text, pack)
+import Data.Time (UTCTime)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
+
+
+parseMillisTimestamp :: Int64 -> UTCTime
+parseMillisTimestamp ms = posixSecondsToUTCTime (fromIntegral ms / 1000)
 
 
 data CKZoneId = CKZoneId
