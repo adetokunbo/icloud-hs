@@ -61,29 +61,23 @@ mkNotesEndpoints ad sess = do
 
 -- | Build the @POST /records/query@ request.
 queryReq :: NotesEndpoints -> Request
-queryReq ep =
-  (neBaseReq ep)
-    { path = path (neBaseReq ep) <> "/records/query"
-    , method = methodPost
-    , queryString = neQueryString ep
-    }
+queryReq = notesReq "/records/query"
 
 
 -- | Build the @POST /records/lookup@ request.
 lookupReq :: NotesEndpoints -> Request
-lookupReq ep =
-  (neBaseReq ep)
-    { path = path (neBaseReq ep) <> "/records/lookup"
-    , method = methodPost
-    , queryString = neQueryString ep
-    }
+lookupReq = notesReq "/records/lookup"
 
 
 -- | Build the @POST /changes/zone@ request.
 changesReq :: NotesEndpoints -> Request
-changesReq ep =
+changesReq = notesReq "/changes/zone"
+
+
+notesReq :: BS8.ByteString -> NotesEndpoints -> Request
+notesReq suffix ep =
   (neBaseReq ep)
-    { path = path (neBaseReq ep) <> "/changes/zone"
+    { path = path (neBaseReq ep) <> suffix
     , method = methodPost
     , queryString = neQueryString ep
     }

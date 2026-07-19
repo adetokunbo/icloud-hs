@@ -2,8 +2,10 @@
 
 module ICloud.Notes.EndpointsSpec (spec) where
 
+import Control.Monad (forM_)
 import Data.Aeson (Value (..))
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map.Strict as Map
 import Network.HTTP.Client (Request (..))
@@ -26,33 +28,21 @@ spec :: Spec
 spec = describe "Network.ICloud.Internal.Notes.Endpoints" $ do
   ep <- runIO (mkNotesEndpoints testAccountData testSession)
 
-  describe "queryReq" $ do
-    it "targets /records/query" $
-      path (queryReq ep) `shouldSatisfy` BS.isSuffixOf "/records/query"
-    it "uses POST" $
-      method (queryReq ep) `shouldBe` methodPost
-    it "includes remapEnums query param" $
-      queryString (queryReq ep) `shouldSatisfy` BS.isInfixOf "remapEnums=true"
-    it "includes getCurrentSyncToken query param" $
-      queryString (queryReq ep) `shouldSatisfy` BS.isInfixOf "getCurrentSyncToken=true"
-    it "includes clientId query param" $
-      queryString (queryReq ep) `shouldSatisfy` BS.isInfixOf "clientId=auth-test-client-id"
-
-  describe "lookupReq" $ do
-    it "targets /records/lookup" $
-      path (lookupReq ep) `shouldSatisfy` BS.isSuffixOf "/records/lookup"
-    it "uses POST" $
-      method (lookupReq ep) `shouldBe` methodPost
-    it "includes clientId query param" $
-      queryString (lookupReq ep) `shouldSatisfy` BS.isInfixOf "clientId=auth-test-client-id"
-
-  describe "changesReq" $ do
-    it "targets /changes/zone" $
-      path (changesReq ep) `shouldSatisfy` BS.isSuffixOf "/changes/zone"
-    it "uses POST" $
-      method (changesReq ep) `shouldBe` methodPost
-    it "includes clientId query param" $
-      queryString (changesReq ep) `shouldSatisfy` BS.isInfixOf "clientId=auth-test-client-id"
+  let reqs =
+        [ ("queryReq", queryReq ep, "/records/query")
+        , ("lookupReq", lookupReq ep, "/records/lookup")
+        , ("changesReq", changesReq ep, "/changes/zone")
+        ]
+  forM_ reqs $ \(name, req, suffix) ->
+    describe name $ do
+      it ("targets " <> suffix) $
+        path req `shouldSatisfy` BS.isSuffixOf (BS8.pack suffix)
+      it "uses POST" $
+        method req `shouldBe` methodPost
+      it "includes required query params" $ do
+        queryString req `shouldSatisfy` BS.isInfixOf "remapEnums=true"
+        queryString req `shouldSatisfy` BS.isInfixOf "getCurrentSyncToken=true"
+        queryString req `shouldSatisfy` BS.isInfixOf "clientId=auth-test-client-id"
 
   describe "foldersBody" $ do
     it "queries SearchIndexes with parentless filter" $
