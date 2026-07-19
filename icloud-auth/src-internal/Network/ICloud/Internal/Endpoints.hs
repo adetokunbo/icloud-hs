@@ -47,6 +47,7 @@ module Network.ICloud.Internal.Endpoints
   )
 where
 
+import Control.Exception (throwIO)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as LBS
@@ -72,6 +73,7 @@ import Network.HTTP.Types
   , methodPost
   , methodPut
   )
+import Network.ICloud.Internal.HttpErrors (AuthError (..))
 
 
 -- | @RequestHeaders@ that include the @Endpoint@ @home@
@@ -284,5 +286,5 @@ stripTrailingSlash bs
 lookupWebservice :: Text -> Map Text Text -> IO Request
 lookupWebservice key ws =
   case Map.lookup key ws of
-    Nothing -> fail $ "iCloud webservice URL not found for key: " <> toS key
+    Nothing -> throwIO $ WebserviceNotFound key
     Just url -> parseRequest (toS url)

@@ -77,6 +77,8 @@ data AuthError
     TwoFactorLocked
   | -- | Two-factor authentication is still required after a verification attempt.
     TwoFactorStillRequired
+  | -- | A required iCloud webservice URL was absent from 'AccountData'; the 'Text' is the service key.
+    WebserviceNotFound !Text
   | -- | The API returned a structured service error with a reason and an optional error code.
     ServiceError !Text !(Maybe Text)
   | -- | An HTTP response that could not be interpreted; the 'Text' describes the failure.
