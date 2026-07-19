@@ -381,10 +381,10 @@ loginWith readCode pickPhone pickDevice api =
     LoginAuthenticated (AuthComplete _ ad) -> pure $ Authenticated (apiSession api) ad
     LoginNeedsTwoFa (NeedsTwoFa _) -> completeTwoFactorWith readCode pickPhone api
     LoginNeedsTwoSa (TwoSaReady _ ds) -> complete2SAWith pickDevice (readCode 6) api ds
-    LoginHaltCreds _ -> throwIO $ UnexpectedResponse "login halted: missing credentials"
-    LoginHaltDir _ -> throwIO $ UnexpectedResponse "login halted: cannot create artifact directory"
-    LoginHaltSrp _ -> throwIO $ UnexpectedResponse "login halted: invalid SRP server public value"
-    LoginHaltTwoFaLocked _ -> throwIO $ UnexpectedResponse "2FA locked: too many incorrect code attempts"
+    LoginHaltCreds _ -> throwIO CredentialsMissing
+    LoginHaltDir _ -> throwIO $ ArtifactDirCreationFailed (sessionTopDir (apiSession api))
+    LoginHaltSrp _ -> throwIO SrpProtocolError
+    LoginHaltTwoFaLocked _ -> throwIO TwoFactorLocked
 
 
 instance LoginEvent (ReaderT Api IO) where
@@ -584,9 +584,9 @@ completeTwoFactorWith readCode pickPhone api = do
       cfg = TwoFaConfig{tfcPickPhone = pickPhone, tfcReadCode = readCode}
   runReaderT (twoFaProcess start cfg) api >>= \case
     CompletionAuthenticated (AuthComplete _ ad) -> pure $ Authenticated (apiSession api) ad
-    CompletionNeedsTwoFa _ -> throwIO $ UnexpectedResponse "accountLogin still requires 2FA after verification"
+    CompletionNeedsTwoFa _ -> throwIO TwoFactorStillRequired
     CompletionNeedsTwoSa (TwoSaReady _ ds) -> pure $ Requires2SA (apiSession api) ds
-    CompletionTwoFaLocked _ -> throwIO $ UnexpectedResponse "2FA locked: too many incorrect code attempts"
+    CompletionTwoFaLocked _ -> throwIO TwoFactorLocked
 
 
 -- | Used when already holding a 'Requires2SA' result from 'completeTwoFactor' or 'completeTwoFactorWith'
@@ -606,9 +606,9 @@ complete2SAWith pickDevice readCode api devices = do
       cfg = TwoSaConfig{tscPickDevice = pickDevice, tscReadCode = readCode}
   runReaderT (twoSaProcess start cfg) api >>= \case
     CompletionAuthenticated (AuthComplete _ ad) -> pure $ Authenticated (apiSession api) ad
-    CompletionNeedsTwoFa _ -> throwIO $ UnexpectedResponse "accountLogin requires 2FA after 2SA verification"
+    CompletionNeedsTwoFa _ -> throwIO TwoFactorStillRequired
     CompletionNeedsTwoSa (TwoSaReady _ ds) -> pure $ Requires2SA (apiSession api) ds
-    CompletionTwoFaLocked _ -> throwIO $ UnexpectedResponse "2FA locked: too many incorrect code attempts"
+    CompletionTwoFaLocked _ -> throwIO TwoFactorLocked
 
 
 -- | Make a session request and obtain the raw byte results

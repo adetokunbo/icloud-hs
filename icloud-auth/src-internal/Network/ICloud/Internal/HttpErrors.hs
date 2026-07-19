@@ -67,6 +67,16 @@ data AuthError
     AccountLocked
   | -- | The server requires the user to accept updated privacy terms before continuing.
     PrivacyAgreementRequired
+  | -- | Session credentials were absent when the login flow required them.
+    CredentialsMissing
+  | -- | The artifact directory could not be created; the 'FilePath' names the directory.
+    ArtifactDirCreationFailed !FilePath
+  | -- | The SRP key exchange failed due to an invalid server public value.
+    SrpProtocolError
+  | -- | Two-factor authentication is locked after too many incorrect code attempts.
+    TwoFactorLocked
+  | -- | Two-factor authentication is still required after a verification attempt.
+    TwoFactorStillRequired
   | -- | The API returned a structured service error with a reason and an optional error code.
     ServiceError !Text !(Maybe Text)
   | -- | An HTTP response that could not be interpreted; the 'Text' describes the failure.
