@@ -21,14 +21,13 @@ module Network.ICloud.Internal.Drive.Endpoints
 where
 
 import Data.Aeson (encode, object, (.=))
-import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as LBS
 import Data.Text (Text)
-import qualified Data.Text as Text
+import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Client
   ( Request (..)
   )
-import Network.HTTP.Types (methodGet, methodPost)
+import Network.HTTP.Types (methodGet, methodPost, urlEncode)
 import Network.ICloud.Http.Common
   ( icloudBrowserHeaders
   , lookupWebservice
@@ -83,7 +82,7 @@ nodeDetailsReq ep =
 nodeDetailsBody :: DriveNodeId -> LBS.ByteString
 nodeDetailsBody (DriveNodeId nid) =
   "[{\"drivewsid\":\""
-    <> LBS.fromStrict (BS8.pack (Text.unpack nid))
+    <> LBS.fromStrict (encodeUtf8 nid)
     <> "\",\"partialData\":false}]"
 
 
@@ -91,13 +90,13 @@ nodeDetailsBody (DriveNodeId nid) =
 downloadTokenReq :: Text -> Text -> DriveEndpoints s -> Request
 downloadTokenReq docId zone ep =
   (deDocReq ep)
-    { path = stripTrailingSlash (path (deDocReq ep)) <> "/ws/" <> BS8.pack (Text.unpack zone) <> "/download/by_id"
+    { path = stripTrailingSlash (path (deDocReq ep)) <> "/ws/" <> urlEncode False (encodeUtf8 zone) <> "/download/by_id"
     , method = methodGet
     , queryString =
         "clientId="
-          <> BS8.pack (Text.unpack (deClientId ep))
+          <> urlEncode True (encodeUtf8 (deClientId ep))
           <> "&document_id="
-          <> BS8.pack (Text.unpack docId)
+          <> urlEncode True (encodeUtf8 docId)
     }
 
 
@@ -165,7 +164,7 @@ uploadTokenReq zone ep =
       { path =
           stripTrailingSlash (path (deDocReq ep))
             <> "/ws/"
-            <> BS8.pack (Text.unpack zone)
+            <> urlEncode False (encodeUtf8 zone)
             <> "/upload/web"
       , method = methodPost
       }
@@ -179,7 +178,7 @@ commitUploadReq zone ep =
       { path =
           stripTrailingSlash (path (deDocReq ep))
             <> "/ws/"
-            <> BS8.pack (Text.unpack zone)
+            <> urlEncode False (encodeUtf8 zone)
             <> "/update/documents"
       , method = methodPost
       }
@@ -187,4 +186,4 @@ commitUploadReq zone ep =
 
 withClientId :: DriveEndpoints s -> Request -> Request
 withClientId ep req =
-  req{queryString = "clientId=" <> BS8.pack (Text.unpack (deClientId ep))}
+  req{queryString = "clientId=" <> urlEncode True (encodeUtf8 (deClientId ep))}
