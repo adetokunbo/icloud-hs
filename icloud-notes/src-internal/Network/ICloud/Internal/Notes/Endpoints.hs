@@ -96,7 +96,7 @@ foldersBody limit marker = encode $ object $ base <> cont
           , "filterBy" .= [indexFilter "parentless"]
           ]
     , "zoneID" .= notesZoneId
-    , "resultsLimit" .= min 200 limit
+    , "resultsLimit" .= min notesMaxResults limit
     ]
   cont = maybe [] (\m -> ["continuationMarker" .= m]) marker
 
@@ -110,7 +110,7 @@ recentsBody limit marker = encode $ object $ base <> cont
   base =
     [ "query"
         .= object
-          [ "recordType" .= ("Note" :: Text)
+          [ "recordType" .= noteRecordType
           , "filterBy" .= [indexFilter "recents"]
           , "sortBy"
               .= [ object
@@ -120,7 +120,7 @@ recentsBody limit marker = encode $ object $ base <> cont
                  ]
           ]
     , "zoneID" .= notesZoneId
-    , "resultsLimit" .= min 200 limit
+    , "resultsLimit" .= min notesMaxResults limit
     ]
   cont = maybe [] (\m -> ["continuationMarker" .= m]) marker
 
@@ -146,12 +146,20 @@ changesBody syncToken =
  where
   zoneBase =
     [ "zoneID" .= notesZoneId
-    , "desiredRecordTypes" .= (["Note"] :: [Text])
+    , "desiredRecordTypes" .= [noteRecordType]
     ]
   syncPart = maybe [] (\t -> ["syncToken" .= t]) syncToken
 
 
 -- Helpers
+
+noteRecordType :: Text
+noteRecordType = "Note"
+
+
+notesMaxResults :: Int
+notesMaxResults = 200
+
 
 notesZoneId :: Value
 notesZoneId =
