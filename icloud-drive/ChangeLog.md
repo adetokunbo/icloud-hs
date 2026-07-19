@@ -1,8 +1,8 @@
-# Revision history for hs-repo-seed
+# Revision history for icloud-drive
 
-`hs-repo-seed` uses [PVP Versioning][1].
+`icloud-drive` uses [PVP Versioning][1].
 
-## 0.1.0.0 -- 2023-09-26
+## 0.1.0.0 -- 2026-07-20
 
 * Initial version.
 
