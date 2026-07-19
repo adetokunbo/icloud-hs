@@ -11,9 +11,11 @@ SPDX-License-Identifier: BSD3
 module ICloud.SessionSpec (spec) where
 
 import Control.Monad (when)
-import Data.Aeson (decode, eitherDecodeFileStrict, encode, encodeFile)
+import Data.Aeson (decode, eitherDecodeFileStrict, encode, encodeFile, object, (.=))
+import Data.Aeson.Types (parseJSON, parseMaybe)
 import Data.List (sort)
 import qualified Data.Map.Strict as Map
+import Data.Maybe (fromMaybe)
 import Data.String (IsString (..))
 import Data.Text (Text)
 import qualified Data.Text.IO as Text
@@ -32,6 +34,7 @@ import Network.ICloud.Internal.Session
   , saveAccountData
   , saveCredentialsTo
   , savedHeadersPath
+  , unknownAccountData
   , updateSessionSavedHeaders
   , (</>)
   )
@@ -360,16 +363,25 @@ mkAccountData ver challenged trusted =
     , adHsaChallengeRequired = challenged
     , adHsaTrustedBrowser = trusted
     , adWebservices = Map.empty
+    , adRaw = object []
     }
 
 
 genAccountData :: Gen AccountData
 genAccountData = do
-  adHsaVersion <- abs <$> arbitrary
-  adHsaChallengeRequired <- arbitrary
-  adHsaTrustedBrowser <- arbitrary
+  adHsaVersion <- abs <$> (arbitrary :: Gen Int)
+  adHsaChallengeRequired <- (arbitrary :: Gen Bool)
+  adHsaTrustedBrowser <- (arbitrary :: Gen Bool)
   adWebservices <- Map.fromList <$> listOf genWsPair
-  pure AccountData{adHsaVersion, adHsaChallengeRequired, adHsaTrustedBrowser, adWebservices}
+  let v =
+        object
+          [ "dsInfo" .= object ["hsaVersion" .= adHsaVersion]
+          , "hsaChallengeRequired" .= adHsaChallengeRequired
+          , "hsaTrustedBrowser" .= adHsaTrustedBrowser
+          , "webservices" .= fmap (\url -> object ["url" .= (url :: Text)]) adWebservices
+          ]
+  pure $ fromMaybe unknownAccountData (parseMaybe parseJSON v)
  where
+  genWsPair :: Gen (Text, Text)
   genWsPair = (,) <$> elements wsNames <*> genIndexedSuffix "https://example.com/"
   wsNames = ["findme", "contacts", "calendar", "mail"]

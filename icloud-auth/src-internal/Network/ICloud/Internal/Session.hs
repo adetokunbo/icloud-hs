@@ -158,36 +158,34 @@ data AccountData = AccountData
   -- ^ @True@ when this session is already trusted and no challenge is needed
   , adWebservices :: !(Map Text Text)
   -- ^ map of webservice name to base URL, e.g. @"findme" -> "https://…"@
+  , adRaw :: !Value
+  -- ^ the original JSON value from Apple; preserved so serialisation round-trips losslessly
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show)
 
 
 instance FromJSON AccountData where
-  parseJSON = withObject "AccountData" $ \o -> do
-    dsInfo <- o .: "dsInfo"
-    adHsaVersion <- withObject "dsInfo" (.: "hsaVersion") dsInfo
-    adHsaChallengeRequired <- o .:? "hsaChallengeRequired" >>= maybe (pure False) pure
-    adHsaTrustedBrowser <- o .:? "hsaTrustedBrowser" >>= maybe (pure False) pure
-    adWebservices <- do
-      mbWs <- o .:? "webservices"
-      maybe (pure Map.empty) (withObject "webservices" parseWebservices) mbWs
-    pure AccountData{adHsaVersion, adHsaChallengeRequired, adHsaTrustedBrowser, adWebservices}
+  parseJSON v = withObject "AccountData" go v
    where
+    go o = do
+      dsInfo <- o .: "dsInfo"
+      adHsaVersion <- withObject "dsInfo" (.: "hsaVersion") dsInfo
+      adHsaChallengeRequired <- o .:? "hsaChallengeRequired" >>= maybe (pure False) pure
+      adHsaTrustedBrowser <- o .:? "hsaTrustedBrowser" >>= maybe (pure False) pure
+      adWebservices <- do
+        mbWs <- o .:? "webservices"
+        maybe (pure Map.empty) (withObject "webservices" parseWebservices) mbWs
+      pure AccountData{adHsaVersion, adHsaChallengeRequired, adHsaTrustedBrowser, adWebservices, adRaw = v}
     parseWebservices obj = do
       let pairs = KeyMap.toAscList obj
-      urlPairs <- forM pairs $ \(k, v) ->
-        withObject "webservice" (\sv -> fmap (AesonKey.toText k,) <$> sv .:? "url") v
+      urlPairs <- forM pairs $ \(k, wsVal) ->
+        withObject "webservice" (\sv -> fmap (AesonKey.toText k,) <$> sv .:? "url") wsVal
       pure $ Map.fromList $ catMaybes urlPairs
 
 
 instance ToJSON AccountData where
-  toJSON AccountData{adHsaVersion, adHsaChallengeRequired, adHsaTrustedBrowser, adWebservices} =
-    object
-      [ "dsInfo" .= object ["hsaVersion" .= adHsaVersion]
-      , "hsaChallengeRequired" .= adHsaChallengeRequired
-      , "hsaTrustedBrowser" .= adHsaTrustedBrowser
-      , "webservices" .= fmap (\url -> object ["url" .= url]) adWebservices
-      ]
+  toJSON AccountData{adRaw} = adRaw
+  toEncoding AccountData{adRaw} = toEncoding adRaw
 
 
 -- | True when full 2FA (auth-endpoint) challenge is required
@@ -209,6 +207,7 @@ unknownAccountData =
     , adHsaChallengeRequired = False
     , adHsaTrustedBrowser = False
     , adWebservices = Map.empty
+    , adRaw = object []
     }
 
 
