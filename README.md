@@ -1,4 +1,4 @@
-# icloud-auth - unofficial auth for iCloud services
+# icloud-hs - unofficial Haskell client for iCloud services
 
 [![GitHub CI](https://github.com/adetokunbo/icloud-hs/actions/workflows/cabal.yml/badge.svg)](https://github.com/adetokunbo/icloud-hs/actions)
 [![Stackage Nightly](http://stackage.org/package/icloud-auth/badge/nightly)](http://stackage.org/nightly/package/icloud-auth)
@@ -6,7 +6,7 @@
 [![Hackage Dependencies][hackage-deps-badge]][hackage-deps]
 [![BSD3](https://img.shields.io/badge/license-BSD3-green.svg?dummy)](https://github.com/adetokunbo/icloud-hs/blob/master/LICENSE)
 
-`icloud-auth` allows logon to [iCloud] servers; upon provision of the username and
+`icloud-hs` allows logon to [iCloud] servers; upon provision of the username and
 password, it retrieves and stores an authorization token, for use in programmatic
 sessions with other iCloud services.
 
@@ -58,7 +58,7 @@ import Network.ICloud.Http.Endpoints (Realm (..))
 
 example :: IO ()
 example = do
-  api <- mkApi GlobalRealm  -- or ChinaRealm for mainland China accounts
+  api <- mkApi Usual  -- or China for mainland China accounts
   result <- login api
   case result of
     Authenticated _session _accountData -> putStrLn "Authenticated!"
