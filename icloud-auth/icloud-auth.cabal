@@ -127,6 +127,7 @@ test-suite test
                     ICloud.Examples
                     ICloud.HttpMockSpec
                     ICloud.HttpSpec
+                    ICloud.Http.EndpointsSpec
                     ICloud.Http.ErrorsSpec
                     ICloud.Http.HeadersSpec
                     ICloud.LoginFSMSpec

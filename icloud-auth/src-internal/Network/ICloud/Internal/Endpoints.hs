@@ -194,7 +194,7 @@ signinInitBase = (`extendPath` "/signin/init") . epAuth
 signinCompleteBase :: Endpoints -> Request
 signinCompleteBase =
   let
-    withQuery x = x{queryString = "?isRememberMeEnabled=true"}
+    withQuery x = x{queryString = "isRememberMeEnabled=true"}
    in
     withQuery . (`extendPath` "/signin/complete") . epAuth
 
