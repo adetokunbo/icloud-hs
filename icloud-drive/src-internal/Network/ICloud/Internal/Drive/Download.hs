@@ -3,7 +3,8 @@
 {-# OPTIONS_HADDOCK prune #-}
 
 module Network.ICloud.Internal.Drive.Download
-  ( fetchNode
+  ( DriveError (..)
+  , fetchNode
   , fetchChildren
   , fetchFile
   , execCreateFolder
@@ -13,8 +14,10 @@ module Network.ICloud.Internal.Drive.Download
   )
 where
 
+import Control.Exception (Exception, throwIO)
+import Control.Monad (when)
 import Data.Aeson (Value, eitherDecode, encode, object, (.=))
-import Data.Aeson.Types (parseEither)
+import Data.Aeson.Types (Parser, parseEither)
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as LBS
 import Data.Int (Int64)
@@ -66,22 +69,24 @@ import Network.ICloud.Internal.Drive.NodeData
   )
 
 
+data DriveError
+  = DriveHttpError Int
+  | DriveParseError String
+  | DriveInvalidRoot
+  deriving (Show)
+
+
+instance Exception DriveError
+
+
 -- | Fetch metadata for a single node.
 fetchNode :: Api -> DriveEndpoints s -> DriveNodeId -> IO DriveNode
-fetchNode api ep nid = do
-  resp <- rawRequest api (nodeReq ep nid)
-  checkStatus "fetchNode" resp
-  body <- decodeBody "fetchNode" resp
-  either fail pure $ parseEither parseNodeResponse body
+fetchNode api ep nid = fetchWith "fetchNode" api (nodeReq ep nid) parseNodeResponse
 
 
 -- | Fetch the immediate children of a folder.
 fetchChildren :: Api -> DriveEndpoints s -> DriveNodeId -> IO [DriveNode]
-fetchChildren api ep nid = do
-  resp <- rawRequest api (nodeReq ep nid)
-  checkStatus "fetchChildren" resp
-  body <- decodeBody "fetchChildren" resp
-  either fail pure $ parseEither parseChildrenResponse body
+fetchChildren api ep nid = fetchWith "fetchChildren" api (nodeReq ep nid) parseChildrenResponse
 
 
 -- | Download the contents of a file node as a lazy 'LBS.ByteString'.
@@ -89,13 +94,10 @@ fetchFile :: Api -> DriveEndpoints s -> FileData -> IO LBS.ByteString
 fetchFile api ep fd
   | fdSize fd == Nothing = pure LBS.empty
   | otherwise = do
-      tokenResp <- rawRequest api (downloadTokenReq (fdDocId fd) (fdZone fd) ep)
-      checkStatus "fetchFile (token)" tokenResp
-      tokenBody <- decodeBody "fetchFile (token)" tokenResp
-      url <- either fail pure $ parseEither parseDownloadUrl tokenBody
+      url <- fetchWith "fetchFile (token)" api (downloadTokenReq (fdDocId fd) (fdZone fd) ep) parseDownloadUrl
       contentReq <- getReqFromUrl url
       contentResp <- rawRequest api contentReq
-      checkStatus "fetchFile (content)" contentResp
+      checkStatus contentResp
       pure $ responseBody contentResp
 
 
@@ -103,7 +105,7 @@ fetchFile api ep fd
 execCreateFolder :: Api -> DriveEndpoints CloudScope -> DriveNodeId -> Text -> IO ()
 execCreateFolder api ep parentId name = do
   resp <- rawRequest api req
-  checkStatus "createFolder" resp
+  checkStatus resp
  where
   req =
     (createFolderReq ep)
@@ -116,7 +118,7 @@ execCreateFolder api ep parentId name = do
 execRenameNode :: Api -> DriveEndpoints CloudScope -> DriveNode -> Text -> IO ()
 execRenameNode api ep node name = do
   resp <- rawRequest api req
-  checkStatus "renameNode" resp
+  checkStatus resp
  where
   req =
     (renameNodeReq ep)
@@ -129,7 +131,7 @@ execRenameNode api ep node name = do
 execDeleteNode :: Api -> DriveEndpoints CloudScope -> DriveNode -> IO ()
 execDeleteNode api ep node = do
   resp <- rawRequest api req
-  checkStatus "deleteNode" resp
+  checkStatus resp
  where
   req =
     (deleteNodeReq ep)
@@ -150,15 +152,9 @@ execUploadFile api ep folder filename content = do
           { requestBody = RequestBodyLBS tokenBody
           , requestHeaders = (hContentType, "text/plain") : requestHeaders (uploadTokenReq zone ep)
           }
-  tokenResp <- rawRequest api tokenReq'
-  checkStatus "uploadFile (token)" tokenResp
-  tokenVal <- decodeBody "uploadFile (token)" tokenResp
-  (docId, uploadUrl) <- either fail pure $ parseEither parseUploadTokenResponse tokenVal
+  (docId, uploadUrl) <- fetchWith "uploadFile (token)" api tokenReq' parseUploadTokenResponse
   uploadReq <- buildUploadReq filename content uploadUrl
-  uploadResp <- rawRequest api uploadReq
-  checkStatus "uploadFile (content)" uploadResp
-  uploadVal <- decodeBody "uploadFile (content)" uploadResp
-  receipt <- either fail pure $ parseEither parseUploadReceiptResponse uploadVal
+  receipt <- fetchWith "uploadFile (content)" api uploadReq parseUploadReceiptResponse
   nowMs <- currentTimeMs
   let fDocId = folderDocId folder
       commitBody = buildCommitBody docId fDocId filename receipt nowMs
@@ -168,7 +164,7 @@ execUploadFile api ep folder filename content = do
           , requestHeaders = (hContentType, "text/plain") : requestHeaders (commitUploadReq zone ep)
           }
   commitResp <- rawRequest api commitReq'
-  checkStatus "uploadFile (commit)" commitResp
+  checkStatus commitResp
 
 
 uploadTokenBodyBytes :: Text -> Int64 -> LBS.ByteString
@@ -271,16 +267,16 @@ getReqFromUrl :: Text -> IO Request
 getReqFromUrl = parseRequest . Text.unpack
 
 
-checkStatus :: String -> Response a -> IO ()
-checkStatus ctx resp =
-  let code = statusCode (responseStatus resp)
-   in if code >= 400
-        then fail $ ctx <> ": HTTP " <> show code
-        else pure ()
-
-
-decodeBody :: String -> Response LBS.ByteString -> IO Value
-decodeBody ctx resp =
+fetchWith :: String -> Api -> Request -> (Value -> Parser a) -> IO a
+fetchWith ctx api r parseF = do
+  resp <- rawRequest api r
+  checkStatus resp
   case eitherDecode (responseBody resp) of
-    Left err -> fail $ ctx <> ": JSON decode error: " <> err
-    Right v -> pure v
+    Left err -> throwIO (DriveParseError (ctx <> ": JSON decode error: " <> err))
+    Right val -> either (throwIO . DriveParseError) pure $ parseEither parseF val
+
+
+checkStatus :: Response a -> IO ()
+checkStatus resp =
+  let code = statusCode (responseStatus resp)
+   in when (code >= 400) $ throwIO (DriveHttpError code)

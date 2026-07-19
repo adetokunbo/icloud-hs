@@ -43,17 +43,22 @@ module Network.ICloud.Drive
   , deleteNode
   , uploadFile
 
+    -- * Errors
+  , DriveError (..)
+
     -- * Re-exports
   , module Network.ICloud.Drive.Node
   )
 where
 
+import Control.Exception (throwIO)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Text (Text)
 import Network.ICloud.Drive.Node
 import Network.ICloud.Http (Api)
 import Network.ICloud.Internal.Drive.Download
-  ( execCreateFolder
+  ( DriveError (..)
+  , execCreateFolder
   , execDeleteNode
   , execRenameNode
   , execUploadFile
@@ -74,7 +79,7 @@ driveRoot api ep = do
   node <- fetchNode api ep rootNodeId
   case node of
     DriveFolder fd -> pure fd
-    DriveFile _ -> fail "driveRoot: unexpected file node at root"
+    DriveFile _ -> throwIO DriveInvalidRoot
 
 
 -- | Fetch the immediate children of a folder.
