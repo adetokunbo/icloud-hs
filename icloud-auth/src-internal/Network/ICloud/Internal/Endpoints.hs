@@ -38,18 +38,28 @@ module Network.ICloud.Internal.Endpoints
 
     -- * Header helpers
   , homeHeaders
+  , icloudBrowserHeaders
+
+    -- * Shared service utilities
+  , icloudHome
+  , stripTrailingSlash
+  , lookupWebservice
   )
 where
 
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as LBS
 import Data.CaseInsensitive (mk)
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import Data.String.Conv (toS)
 import Data.Text (Text)
 import Network.HTTP.Client
   ( Request (..)
   , RequestBody (..)
   , defaultRequest
+  , parseRequest
   )
 import Network.HTTP.Types
   ( Header
@@ -107,10 +117,15 @@ realmEndpoints China = chinaEndpoints
 realmEndpoints Usual = usualEndpoints
 
 
+-- | The iCloud home origin used in @Origin@ and @Referer@ headers.
+icloudHome :: ByteString
+icloudHome = "https://www.icloud.com"
+
+
 usualEndpoints :: Endpoints
 usualEndpoints =
   Endpoints
-    { epHome = "https://www.icloud.com"
+    { epHome = icloudHome
     , epAuth = authReq
     , epSetup = setupReq
     }
@@ -244,3 +259,30 @@ withICloudWidgetKey = (("X-Apple-Widget-Key", iCloudKey) :)
 
 withAppleOauthHeaders :: RequestHeaders -> RequestHeaders
 withAppleOauthHeaders = (appleOauthHeaders <>)
+
+
+-- | Standard browser-style headers sent with every iCloud service request.
+icloudBrowserHeaders :: RequestHeaders
+icloudBrowserHeaders =
+  [ acceptJson
+  , userAgent
+  , (hOrigin, icloudHome)
+  , (hReferer, icloudHome <> "/")
+  ]
+
+
+-- | Strip a trailing @/@ from a strict 'ByteString' path.
+stripTrailingSlash :: ByteString -> ByteString
+stripTrailingSlash bs
+  | not (BS8.null bs) && BS8.last bs == '/' = BS8.init bs
+  | otherwise = bs
+
+
+{- | Look up a service URL by key in the webservices map and parse it into a
+'Request'.  Fails with an informative message if the key is absent.
+-}
+lookupWebservice :: Text -> Map Text Text -> IO Request
+lookupWebservice key ws =
+  case Map.lookup key ws of
+    Nothing -> fail $ "iCloud webservice URL not found for key: " <> toS key
+    Just url -> parseRequest (toS url)

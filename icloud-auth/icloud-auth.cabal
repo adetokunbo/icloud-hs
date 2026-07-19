@@ -69,6 +69,7 @@ library icloud-auth-internal
 library
   exposed-modules:  Network.ICloud.Http
                     Network.ICloud.Http.Endpoints
+                    Network.ICloud.Http.Common
                     Network.ICloud.Session
                     Network.ICloud.Trust
   hs-source-dirs:   src
