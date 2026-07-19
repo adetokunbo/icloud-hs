@@ -3,7 +3,7 @@
 module ICloud.Notes.EndpointsSpec (spec) where
 
 import Control.Monad (forM_)
-import Data.Aeson (Value (..))
+import Data.Aeson (Value (..), object)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as LBS
@@ -115,6 +115,7 @@ testAccountData =
     , adWebservices =
         Map.fromList
           [("ckdatabasews", "https://p31-ckdatabasews.icloud.com")]
+    , adRaw = object []
     }
 
 

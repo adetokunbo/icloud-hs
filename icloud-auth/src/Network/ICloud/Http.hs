@@ -101,7 +101,7 @@ import Data.Aeson
   , (.:)
   )
 import Data.Aeson.KeyMap (fromList)
-import Data.Aeson.Types (Parser, Value (..), parseMaybe)
+import Data.Aeson.Types (Parser, Value (..), parseEither)
 import Data.Base64.Types (extractBase64)
 import Data.ByteString (ByteString, isPrefixOf)
 import qualified Data.ByteString as BS
@@ -461,7 +461,7 @@ instance LoginEvent (ReaderT Api IO) where
   acctLogin (DoAccountLogin creds) = do
     api <- ask
     loginReply <- liftIO $ accountLogin api
-    let ad = parseAccountData loginReply
+    ad <- liftIO $ parseAccountData loginReply
     liftIO $ saveLoginMsg (apiSession api) loginReply
     liftIO $ saveAccountData (apiSession api) ad
     pure $
@@ -526,8 +526,10 @@ instance LoginEvent (ReaderT Api IO) where
         else TwoSaRetry $ ReadyForTwoSa creds devices
 
 
-parseAccountData :: Value -> AccountData
-parseAccountData v = fromMaybe unknownAccountData $ parseMaybe parseJSON v
+parseAccountData :: Value -> IO AccountData
+parseAccountData v =
+  either (throwIO . UnexpectedResponse . Text.pack) pure $
+    parseEither parseJSON v
 
 
 -- | Fetch the 2FA options immediately after the 409 from signin/complete

@@ -2,6 +2,7 @@
 
 module ICloud.Drive.MutationSpec (spec) where
 
+import Data.Aeson (object)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.Map.Strict as Map
@@ -112,6 +113,7 @@ testAccountData baseUrl =
     , adHsaChallengeRequired = False
     , adHsaTrustedBrowser = True
     , adWebservices = Map.fromList [("drivews", baseUrl), ("docws", baseUrl)]
+    , adRaw = object []
     }
 
 

@@ -2,6 +2,7 @@
 
 module ICloud.Drive.UploadSpec (spec) where
 
+import Data.Aeson (object)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as LBS
@@ -117,6 +118,7 @@ testAccountData baseUrl =
     , adHsaChallengeRequired = False
     , adHsaTrustedBrowser = True
     , adWebservices = Map.fromList [("drivews", baseUrl), ("docws", baseUrl)]
+    , adRaw = object []
     }
 
 
