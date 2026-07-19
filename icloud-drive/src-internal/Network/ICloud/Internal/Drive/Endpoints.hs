@@ -23,16 +23,18 @@ where
 import Data.Aeson (encode, object, (.=))
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as LBS
-import Data.CaseInsensitive (mk)
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Network.HTTP.Client
   ( Request (..)
-  , parseRequest
   )
-import Network.HTTP.Types (HeaderName, hAccept, hReferer, hUserAgent, methodGet, methodPost)
+import Network.HTTP.Types (methodGet, methodPost)
+import Network.ICloud.Http.Common
+  ( icloudBrowserHeaders
+  , lookupWebservice
+  , stripTrailingSlash
+  , withHeaders
+  )
 import Network.ICloud.Internal.Drive.Node (DriveNodeId (..))
 import Network.ICloud.Session (AccountData (..), Session (..))
 
@@ -59,10 +61,10 @@ data.
 -}
 mkDriveEndpoints :: AccountData -> Session -> IO (DriveEndpoints CloudScope)
 mkDriveEndpoints ad sess = do
-  svcReq <- lookupAndParse "drivews" (adWebservices ad)
-  docReq <- lookupAndParse "docws" (adWebservices ad)
-  let deServiceReq = addDriveHeaders svcReq
-      deDocReq = addDriveHeaders docReq
+  svcReq <- lookupWebservice "drivews" (adWebservices ad)
+  docReq <- lookupWebservice "docws" (adWebservices ad)
+  let deServiceReq = withHeaders icloudBrowserHeaders svcReq
+      deDocReq = withHeaders icloudBrowserHeaders docReq
       deClientId = sessionClientId sess
   pure DriveEndpoints{deServiceReq, deDocReq, deClientId}
 
@@ -181,36 +183,6 @@ commitUploadReq zone ep =
             <> "/update/documents"
       , method = methodPost
       }
-
-
-addDriveHeaders :: Request -> Request
-addDriveHeaders req = req{requestHeaders = driveHeaders <> requestHeaders req}
-
-
-driveHeaders :: [(HeaderName, BS8.ByteString)]
-driveHeaders =
-  [ (hAccept, "application/json")
-  , (hUserAgent, "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36")
-  , (mk "Origin", icloudHome)
-  , (hReferer, icloudHome <> "/")
-  ]
-
-
-icloudHome :: BS8.ByteString
-icloudHome = "https://www.icloud.com"
-
-
-stripTrailingSlash :: BS8.ByteString -> BS8.ByteString
-stripTrailingSlash bs
-  | not (BS8.null bs) && BS8.last bs == '/' = BS8.init bs
-  | otherwise = bs
-
-
-lookupAndParse :: Text -> Map Text Text -> IO Request
-lookupAndParse key ws =
-  case Map.lookup key ws of
-    Nothing -> fail $ "icloud-drive: webservice URL not found for key: " <> Text.unpack key
-    Just url -> parseRequest (Text.unpack url)
 
 
 withClientId :: DriveEndpoints s -> Request -> Request

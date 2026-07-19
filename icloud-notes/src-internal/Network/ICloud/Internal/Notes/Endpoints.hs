@@ -17,16 +17,18 @@ where
 import Data.Aeson (Value, encode, object, (.=))
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as LBS
-import Data.CaseInsensitive (mk)
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Network.HTTP.Client
   ( Request (..)
-  , parseRequest
   )
-import Network.HTTP.Types (HeaderName, hAccept, hReferer, hUserAgent, methodPost)
+import Network.HTTP.Types (methodPost)
+import Network.ICloud.Http.Common
+  ( icloudBrowserHeaders
+  , lookupWebservice
+  , stripTrailingSlash
+  , withHeaders
+  )
 import Network.ICloud.Session (AccountData (..), Session (..))
 
 
@@ -43,9 +45,9 @@ Fails if the @ckdatabasews@ service URL is absent from the account data.
 -}
 mkNotesEndpoints :: AccountData -> Session -> IO NotesEndpoints
 mkNotesEndpoints ad sess = do
-  svcReq <- lookupAndParse "ckdatabasews" (adWebservices ad)
+  svcReq <- lookupWebservice "ckdatabasews" (adWebservices ad)
   let baseReq =
-        addNotesHeaders $
+        withHeaders icloudBrowserHeaders $
           svcReq
             { path =
                 stripTrailingSlash (path svcReq)
@@ -172,33 +174,3 @@ indexFilter val =
     , "fieldName" .= ("indexName" :: Text)
     , "fieldValue" .= object ["type" .= ("STRING" :: Text), "value" .= val]
     ]
-
-
-addNotesHeaders :: Request -> Request
-addNotesHeaders req = req{requestHeaders = notesHeaders <> requestHeaders req}
-
-
-notesHeaders :: [(HeaderName, BS8.ByteString)]
-notesHeaders =
-  [ (hAccept, "application/json")
-  , (hUserAgent, "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36")
-  , (mk "Origin", icloudHome)
-  , (hReferer, icloudHome <> "/")
-  ]
-
-
-icloudHome :: BS8.ByteString
-icloudHome = "https://www.icloud.com"
-
-
-stripTrailingSlash :: BS8.ByteString -> BS8.ByteString
-stripTrailingSlash bs
-  | not (BS8.null bs) && BS8.last bs == '/' = BS8.init bs
-  | otherwise = bs
-
-
-lookupAndParse :: Text -> Map Text Text -> IO Request
-lookupAndParse key ws =
-  case Map.lookup key ws of
-    Nothing -> fail $ "icloud-notes: webservice URL not found for key: " <> Text.unpack key
-    Just url -> parseRequest (Text.unpack url)
