@@ -186,4 +186,6 @@ commitUploadReq zone ep =
 
 withClientId :: DriveEndpoints s -> Request -> Request
 withClientId ep req =
-  req{queryString = "clientId=" <> urlEncode True (encodeUtf8 (deClientId ep))}
+  let cid = "clientId=" <> urlEncode True (encodeUtf8 (deClientId ep))
+      qs = queryString req
+   in req{queryString = cid <> (if qs == "" then "" else "&" <> qs)}
