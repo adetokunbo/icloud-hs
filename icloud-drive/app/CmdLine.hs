@@ -51,13 +51,13 @@ commandParser =
     ( command
         "list-root"
         ( info
-            (ListRoot <$> commonOptsParser)
+            (ListRoot <$> commonOptsParser <**> helper)
             (progDesc "List immediate children of the top-level iCloud Drive folder")
         )
         <> command
           "list-folder"
           ( info
-              (ListFolder <$> listFolderOptsParser)
+              (ListFolder <$> listFolderOptsParser <**> helper)
               (progDesc "List contents of a folder at a slash-separated path from root")
           )
     )
