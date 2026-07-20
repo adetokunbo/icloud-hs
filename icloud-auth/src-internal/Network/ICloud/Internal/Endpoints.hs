@@ -167,12 +167,16 @@ appleOauthHeaders =
   , ("X-Apple-OAuth-Require-Grant-Code", "true")
   , ("X-Apple-OAuth-Response-Mode", "web_message")
   , ("X-Apple-OAuth-Response-Type", "code")
-  , ("X-Apple-Widget-Key", iCloudKey)
+  , widgetKeyHeader
   ]
 
 
 iCloudKey :: ByteString
 iCloudKey = "d39ba9916b7251055b22c7f910e2ea796ee65e98b2ddecea8f5dde8d9d1a815d"
+
+
+widgetKeyHeader :: Header
+widgetKeyHeader = ("X-Apple-Widget-Key", iCloudKey)
 
 
 browserAgent :: ByteString
@@ -256,7 +260,7 @@ withAcceptJson = (acceptJson :)
 
 
 withICloudWidgetKey :: RequestHeaders -> RequestHeaders
-withICloudWidgetKey = (("X-Apple-Widget-Key", iCloudKey) :)
+withICloudWidgetKey = (widgetKeyHeader :)
 
 
 withAppleOauthHeaders :: RequestHeaders -> RequestHeaders
