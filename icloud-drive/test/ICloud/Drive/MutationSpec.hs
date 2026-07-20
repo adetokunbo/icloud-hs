@@ -15,7 +15,7 @@ import Network.HTTP.Client
   )
 import Network.HTTP.Types (HeaderName, hContentType, methodPost, status200, status400)
 import Network.ICloud.Drive
-import Network.ICloud.Http (Api, mkApiWith)
+import Network.ICloud.Http (mkApiWith)
 import Network.ICloud.Http.Endpoints (Endpoints (..))
 import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..))
 import Network.Wai (Application, rawPathInfo, responseLBS)
@@ -28,43 +28,43 @@ spec :: Spec
 spec = describe "Network.ICloud.Drive" $ do
   describe "createFolder" $ do
     it "returns () on success" $
-      withMock createOkApp $ \ep api ->
-        createFolder api ep rootNodeId "New Folder" `shouldReturn` ()
+      withMock createOkApp $ \da ->
+        createFolder da rootNodeId "New Folder" `shouldReturn` ()
     it "raises an error on HTTP failure" $
-      withMock errorApp $ \ep api ->
-        createFolder api ep rootNodeId "New Folder" `shouldThrow` anyException
+      withMock errorApp $ \da ->
+        createFolder da rootNodeId "New Folder" `shouldThrow` anyException
 
   describe "renameNode" $ do
     it "returns () when renaming a folder" $
-      withMock renameOkApp $ \ep api ->
-        renameNode api ep testFolderNode "Renamed Folder" `shouldReturn` ()
+      withMock renameOkApp $ \da ->
+        renameNode da testFolderNode "Renamed Folder" `shouldReturn` ()
     it "returns () when renaming a file" $
-      withMock renameOkApp $ \ep api ->
-        renameNode api ep testFileNode "Renamed File" `shouldReturn` ()
+      withMock renameOkApp $ \da ->
+        renameNode da testFileNode "Renamed File" `shouldReturn` ()
     it "raises an error on HTTP failure" $
-      withMock errorApp $ \ep api ->
-        renameNode api ep testFolderNode "Renamed Folder" `shouldThrow` anyException
+      withMock errorApp $ \da ->
+        renameNode da testFolderNode "Renamed Folder" `shouldThrow` anyException
 
   describe "deleteNode" $ do
     it "returns () when deleting a folder" $
-      withMock deleteOkApp $ \ep api ->
-        deleteNode api ep testFolderNode `shouldReturn` ()
+      withMock deleteOkApp $ \da ->
+        deleteNode da testFolderNode `shouldReturn` ()
     it "returns () when deleting a file" $
-      withMock deleteOkApp $ \ep api ->
-        deleteNode api ep testFileNode `shouldReturn` ()
+      withMock deleteOkApp $ \da ->
+        deleteNode da testFileNode `shouldReturn` ()
     it "raises an error on HTTP failure" $
-      withMock errorApp $ \ep api ->
-        deleteNode api ep testFolderNode `shouldThrow` anyException
+      withMock errorApp $ \da ->
+        deleteNode da testFolderNode `shouldThrow` anyException
 
 
 -- Mock servers
 
-withMock :: Application -> (DriveEndpoints CloudScope -> Api -> IO a) -> IO a
+withMock :: Application -> (DriveApi -> IO a) -> IO a
 withMock app action =
   withSystemTempDirectory "icloud-drive-mutation" $ \tmpDir ->
     testWithApplication (pure app) $ \serverPort -> do
-      (ep, api) <- mkEpAndApi serverPort tmpDir
-      action ep api
+      da <- mkEpAndApi serverPort tmpDir
+      action da
 
 
 createOkApp :: Application
@@ -95,13 +95,12 @@ errorApp :: Application
 errorApp _req respond = respond $ responseLBS status400 [] "bad request"
 
 
-mkEpAndApi :: Int -> FilePath -> IO (DriveEndpoints CloudScope, Api)
+mkEpAndApi :: Int -> FilePath -> IO DriveApi
 mkEpAndApi serverPort tmpDir = do
   let baseUrl = Text.pack $ "http://127.0.0.1:" ++ show serverPort
-  ep <- mkDriveEndpoints (testAccountData baseUrl) (testSession tmpDir)
   mgr <- newManager defaultManagerSettings
   api <- mkApiWith (testSession tmpDir) (testAuthEndpoints serverPort) mgr
-  pure (ep, api)
+  mkDriveApi (testAccountData baseUrl) (testSession tmpDir) api
 
 
 -- Fixtures

@@ -18,7 +18,7 @@ import Network.HTTP.Client
   )
 import Network.HTTP.Types (HeaderName, hContentType, methodPost, status200, status400)
 import Network.ICloud.Drive
-import Network.ICloud.Http (Api, mkApiWith)
+import Network.ICloud.Http (mkApiWith)
 import Network.ICloud.Http.Endpoints (Endpoints (..))
 import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..))
 import Network.Wai (Application, rawPathInfo, responseLBS)
@@ -31,29 +31,29 @@ spec :: Spec
 spec = describe "Network.ICloud.Drive" $ do
   describe "uploadFile" $ do
     it "returns () on success" $
-      withUploadMock uploadOkApp $ \ep api ->
-        uploadFile api ep testFolderData "hello.txt" "hello world" `shouldReturn` ()
+      withUploadMock uploadOkApp $ \da ->
+        uploadFile da testFolderData "hello.txt" "hello world" `shouldReturn` ()
     it "raises an error when the token request fails" $
-      withUploadMock errorApp $ \ep api ->
-        uploadFile api ep testFolderData "hello.txt" "hello world" `shouldThrow` anyException
+      withUploadMock errorApp $ \da ->
+        uploadFile da testFolderData "hello.txt" "hello world" `shouldThrow` anyException
     it "raises an error when the content upload fails" $
-      withUploadMock contentErrorApp $ \ep api ->
-        uploadFile api ep testFolderData "hello.txt" "hello world" `shouldThrow` anyException
+      withUploadMock contentErrorApp $ \da ->
+        uploadFile da testFolderData "hello.txt" "hello world" `shouldThrow` anyException
     it "raises an error when the commit request fails" $
-      withUploadMock commitErrorApp $ \ep api ->
-        uploadFile api ep testFolderData "hello.txt" "hello world" `shouldThrow` anyException
+      withUploadMock commitErrorApp $ \da ->
+        uploadFile da testFolderData "hello.txt" "hello world" `shouldThrow` anyException
 
 
 -- Mock servers
 
-withUploadMock :: (Int -> Application) -> (DriveEndpoints CloudScope -> Api -> IO a) -> IO a
+withUploadMock :: (Int -> Application) -> (DriveApi -> IO a) -> IO a
 withUploadMock mkApp action =
   withSystemTempDirectory "icloud-drive-upload" $ \tmpDir -> do
     portRef <- newIORef 0
     testWithApplication (pure (dynApp portRef mkApp)) $ \serverPort -> do
       writeIORef portRef serverPort
-      (ep, api) <- mkEpAndApi serverPort tmpDir
-      action ep api
+      da <- mkEpAndApi serverPort tmpDir
+      action da
  where
   dynApp portRef mk req respond = do
     serverPort <- readIORef portRef
@@ -100,13 +100,12 @@ commitErrorApp serverPort req respond
       respond $ responseLBS status400 [] "bad request"
 
 
-mkEpAndApi :: Int -> FilePath -> IO (DriveEndpoints CloudScope, Api)
+mkEpAndApi :: Int -> FilePath -> IO DriveApi
 mkEpAndApi serverPort tmpDir = do
   let baseUrl = Text.pack $ "http://127.0.0.1:" ++ show serverPort
-  ep <- mkDriveEndpoints (testAccountData baseUrl) (testSession tmpDir)
   mgr <- newManager defaultManagerSettings
   api <- mkApiWith (testSession tmpDir) (testAuthEndpoints serverPort) mgr
-  pure (ep, api)
+  mkDriveApi (testAccountData baseUrl) (testSession tmpDir) api
 
 
 -- Fixtures

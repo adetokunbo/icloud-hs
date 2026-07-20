@@ -5,8 +5,7 @@ import Data.List (find)
 import qualified Data.Text as Text
 import Network.HTTP.Client.TLS (newTlsManager)
 import Network.ICloud.Drive
-  ( CloudScope
-  , DriveEndpoints
+  ( DriveApi
   , DriveNode (..)
   , DriveNodeId
   , FileData (..)
@@ -14,9 +13,9 @@ import Network.ICloud.Drive
   , driveRoot
   , fileName
   , listFolder
-  , mkDriveEndpoints
+  , mkDriveApi
   )
-import Network.ICloud.Http (Api, AuthError, AuthState (..), fileLogger, login, mkApiWith, verboseLogger, withLogger)
+import Network.ICloud.Http (AuthError, AuthState (..), fileLogger, login, mkApiWith, verboseLogger, withLogger)
 import Network.ICloud.Http.Endpoints (Realm (..), realmEndpoints)
 import Network.ICloud.Session (loadSession)
 import Options.Applicative
@@ -98,29 +97,29 @@ main = do
 
 runListRoot :: CommonOpts -> IO ()
 runListRoot opts =
-  withDriveApi opts $ \api ep -> do
-    root <- driveRoot api ep
-    nodes <- listFolder api ep (fnId root)
+  withDriveApi opts $ \da -> do
+    root <- driveRoot da
+    nodes <- listFolder da (fnId root)
     mapM_ printNode nodes
 
 
 runListFolder :: ListFolderOpts -> IO ()
 runListFolder opts =
-  withDriveApi (lfCommon opts) $ \api ep -> do
-    root <- driveRoot api ep
-    nid <- navigatePath api ep (fnId root) (lfPath opts)
-    nodes <- listFolder api ep nid
+  withDriveApi (lfCommon opts) $ \da -> do
+    root <- driveRoot da
+    nid <- navigatePath da (fnId root) (lfPath opts)
+    nodes <- listFolder da nid
     mapM_ printNode nodes
 
 
-navigatePath :: Api -> DriveEndpoints CloudScope -> DriveNodeId -> [Text.Text] -> IO DriveNodeId
-navigatePath _ _ nid [] = pure nid
-navigatePath api ep nid (seg : segs) = do
-  children <- listFolder api ep nid
+navigatePath :: DriveApi -> DriveNodeId -> [Text.Text] -> IO DriveNodeId
+navigatePath _ nid [] = pure nid
+navigatePath da nid (seg : segs) = do
+  children <- listFolder da nid
   case find (matchFolderName seg) children of
     Nothing -> fail $ "Folder not found: " <> Text.unpack seg
     Just (DriveFile _) -> fail $ "Not a folder: " <> Text.unpack seg
-    Just (DriveFolder fd) -> navigatePath api ep (fnId fd) segs
+    Just (DriveFolder fd) -> navigatePath da (fnId fd) segs
 
 
 matchFolderName :: Text.Text -> DriveNode -> Bool
@@ -139,7 +138,7 @@ printNode (DriveFile fd) =
     Just n -> "  (" <> show n <> " bytes)"
 
 
-withDriveApi :: CommonOpts -> (Api -> DriveEndpoints CloudScope -> IO ()) -> IO ()
+withDriveApi :: CommonOpts -> (DriveApi -> IO ()) -> IO ()
 withDriveApi opts runAction = do
   session <- loadSession
   mgr <- newTlsManager
@@ -151,8 +150,8 @@ withDriveApi opts runAction = do
         result <- login api
         case result of
           Authenticated sess ad -> do
-            ep <- mkDriveEndpoints ad sess
-            runAction api ep
+            da <- mkDriveApi ad sess api
+            runAction da
           _ -> do
             putStrLn "Not authenticated — run 'icloud-auth login' first."
             exitFailure

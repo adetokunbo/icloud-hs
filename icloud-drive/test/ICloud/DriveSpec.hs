@@ -13,7 +13,7 @@ import qualified Data.Text as Text
 import Network.HTTP.Client (Request (..), defaultManagerSettings, defaultRequest, newManager)
 import Network.HTTP.Types (HeaderName, hContentType, methodPost, status200, status404)
 import Network.ICloud.Drive
-import Network.ICloud.Http (Api, mkApiWith)
+import Network.ICloud.Http (mkApiWith)
 import Network.ICloud.Http.Endpoints (Endpoints (..))
 import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..))
 import Network.Wai (Application, rawPathInfo, responseLBS)
@@ -26,48 +26,48 @@ spec :: Spec
 spec = describe "Network.ICloud.Drive" $ do
   describe "driveRoot" $ do
     it "returns root FolderData" $
-      withNodeMock rootJson $ \ep api -> do
-        fd <- driveRoot api ep
+      withNodeMock rootJson $ \da -> do
+        fd <- driveRoot da
         fnId fd `shouldBe` DriveNodeId "FOLDER::com.apple.CloudDocs::root"
 
   describe "listFolder" $ do
     it "returns all children" $
-      withNodeMock subfolderJson $ \ep api -> do
-        nodes <- listFolder api ep (DriveNodeId "FOLDER::com.apple.CloudDocs::D5AA0425")
+      withNodeMock subfolderJson $ \da -> do
+        nodes <- listFolder da (DriveNodeId "FOLDER::com.apple.CloudDocs::D5AA0425")
         length nodes `shouldBe` 2
     it "returns DriveFile nodes for file children" $
-      withNodeMock subfolderJson $ \ep api -> do
-        nodes <- listFolder api ep (DriveNodeId "FOLDER::com.apple.CloudDocs::D5AA0425")
+      withNodeMock subfolderJson $ \da -> do
+        nodes <- listFolder da (DriveNodeId "FOLDER::com.apple.CloudDocs::D5AA0425")
         all isFile nodes `shouldBe` True
 
   describe "downloadFile" $ do
     it "returns LBS.empty for a zero-size file" $
-      withNodeMock rootJson $ \ep api -> do
+      withNodeMock rootJson $ \da -> do
         let fd = testFileData{fdSize = Nothing}
-        downloadFile api ep fd `shouldReturn` LBS.empty
+        downloadFile da fd `shouldReturn` LBS.empty
     it "downloads file contents" $
-      withDownloadMock $ \ep api ->
-        downloadFile api ep testFileData `shouldReturn` "test file content"
+      withDownloadMock $ \da ->
+        downloadFile da testFileData `shouldReturn` "test file content"
 
 
 -- Mock servers
 
-withNodeMock :: LBS.ByteString -> (DriveEndpoints CloudScope -> Api -> IO a) -> IO a
+withNodeMock :: LBS.ByteString -> (DriveApi -> IO a) -> IO a
 withNodeMock nodeJson action =
   withSystemTempDirectory "icloud-drive-mock" $ \tmpDir ->
     testWithApplication (pure (nodeApp nodeJson)) $ \serverPort -> do
-      (ep, api) <- mkEpAndApi serverPort tmpDir
-      action ep api
+      da <- mkEpAndApi serverPort tmpDir
+      action da
 
 
-withDownloadMock :: (DriveEndpoints CloudScope -> Api -> IO a) -> IO a
+withDownloadMock :: (DriveApi -> IO a) -> IO a
 withDownloadMock action =
   withSystemTempDirectory "icloud-drive-download" $ \tmpDir -> do
     portRef <- newIORef 0
     testWithApplication (pure (downloadApp portRef)) $ \serverPort -> do
       writeIORef portRef serverPort
-      (ep, api) <- mkEpAndApi serverPort tmpDir
-      action ep api
+      da <- mkEpAndApi serverPort tmpDir
+      action da
 
 
 nodeApp :: LBS.ByteString -> Application
@@ -93,13 +93,12 @@ downloadApp portRef req respond = do
         else respond $ responseLBS status404 [] "not found"
 
 
-mkEpAndApi :: Int -> FilePath -> IO (DriveEndpoints CloudScope, Api)
+mkEpAndApi :: Int -> FilePath -> IO DriveApi
 mkEpAndApi serverPort tmpDir = do
   let baseUrl = Text.pack $ "http://127.0.0.1:" ++ show serverPort
-  ep <- mkDriveEndpoints (testAccountData baseUrl) (testSession tmpDir)
   mgr <- newManager defaultManagerSettings
   api <- mkApiWith (testSession tmpDir) (testAuthEndpoints serverPort) mgr
-  pure (ep, api)
+  mkDriveApi (testAccountData baseUrl) (testSession tmpDir) api
 
 
 -- Fixtures

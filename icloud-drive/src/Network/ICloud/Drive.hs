@@ -7,28 +7,28 @@ SPDX-License-Identifier: BSD3
 Access iCloud Drive using an authenticated session from @icloud-auth@.
 
 After a successful login with 'Network.ICloud.Http.login', construct a
-'DriveEndpoints' value from the returned 'AccountData' and 'Session', then
-use it together with the 'Api' handle to browse and download files.
+'DriveApi' value from the returned 'AccountData', 'Session', and 'Api'
+handle, then use it to browse and download files.
 
 @
 import Network.ICloud.Http   (login, mkApi)
+import Network.ICloud.Http.Endpoints (Realm (..))
 import Network.ICloud.Drive
 
 main :: IO ()
 main = do
-  api <- mkApi GlobalRealm
+  api <- mkApi Usual
   Authenticated sess ad <- login api
-  ep  <- mkDriveEndpoints ad sess
-  root <- driveRoot api ep
-  nodes <- listFolder api ep (fnId root)
+  da  <- mkDriveApi ad sess api
+  root <- driveRoot da
+  nodes <- listFolder da (fnId root)
   print nodes
 @
 -}
 module Network.ICloud.Drive
   ( -- * Setup
-    DriveEndpoints
-  , CloudScope
-  , mkDriveEndpoints
+    DriveApi
+  , mkDriveApi
 
     -- * Browsing
   , driveRoot
@@ -71,11 +71,23 @@ import Network.ICloud.Internal.Drive.Endpoints
   , DriveEndpoints
   , mkDriveEndpoints
   )
+import Network.ICloud.Session (AccountData, Session)
+
+
+{- | A bundled handle pairing a logged-in 'Api' with its drive endpoints.
+Construct with 'mkDriveApi'; pass to all drive operations.
+-}
+data DriveApi = DriveApi !Api !(DriveEndpoints CloudScope)
+
+
+-- | Pair a logged-in 'Api' with drive endpoints derived from its session data.
+mkDriveApi :: AccountData -> Session -> Api -> IO DriveApi
+mkDriveApi ad sess api = DriveApi api <$> mkDriveEndpoints ad sess
 
 
 -- | Fetch the root folder of the main CloudDocs tree.
-driveRoot :: Api -> DriveEndpoints CloudScope -> IO FolderData
-driveRoot api ep = do
+driveRoot :: DriveApi -> IO FolderData
+driveRoot (DriveApi api ep) = do
   node <- fetchNode api ep rootNodeId
   case node of
     DriveFolder fd -> pure fd
@@ -83,30 +95,30 @@ driveRoot api ep = do
 
 
 -- | Fetch the immediate children of a folder.
-listFolder :: Api -> DriveEndpoints s -> DriveNodeId -> IO [DriveNode]
-listFolder = fetchChildren
+listFolder :: DriveApi -> DriveNodeId -> IO [DriveNode]
+listFolder (DriveApi api ep) = fetchChildren api ep
 
 
 -- | Download the contents of a file as a lazy 'LBS.ByteString'.
-downloadFile :: Api -> DriveEndpoints s -> FileData -> IO LBS.ByteString
-downloadFile = fetchFile
+downloadFile :: DriveApi -> FileData -> IO LBS.ByteString
+downloadFile (DriveApi api ep) = fetchFile api ep
 
 
 -- | Create a new folder inside an existing folder.
-createFolder :: Api -> DriveEndpoints CloudScope -> DriveNodeId -> Text -> IO ()
-createFolder = execCreateFolder
+createFolder :: DriveApi -> DriveNodeId -> Text -> IO ()
+createFolder (DriveApi api ep) = execCreateFolder api ep
 
 
 -- | Rename a node (folder or file) to a new name.
-renameNode :: Api -> DriveEndpoints CloudScope -> DriveNode -> Text -> IO ()
-renameNode = execRenameNode
+renameNode :: DriveApi -> DriveNode -> Text -> IO ()
+renameNode (DriveApi api ep) = execRenameNode api ep
 
 
 -- | Move a node (folder or file) to the trash.
-deleteNode :: Api -> DriveEndpoints CloudScope -> DriveNode -> IO ()
-deleteNode = execDeleteNode
+deleteNode :: DriveApi -> DriveNode -> IO ()
+deleteNode (DriveApi api ep) = execDeleteNode api ep
 
 
 -- | Upload a file into a folder.
-uploadFile :: Api -> DriveEndpoints CloudScope -> FolderData -> Text -> LBS.ByteString -> IO ()
-uploadFile = execUploadFile
+uploadFile :: DriveApi -> FolderData -> Text -> LBS.ByteString -> IO ()
+uploadFile (DriveApi api ep) = execUploadFile api ep
