@@ -6,10 +6,14 @@ module Network.ICloud.Internal.Notes.Note
   , NoteSummary (..)
   , NoteFolder (..)
   , Note (..)
+  , NoteText (..)
+  , NoteRun (..)
+  , NoteStyle (..)
   )
 where
 
 import Data.ByteString (ByteString)
+import Data.Int (Int32)
 import Data.Text (Text)
 import Data.Time (UTCTime)
 
@@ -46,3 +50,33 @@ data Note = Note
   , noteBodyBytes :: ByteString
   }
   deriving (Eq, Show)
+
+
+data NoteText = NoteText
+  { ntText :: Text
+  , ntRuns :: [NoteRun]
+  }
+  deriving (Eq, Show)
+
+
+data NoteRun = NoteRun
+  { nrLength :: Int32
+  , nrStyle :: Maybe NoteStyle
+  , nrBold :: Bool
+  , nrItalic :: Bool
+  , nrUnderline :: Bool
+  , nrLink :: Maybe Text
+  }
+  deriving (Eq, Show)
+
+
+data NoteStyle
+  = StyleTitle
+  | StyleHeading
+  | StyleSubheading
+  | StyleMonospaced
+  | StyleBullet
+  | StyleDash
+  | StyleNumbered
+  | StyleChecklist
+  deriving (Eq, Ord, Show)

@@ -4,6 +4,9 @@ module Network.ICloud.Notes.Note
   , NoteSummary (..)
   , NoteFolder (..)
   , Note (..)
+  , NoteText (..)
+  , NoteRun (..)
+  , NoteStyle (..)
   )
 where
 
@@ -12,6 +15,9 @@ import Network.ICloud.Internal.Notes.Note
   , Note (..)
   , NoteFolder (..)
   , NoteId (..)
+  , NoteRun (..)
+  , NoteStyle (..)
   , NoteSummary (..)
+  , NoteText (..)
   )
 

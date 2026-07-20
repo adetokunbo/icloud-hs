@@ -3,6 +3,7 @@ module Main where
 import qualified ICloud.Notes.CloudKitSpec as CloudKit
 import qualified ICloud.Notes.EndpointsSpec as Endpoints
 import qualified ICloud.Notes.NoteDataSpec as NoteData
+import qualified ICloud.Notes.ProtoSpec as Proto
 import qualified ICloud.NotesSpec as Notes
 import System.IO
   ( BufferMode (..)
@@ -21,4 +22,5 @@ main = do
     CloudKit.spec
     Endpoints.spec
     NoteData.spec
+    Proto.spec
     Notes.spec

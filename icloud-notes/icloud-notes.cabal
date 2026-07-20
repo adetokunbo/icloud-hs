@@ -57,6 +57,7 @@ library icloud-notes-internal
     Network.ICloud.Internal.Notes.Endpoints
     Network.ICloud.Internal.Notes.Note
     Network.ICloud.Internal.Notes.NoteData
+    Network.ICloud.Internal.Notes.Proto
   hs-source-dirs:   src-internal
   build-depends:
     , aeson                >=1.5.1 && <2.4
@@ -68,6 +69,7 @@ library icloud-notes-internal
     , http-types           >=0.12.1 && <0.13
     , icloud-auth
     , proto3-suite         >=0.7 && <0.11
+    , proto3-wire          >=1.0 && <2.0
     , text                 >=1.2.3 && <2.2
     , time                 >=1.9 && <1.15
     , zlib                 >=0.6 && <0.8
@@ -97,6 +99,7 @@ test-suite test
     ICloud.Notes.CloudKitSpec
     ICloud.Notes.EndpointsSpec
     ICloud.Notes.NoteDataSpec
+    ICloud.Notes.ProtoSpec
     ICloud.NotesSpec
   default-language: Haskell2010
   ghc-options:      -threaded -rtsopts -with-rtsopts=-N -Wall -fwarn-tabs
