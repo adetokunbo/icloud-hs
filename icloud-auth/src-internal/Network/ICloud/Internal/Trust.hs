@@ -25,6 +25,7 @@ module Network.ICloud.Internal.Trust
 where
 
 import Control.Applicative ((<|>))
+import Control.Exception (IOException, catch, throwIO)
 import Control.Monad (when)
 import Data.Aeson
   ( FromJSON (..)
@@ -53,6 +54,7 @@ import Data.Word (Word8)
 import Fmt ((+|), (|+))
 import GHC.Generics (Generic)
 import SimplePrompt (promptNonEmpty)
+import System.IO.Error (isEOFError)
 import Text.Read (readMaybe)
 
 
@@ -82,12 +84,17 @@ selectPhone xs = do
 
 pleaseChooseN :: Int -> Int -> IO Int
 pleaseChooseN low high = do
-  let readN = readMaybe <$> promptNonEmpty prefix
-      prefix = "Please choose an option between " +| low |+ " and " +| high |+ ""
-  readN >>= \case
+  let prefix = "Please choose an option between " +| low |+ " and " +| high |+ ""
+  result <- (readMaybe <$> promptNonEmpty prefix) `catch` onEof
+  case result of
     Nothing -> pleaseChooseN low high
     Just x | x < low || x > high -> pleaseChooseN low high
     Just x -> pure x
+ where
+  onEof :: IOException -> IO (Maybe Int)
+  onEof e
+    | isEOFError e = throwIO (userError "unexpected end of input")
+    | otherwise = throwIO e
 
 
 pleaseReadCode :: Word8 -> IO Text
