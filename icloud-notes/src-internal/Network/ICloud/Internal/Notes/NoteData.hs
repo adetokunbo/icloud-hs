@@ -45,8 +45,8 @@ noteRecordToSummary rec = do
   pure
     NoteSummary
       { nsId = NoteId (crName rec)
-      , nsTitle = fieldString "TitleEncrypted" rec
-      , nsSnippet = fieldString "SnippetEncrypted" rec
+      , nsTitle = fieldEncryptedBytesAsText "TitleEncrypted" rec
+      , nsSnippet = fieldEncryptedBytesAsText "SnippetEncrypted" rec
       , nsModified = fieldTimestamp "ModificationDate" rec
       , nsFolderId = fieldFolderId "Folder" rec
       , nsDeleted = maybe False (/= 0) (fieldInt64 "Deleted" rec)
@@ -57,11 +57,11 @@ noteRecordToSummary rec = do
 noteRecordToFolder :: CKRecord -> Maybe NoteFolder
 noteRecordToFolder rec = do
   rt <- crType rec
-  guard (rt == "SearchIndexes")
+  guard (rt == "Folder")
   pure
     NoteFolder
       { nfId = FolderId (crName rec)
-      , nfName = fieldString "TitleEncrypted" rec
+      , nfName = fieldEncryptedBytesAsText "TitleEncrypted" rec
       }
 
 
@@ -95,12 +95,6 @@ allZoneRecords :: CKZoneChangesResponse -> [CKRecord]
 allZoneRecords = concatMap zczRecords . zcrZones
 
 
-fieldString :: Text -> CKRecord -> Maybe Text
-fieldString key rec = case Map.lookup key (crFields rec) of
-  Just (CKStringField t) -> Just t
-  _ -> Nothing
-
-
 fieldInt64 :: Text -> CKRecord -> Maybe Int64
 fieldInt64 key rec = case Map.lookup key (crFields rec) of
   Just (CKInt64Field i) -> Just i
@@ -123,6 +117,17 @@ fieldEncryptedBytes :: Text -> CKRecord -> Maybe Text
 fieldEncryptedBytes key rec = case Map.lookup key (crFields rec) of
   Just (CKEncryptedBytesField t) -> Just t
   _ -> Nothing
+
+
+-- Decode a base64-encoded ENCRYPTED_BYTES field to UTF-8 text.
+-- For unprotected accounts, titles and snippets are plain UTF-8 in base64.
+fieldEncryptedBytesAsText :: Text -> CKRecord -> Maybe Text
+fieldEncryptedBytesAsText key rec = do
+  b64 <- fieldEncryptedBytes key rec
+  bs <- decodeBase64Text b64
+  case TE.decodeUtf8' bs of
+    Left _ -> Nothing
+    Right t -> Just t
 
 
 decodeBase64Text :: Text -> Maybe ByteString

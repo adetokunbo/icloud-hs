@@ -120,7 +120,7 @@ spec = describe "Network.ICloud.Internal.Notes.NoteData" $ do
         Right r -> length (parseSummariesFromChanges r) `shouldBe` 1
 
   describe "parseFoldersFromChanges" $ do
-    it "extracts only SearchIndexes records" $ do
+    it "extracts only Folder records" $ do
       case eitherDecode zoneChangesJson :: Either String CKZoneChangesResponse of
         Left err -> expectationFailure err
         Right r -> length (parseFoldersFromChanges r) `shouldBe` 1
@@ -131,10 +131,10 @@ spec = describe "Network.ICloud.Internal.Notes.NoteData" $ do
 queryFoldersJson :: LBS.ByteString
 queryFoldersJson =
   "{\"records\":[{\"recordName\":\"Folder/FOLDER-FIXTURE\"\
-  \,\"recordType\":\"SearchIndexes\"\
+  \,\"recordType\":\"Folder\"\
   \,\"recordChangeTag\":\"folder-change-tag-fixture\"\
   \,\"zoneID\":{\"zoneName\":\"Notes\",\"zoneType\":\"REGULAR_CUSTOM_ZONE\"}\
-  \,\"fields\":{\"TitleEncrypted\":{\"type\":\"STRING\",\"value\":\"Synthetic Folder\",\"isEncrypted\":true}\
+  \,\"fields\":{\"TitleEncrypted\":{\"type\":\"ENCRYPTED_BYTES\",\"value\":\"U3ludGhldGljIEZvbGRlcg==\"}\
   \,\"HasSubfolder\":{\"type\":\"INT64\",\"value\":1}}}]\
   \,\"continuationMarker\":null}"
 
@@ -144,8 +144,8 @@ queryNotesJson =
   "{\"records\":[{\"recordName\":\"Note/NOTE-FIXTURE\"\
   \,\"recordType\":\"Note\"\
   \,\"fields\":{\
-  \\"TitleEncrypted\":{\"type\":\"STRING\",\"value\":\"Synthetic note\",\"isEncrypted\":true}\
-  \,\"SnippetEncrypted\":{\"type\":\"STRING\",\"value\":\"Synthetic snippet\",\"isEncrypted\":true}\
+  \\"TitleEncrypted\":{\"type\":\"ENCRYPTED_BYTES\",\"value\":\"U3ludGhldGljIG5vdGU=\"}\
+  \,\"SnippetEncrypted\":{\"type\":\"ENCRYPTED_BYTES\",\"value\":\"U3ludGhldGljIHNuaXBwZXQ=\"}\
   \,\"ModificationDate\":{\"type\":\"TIMESTAMP\",\"value\":1735776000000}\
   \,\"Deleted\":{\"type\":\"INT64\",\"value\":0}\
   \,\"Folder\":{\"type\":\"REFERENCE\",\"value\":{\"recordName\":\"Folder/FOLDER-FIXTURE\",\"action\":\"VALIDATE\"}}}}]\
@@ -162,8 +162,8 @@ lookupNoteJson =
   \,\"deleted\":false\
   \,\"zoneID\":{\"zoneName\":\"Notes\",\"zoneType\":\"REGULAR_CUSTOM_ZONE\"}\
   \,\"fields\":{\
-  \\"TitleEncrypted\":{\"type\":\"STRING\",\"value\":\"Synthetic note\",\"isEncrypted\":true}\
-  \,\"SnippetEncrypted\":{\"type\":\"STRING\",\"value\":\"Synthetic snippet\",\"isEncrypted\":true}\
+  \\"TitleEncrypted\":{\"type\":\"ENCRYPTED_BYTES\",\"value\":\"U3ludGhldGljIG5vdGU=\"}\
+  \,\"SnippetEncrypted\":{\"type\":\"ENCRYPTED_BYTES\",\"value\":\"U3ludGhldGljIHNuaXBwZXQ=\"}\
   \,\"TextDataEncrypted\":{\"type\":\"ENCRYPTED_BYTES\",\"value\":\"c3ludGhldGljIG5vdGUgYm9keQ==\"}\
   \,\"ModificationDate\":{\"type\":\"TIMESTAMP\",\"value\":1735776000000}\
   \,\"Deleted\":{\"type\":\"INT64\",\"value\":0}\
@@ -183,16 +183,16 @@ zoneChangesJson =
   \,\"recordType\":\"Note\"\
   \,\"recordChangeTag\":\"note-change-tag-fixture\"\
   \,\"fields\":{\
-  \\"TitleEncrypted\":{\"type\":\"STRING\",\"value\":\"Synthetic note\",\"isEncrypted\":true}\
-  \,\"SnippetEncrypted\":{\"type\":\"STRING\",\"value\":\"Synthetic snippet\",\"isEncrypted\":true}\
+  \\"TitleEncrypted\":{\"type\":\"ENCRYPTED_BYTES\",\"value\":\"U3ludGhldGljIG5vdGU=\"}\
+  \,\"SnippetEncrypted\":{\"type\":\"ENCRYPTED_BYTES\",\"value\":\"U3ludGhldGljIHNuaXBwZXQ=\"}\
   \,\"ModificationDate\":{\"type\":\"TIMESTAMP\",\"value\":1735776000000}\
   \,\"Deleted\":{\"type\":\"INT64\",\"value\":0}\
   \,\"Folder\":{\"type\":\"REFERENCE\",\"value\":{\"recordName\":\"Folder/FOLDER-FIXTURE\",\"action\":\"VALIDATE\"}}}}\
   \,{\"recordName\":\"Folder/FOLDER-FIXTURE\"\
-  \,\"recordType\":\"SearchIndexes\"\
+  \,\"recordType\":\"Folder\"\
   \,\"recordChangeTag\":\"folder-change-tag-fixture\"\
   \,\"fields\":{\
-  \\"TitleEncrypted\":{\"type\":\"STRING\",\"value\":\"Synthetic Folder\",\"isEncrypted\":true}\
+  \\"TitleEncrypted\":{\"type\":\"ENCRYPTED_BYTES\",\"value\":\"U3ludGhldGljIEZvbGRlcg==\"}\
   \,\"HasSubfolder\":{\"type\":\"INT64\",\"value\":1}}}\
   \,{\"recordName\":\"Note/NOTE-DELETED-FIXTURE\",\"deleted\":true}\
   \]}]}"

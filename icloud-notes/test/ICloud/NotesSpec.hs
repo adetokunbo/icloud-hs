@@ -169,8 +169,8 @@ jsonHeaders = [(hContentType, "application/json")]
 queryFoldersJson :: LBS.ByteString
 queryFoldersJson =
   "{\"records\":[{\"recordName\":\"Folder/FOLDER-FIXTURE\"\
-  \,\"recordType\":\"SearchIndexes\"\
-  \,\"fields\":{\"TitleEncrypted\":{\"type\":\"STRING\",\"value\":\"Synthetic Folder\",\"isEncrypted\":true}}}]\
+  \,\"recordType\":\"Folder\"\
+  \,\"fields\":{\"TitleEncrypted\":{\"type\":\"ENCRYPTED_BYTES\",\"value\":\"U3ludGhldGljIEZvbGRlcg==\"}}}]\
   \,\"continuationMarker\":null}"
 
 
@@ -179,7 +179,7 @@ queryNotesJson =
   "{\"records\":[{\"recordName\":\"Note/NOTE-FIXTURE\"\
   \,\"recordType\":\"Note\"\
   \,\"fields\":{\
-  \\"TitleEncrypted\":{\"type\":\"STRING\",\"value\":\"Synthetic note\",\"isEncrypted\":true}\
+  \\"TitleEncrypted\":{\"type\":\"ENCRYPTED_BYTES\",\"value\":\"U3ludGhldGljIG5vdGU=\"}\
   \,\"Deleted\":{\"type\":\"INT64\",\"value\":0}}}]\
   \,\"continuationMarker\":null}"
 
@@ -189,7 +189,7 @@ lookupNoteJson =
   "{\"records\":[{\"recordName\":\"Note/NOTE-FIXTURE\"\
   \,\"recordType\":\"Note\"\
   \,\"fields\":{\
-  \\"TitleEncrypted\":{\"type\":\"STRING\",\"value\":\"Synthetic note\",\"isEncrypted\":true}\
+  \\"TitleEncrypted\":{\"type\":\"ENCRYPTED_BYTES\",\"value\":\"U3ludGhldGljIG5vdGU=\"}\
   \,\"TextDataEncrypted\":{\"type\":\"ENCRYPTED_BYTES\",\"value\":\"c3ludGhldGljIG5vdGUgYm9keQ==\"}\
   \,\"Deleted\":{\"type\":\"INT64\",\"value\":0}}}]}"
 
@@ -208,12 +208,12 @@ zoneChangesJson =
   \{\"recordName\":\"Note/NOTE-FIXTURE\"\
   \,\"recordType\":\"Note\"\
   \,\"fields\":{\
-  \\"TitleEncrypted\":{\"type\":\"STRING\",\"value\":\"Synthetic note\",\"isEncrypted\":true}\
+  \\"TitleEncrypted\":{\"type\":\"ENCRYPTED_BYTES\",\"value\":\"U3ludGhldGljIG5vdGU=\"}\
   \,\"Deleted\":{\"type\":\"INT64\",\"value\":0}\
   \,\"Folder\":{\"type\":\"REFERENCE\",\"value\":{\"recordName\":\"Folder/FOLDER-FIXTURE\",\"action\":\"VALIDATE\"}}}}\
   \,{\"recordName\":\"Folder/FOLDER-FIXTURE\"\
-  \,\"recordType\":\"SearchIndexes\"\
-  \,\"fields\":{\"TitleEncrypted\":{\"type\":\"STRING\",\"value\":\"Synthetic Folder\",\"isEncrypted\":true}}}\
+  \,\"recordType\":\"Folder\"\
+  \,\"fields\":{\"TitleEncrypted\":{\"type\":\"ENCRYPTED_BYTES\",\"value\":\"U3ludGhldGljIEZvbGRlcg==\"}}}\
   \,{\"recordName\":\"Note/NOTE-DELETED-FIXTURE\",\"deleted\":true}\
   \]}]}"
 
@@ -223,7 +223,7 @@ page1Json =
   "{\"records\":[{\"recordName\":\"Note/NOTE-1\"\
   \,\"recordType\":\"Note\"\
   \,\"fields\":{\
-  \\"TitleEncrypted\":{\"type\":\"STRING\",\"value\":\"Note 1\",\"isEncrypted\":true}\
+  \\"TitleEncrypted\":{\"type\":\"ENCRYPTED_BYTES\",\"value\":\"Tm90ZSAx\"}\
   \,\"Deleted\":{\"type\":\"INT64\",\"value\":0}}}]\
   \,\"continuationMarker\":\"page-marker-1\"}"
 
@@ -233,6 +233,6 @@ page2Json =
   "{\"records\":[{\"recordName\":\"Note/NOTE-2\"\
   \,\"recordType\":\"Note\"\
   \,\"fields\":{\
-  \\"TitleEncrypted\":{\"type\":\"STRING\",\"value\":\"Note 2\",\"isEncrypted\":true}\
+  \\"TitleEncrypted\":{\"type\":\"ENCRYPTED_BYTES\",\"value\":\"Tm90ZSAy\"}\
   \,\"Deleted\":{\"type\":\"INT64\",\"value\":0}}}]\
   \,\"continuationMarker\":null}"
