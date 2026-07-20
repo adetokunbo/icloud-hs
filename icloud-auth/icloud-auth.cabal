@@ -73,6 +73,7 @@ library
                     Network.ICloud.Session
                     Network.ICloud.Trust
   other-modules:    Network.ICloud.Internal.Http.Api
+                    Network.ICloud.Internal.Http.Login
                     Network.ICloud.Internal.Http.Signin
   hs-source-dirs:   src
   build-depends:
