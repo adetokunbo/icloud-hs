@@ -17,9 +17,11 @@ import Network.ICloud.Internal.Notes.Endpoints
   , lookupBody
   , lookupReq
   , mkNotesEndpoints
+  , notesInFolderBody
   , queryReq
   , recentsBody
   )
+import Network.ICloud.Notes.Note (FolderId (..))
 import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..))
 import Test.Hspec
 
@@ -85,6 +87,26 @@ spec = describe "Network.ICloud.Internal.Notes.Endpoints" $ do
     it "includes Notes zoneID with zoneType" $
       lookupBody ["Note/ABC"]
         `shouldSatisfy` lbsContains "\"zoneType\":\"REGULAR_CUSTOM_ZONE\""
+
+  describe "notesInFolderBody" $ do
+    it "queries Note records" $
+      notesInFolderBody (FolderId "Folder/ABC") 10 Nothing
+        `shouldSatisfy` lbsContains "\"recordType\":\"Note\""
+    it "filters by the given folder reference" $
+      notesInFolderBody (FolderId "Folder/ABC") 10 Nothing
+        `shouldSatisfy` lbsContains "\"recordName\":\"Folder/ABC\""
+    it "uses EQUALS comparator on the Folder field" $
+      notesInFolderBody (FolderId "Folder/ABC") 10 Nothing
+        `shouldSatisfy` lbsContains "\"fieldName\":\"Folder\""
+    it "includes the requested resultsLimit" $
+      notesInFolderBody (FolderId "Folder/ABC") 42 Nothing
+        `shouldSatisfy` lbsContains "\"resultsLimit\":42"
+    it "clamps resultsLimit to 200" $
+      notesInFolderBody (FolderId "Folder/ABC") 999 Nothing
+        `shouldSatisfy` lbsContains "\"resultsLimit\":200"
+    it "includes continuationMarker when provided" $
+      notesInFolderBody (FolderId "Folder/ABC") 10 (Just (String "test-marker"))
+        `shouldSatisfy` lbsContains "\"continuationMarker\""
 
   describe "changesBody" $ do
     it "includes REGULAR_CUSTOM_ZONE zoneType" $

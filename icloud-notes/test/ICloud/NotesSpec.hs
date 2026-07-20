@@ -67,8 +67,8 @@ spec = describe "Network.ICloud.Notes" $ do
         result `shouldBe` Nothing
 
   describe "fetchNotesInFolder" $ do
-    it "returns only notes matching the given folder" $
-      withNotesMock zoneChangesJson "/changes/zone" $ \ep api -> do
+    it "returns notes in the given folder from a filtered query response" $
+      withNotesMock folderNotesJson "/records/query" $ \ep api -> do
         notes <- fetchNotesInFolder api ep (FolderId "Folder/FOLDER-FIXTURE")
         case notes of
           [n] -> nsId n `shouldBe` NoteId "Note/NOTE-FIXTURE"
@@ -199,23 +199,15 @@ tombstoneLookupJson =
   "{\"records\":[{\"recordName\":\"Note/NOTE-DELETED-FIXTURE\",\"deleted\":true}]}"
 
 
-zoneChangesJson :: LBS.ByteString
-zoneChangesJson =
-  "{\"zones\":[{\"zoneID\":{\"zoneName\":\"Notes\",\"zoneType\":\"REGULAR_CUSTOM_ZONE\"}\
-  \,\"syncToken\":\"notes-zone-sync-token-fixture\"\
-  \,\"moreComing\":false\
-  \,\"records\":[\
-  \{\"recordName\":\"Note/NOTE-FIXTURE\"\
+folderNotesJson :: LBS.ByteString
+folderNotesJson =
+  "{\"records\":[{\"recordName\":\"Note/NOTE-FIXTURE\"\
   \,\"recordType\":\"Note\"\
   \,\"fields\":{\
   \\"TitleEncrypted\":{\"type\":\"ENCRYPTED_BYTES\",\"value\":\"U3ludGhldGljIG5vdGU=\"}\
   \,\"Deleted\":{\"type\":\"INT64\",\"value\":0}\
-  \,\"Folder\":{\"type\":\"REFERENCE\",\"value\":{\"recordName\":\"Folder/FOLDER-FIXTURE\",\"action\":\"VALIDATE\"}}}}\
-  \,{\"recordName\":\"Folder/FOLDER-FIXTURE\"\
-  \,\"recordType\":\"Folder\"\
-  \,\"fields\":{\"TitleEncrypted\":{\"type\":\"ENCRYPTED_BYTES\",\"value\":\"U3ludGhldGljIEZvbGRlcg==\"}}}\
-  \,{\"recordName\":\"Note/NOTE-DELETED-FIXTURE\",\"deleted\":true}\
-  \]}]}"
+  \,\"Folder\":{\"type\":\"REFERENCE\",\"value\":{\"recordName\":\"Folder/FOLDER-FIXTURE\",\"action\":\"VALIDATE\"}}}}]\
+  \,\"continuationMarker\":null}"
 
 
 page1Json :: LBS.ByteString

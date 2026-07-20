@@ -26,16 +26,13 @@ import Network.ICloud.Http (Api, rawRequest)
 import Network.ICloud.Internal.Notes.CloudKit
   ( CKLookupResponse (..)
   , CKQueryResponse (..)
-  , CKZoneChangesResponse (..)
-  , CKZoneChangesZone (..)
   )
 import Network.ICloud.Internal.Notes.Endpoints
   ( NotesEndpoints
-  , changesBody
-  , changesReq
   , foldersBody
   , lookupBody
   , lookupReq
+  , notesInFolderBody
   , queryReq
   , recentsBody
   )
@@ -49,7 +46,6 @@ import Network.ICloud.Internal.Notes.Note
 import Network.ICloud.Internal.Notes.NoteData
   ( noteRecordToNote
   , parseFoldersFromQuery
-  , parseSummariesFromChanges
   , parseSummariesFromQuery
   )
 
@@ -92,24 +88,14 @@ fetchNote api ep nid = do
 
 
 fetchNotesInFolder :: Api -> NotesEndpoints -> FolderId -> IO [NoteSummary]
-fetchNotesInFolder api ep fid = do
-  notes <- fetchAllNotes api ep
-  pure $ filter (\ns -> nsFolderId ns == Just fid) notes
-
-
--- Helpers
-
-fetchAllNotes :: Api -> NotesEndpoints -> IO [NoteSummary]
-fetchAllNotes api ep = go Nothing []
+fetchNotesInFolder api ep fid = go Nothing []
  where
-  go syncToken acc = do
-    zcr <- fetchAs "fetchAllNotes" api (jsonReq (changesBody syncToken) (changesReq ep))
-    let acc' = acc <> parseSummariesFromChanges zcr
-    case listToMaybe (zcrZones zcr) of
-      Just zone
-        | zczMoreComing zone == Just True ->
-            go (zczSyncToken zone) acc'
-      _ -> pure acc'
+  go marker acc = do
+    qr <- fetchAs "fetchNotesInFolder" api (jsonReq (notesInFolderBody fid 200 marker) (queryReq ep))
+    let acc' = acc <> parseSummariesFromQuery qr
+    case qrContinuationMarker qr of
+      Nothing -> pure acc'
+      Just m -> go (Just m) acc'
 
 
 fetchAs :: (FromJSON a) => String -> Api -> Request -> IO a
