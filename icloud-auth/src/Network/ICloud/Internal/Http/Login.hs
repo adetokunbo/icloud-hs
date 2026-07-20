@@ -168,8 +168,7 @@ instance LoginEvent LoginM where
 
 
   ratifyArtifactDir (RatifyArtifactDir creds) = do
-    api <- ask
-    let dir = sessionTopDir (apiSession api)
+    dir <- sessionTopDir . apiSession <$> ask
     exists <- liftIO $ doesDirectoryExist dir
     pure $
       if exists
@@ -178,8 +177,7 @@ instance LoginEvent LoginM where
 
 
   mkArtifactDir (MkArtifactDir creds) = do
-    api <- ask
-    let dir = sessionTopDir (apiSession api)
+    dir <- sessionTopDir . apiSession <$> ask
     ok <- liftIO $ (createDirectoryIfMissing True dir >> pure True) `catch` (\(_ :: IOException) -> pure False)
     pure $
       if ok
@@ -241,17 +239,14 @@ instance LoginEvent LoginM where
 
 
   listTwoSaDevices (NeedsTwoSa creds) = do
-    api <- ask
-    devices <- liftIO $ listSetupDevices api
-    pure $ TwoSaReady creds devices
+    ask >>= fmap (TwoSaReady creds) . liftIO . listSetupDevices
 
 
   beginTwoFa (ReadyForTwoFa creds td) TwoFaConfig{tfcPickPhone} = do
-    api <- ask
     mbPhone <- liftIO $ tfcPickPhone td
-    liftIO $ case mbPhone of
-      Nothing -> triggerTwoFaPush api
-      Just phone -> requestSmsCode api phone
+    case mbPhone of
+      Nothing -> ask >>= liftIO . triggerTwoFaPush
+      Just phone -> ask >>= liftIO . flip requestSmsCode phone
     pure $ TwoFaVerifying creds td mbPhone
 
 
@@ -273,8 +268,7 @@ instance LoginEvent LoginM where
 
 
   doTrust (DoTrust creds) = do
-    api <- ask
-    liftIO $ doTrustStep api
+    ask >>= liftIO . doTrustStep
     pure $ DoAccountLogin creds
 
 
@@ -303,7 +297,7 @@ parseAccountData v =
 
 -- | Complete a pending 2FA (auth-endpoint) challenge
 completeTwoFactor :: Api -> IO AuthState
-completeTwoFactor api = completeTwoFactorWith pleaseReadCode (\_ -> pure Nothing) api
+completeTwoFactor = completeTwoFactorWith pleaseReadCode (\_ -> pure Nothing)
 
 
 -- | Like 'completeTwoFactor' with an injectable code prompt and phone selector, for testing
