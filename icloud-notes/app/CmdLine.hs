@@ -49,13 +49,13 @@ commandParser =
     ( command
         "list-note-folders"
         ( info
-            (ListFolders <$> commonOptsParser)
+            (ListFolders <$> commonOptsParser <**> helper)
             (progDesc "List all iCloud Notes folders")
         )
         <> command
           "list-notes"
           ( info
-              (ListNotes <$> listNotesOptsParser)
+              (ListNotes <$> listNotesOptsParser <**> helper)
               (progDesc "List notes, optionally filtered by folder ID")
           )
     )
