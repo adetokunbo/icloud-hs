@@ -1,6 +1,7 @@
 module Main where
 
 import qualified ICloud.Notes.CloudKitSpec as CloudKit
+import qualified ICloud.Notes.DecodeSpec as Decode
 import qualified ICloud.Notes.EndpointsSpec as Endpoints
 import qualified ICloud.Notes.NoteDataSpec as NoteData
 import qualified ICloud.Notes.ProtoSpec as Proto
@@ -20,6 +21,7 @@ main = do
   hSetBuffering stderr NoBuffering
   hspec $ do
     CloudKit.spec
+    Decode.spec
     Endpoints.spec
     NoteData.spec
     Proto.spec

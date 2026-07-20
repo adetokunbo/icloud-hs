@@ -9,6 +9,9 @@ module Network.ICloud.Notes
   , notesInFolder
   , getNote
 
+    -- * Decoding note bodies
+  , decodeNoteBody
+
     -- * Errors
   , NotesError (..)
 
@@ -18,6 +21,7 @@ module Network.ICloud.Notes
 where
 
 import Network.ICloud.Http (Api)
+import Network.ICloud.Internal.Notes.Decode (decodeNoteBody)
 import Network.ICloud.Internal.Notes.Download
   ( NotesError (..)
   , fetchFolders

@@ -53,6 +53,7 @@ executable icloud-notes
 library icloud-notes-internal
   exposed-modules:
     Network.ICloud.Internal.Notes.CloudKit
+    Network.ICloud.Internal.Notes.Decode
     Network.ICloud.Internal.Notes.Download
     Network.ICloud.Internal.Notes.Endpoints
     Network.ICloud.Internal.Notes.Note
@@ -97,6 +98,7 @@ test-suite test
   hs-source-dirs:   test
   other-modules:
     ICloud.Notes.CloudKitSpec
+    ICloud.Notes.DecodeSpec
     ICloud.Notes.EndpointsSpec
     ICloud.Notes.NoteDataSpec
     ICloud.Notes.ProtoSpec
