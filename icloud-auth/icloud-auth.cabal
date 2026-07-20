@@ -72,6 +72,7 @@ library
                     Network.ICloud.Http.Common
                     Network.ICloud.Session
                     Network.ICloud.Trust
+  other-modules:    Network.ICloud.Internal.Http.Api
   hs-source-dirs:   src
   build-depends:
     , aeson                >=1.5.1 && <2.3 
