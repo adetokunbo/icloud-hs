@@ -45,7 +45,7 @@ jobs:
       - run: cabal build ${{ matrix.package }} $CONFIG
       - run: cabal test "${{ matrix.package }}:test"
       - run: cabal haddock ${{ matrix.package }}
-      - run: cabal sdist
+      - run: cabal sdist ${{ matrix.package }}
 
   build-latest:
     runs-on: ubuntu-latest
