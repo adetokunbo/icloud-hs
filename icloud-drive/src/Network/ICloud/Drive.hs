@@ -67,8 +67,7 @@ import Network.ICloud.Internal.Drive.Download
   , fetchNode
   )
 import Network.ICloud.Internal.Drive.Endpoints
-  ( CloudScope
-  , DriveEndpoints
+  ( DriveEndpoints
   , mkDriveEndpoints
   )
 import Network.ICloud.Session (AccountData, Session)
@@ -77,7 +76,7 @@ import Network.ICloud.Session (AccountData, Session)
 {- | A bundled handle pairing a logged-in 'Api' with its drive endpoints.
 Construct with 'mkDriveApi'; pass to all drive operations.
 -}
-data DriveApi = DriveApi !Api !(DriveEndpoints CloudScope)
+data DriveApi = DriveApi !Api !DriveEndpoints
 
 
 -- | Pair a logged-in 'Api' with drive endpoints derived from its session data.

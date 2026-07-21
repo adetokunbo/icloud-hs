@@ -4,7 +4,6 @@
 
 module Network.ICloud.Internal.Drive.Endpoints
   ( DriveEndpoints
-  , CloudScope
   , mkDriveEndpoints
   , nodeDetailsReq
   , nodeDetailsBody
@@ -38,12 +37,8 @@ import Network.ICloud.Internal.Drive.Node (DriveNodeId (..))
 import Network.ICloud.Session (AccountData (..), Session (..))
 
 
--- | Tag for the main CloudDocs tree; permits all drive operations.
-data CloudScope
-
-
 -- | Base requests and client ID needed to call the iCloud Drive API.
-data DriveEndpoints s = DriveEndpoints
+data DriveEndpoints = DriveEndpoints
   { deServiceReq :: !Request
   -- ^ base request targeting the Drive service root (@drivews@)
   , deDocReq :: !Request
@@ -58,7 +53,7 @@ data DriveEndpoints s = DriveEndpoints
 Fails if the @drivews@ or @docws@ service URLs are absent from the account
 data.
 -}
-mkDriveEndpoints :: AccountData -> Session -> IO (DriveEndpoints CloudScope)
+mkDriveEndpoints :: AccountData -> Session -> IO DriveEndpoints
 mkDriveEndpoints ad sess = do
   svcReq <- lookupWebservice "drivews" (adWebservices ad)
   docReq <- lookupWebservice "docws" (adWebservices ad)
@@ -69,7 +64,7 @@ mkDriveEndpoints ad sess = do
 
 
 -- | Build the @POST retrieveItemDetailsInFolders@ request.
-nodeDetailsReq :: DriveEndpoints s -> Request
+nodeDetailsReq :: DriveEndpoints -> Request
 nodeDetailsReq ep =
   withClientId ep $
     (deServiceReq ep)
@@ -85,7 +80,7 @@ nodeDetailsBody (DriveNodeId nid) =
 
 
 -- | Build the @GET download/by_id@ request for a file in the given zone.
-downloadTokenReq :: Text -> Text -> DriveEndpoints s -> Request
+downloadTokenReq :: Text -> Text -> DriveEndpoints -> Request
 downloadTokenReq docId zone ep =
   (deDocReq ep)
     { path = stripTrailingSlash (path (deDocReq ep)) <> "/ws/" <> urlEncode False (encodeUtf8 zone) <> "/download/by_id"
@@ -99,7 +94,7 @@ downloadTokenReq docId zone ep =
 
 
 -- | Build the @POST createFolders@ request.
-createFolderReq :: DriveEndpoints s -> Request
+createFolderReq :: DriveEndpoints -> Request
 createFolderReq ep =
   withClientId ep $
     (deServiceReq ep)
@@ -109,7 +104,7 @@ createFolderReq ep =
 
 
 -- | Build the JSON request body for @createFolders@.
-createFolderBody :: DriveEndpoints s -> DriveNodeId -> Text -> LBS.ByteString
+createFolderBody :: DriveEndpoints -> DriveNodeId -> Text -> LBS.ByteString
 createFolderBody ep (DriveNodeId parentId) name =
   encode $
     object
@@ -119,7 +114,7 @@ createFolderBody ep (DriveNodeId parentId) name =
 
 
 -- | Build the @POST renameItems@ request.
-renameNodeReq :: DriveEndpoints s -> Request
+renameNodeReq :: DriveEndpoints -> Request
 renameNodeReq ep =
   withClientId ep $
     (deServiceReq ep)
@@ -137,7 +132,7 @@ renameNodeBody (DriveNodeId nid) etag name =
 
 
 -- | Build the @POST moveItemsToTrash@ request.
-deleteNodeReq :: DriveEndpoints s -> Request
+deleteNodeReq :: DriveEndpoints -> Request
 deleteNodeReq ep =
   withClientId ep $
     (deServiceReq ep)
@@ -147,7 +142,7 @@ deleteNodeReq ep =
 
 
 -- | Build the JSON request body for @moveItemsToTrash@.
-deleteNodeBody :: DriveEndpoints s -> DriveNodeId -> Text -> LBS.ByteString
+deleteNodeBody :: DriveEndpoints -> DriveNodeId -> Text -> LBS.ByteString
 deleteNodeBody ep (DriveNodeId nid) etag =
   encode $
     object
@@ -155,7 +150,7 @@ deleteNodeBody ep (DriveNodeId nid) etag =
 
 
 -- | Build the @POST upload/web@ request for the given zone.
-uploadTokenReq :: Text -> DriveEndpoints s -> Request
+uploadTokenReq :: Text -> DriveEndpoints -> Request
 uploadTokenReq zone ep =
   withClientId ep $
     (deDocReq ep)
@@ -169,7 +164,7 @@ uploadTokenReq zone ep =
 
 
 -- | Build the @POST update/documents@ commit request for the given zone.
-commitUploadReq :: Text -> DriveEndpoints s -> Request
+commitUploadReq :: Text -> DriveEndpoints -> Request
 commitUploadReq zone ep =
   withClientId ep $
     (deDocReq ep)
@@ -182,7 +177,7 @@ commitUploadReq zone ep =
       }
 
 
-withClientId :: DriveEndpoints s -> Request -> Request
+withClientId :: DriveEndpoints -> Request -> Request
 withClientId ep req =
   let cid = "clientId=" <> urlEncode True (encodeUtf8 (deClientId ep))
       qs = queryString req
