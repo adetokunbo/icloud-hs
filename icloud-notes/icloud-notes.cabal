@@ -45,10 +45,10 @@ executable icloud-notes
     , filepath             >=1.4 && <1.6
     , http-client-tls      >=0.3 && <0.4
     , icloud-auth
+    , icloud-auth:icloud-auth-cli
     , icloud-notes
     , optparse-applicative >=0.18 && <0.19
     , text                 >=1.2.3 && <2.2
-    , xdg-basedir          >=0.2 && <0.3
 
 library icloud-notes-internal
   exposed-modules:

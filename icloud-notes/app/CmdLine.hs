@@ -3,27 +3,12 @@ module Main where
 import Control.Exception (catch, displayException)
 import Data.List (find)
 import qualified Data.Text as Text
-import Network.HTTP.Client.TLS (newTlsManager)
-import Network.ICloud.Http
-  ( Api
-  , AuthError
-  , AuthState (..)
-  , fileLogger
-  , login
-  , mkApiWith
-  , redactingLogger
-  , verboseLogger
-  , withLogger
-  )
-import Network.ICloud.Http.Endpoints (Realm (..), realmEndpoints)
+import Network.ICloud.Http (AuthError)
+import Network.ICloud.Http.Cli (CommonOpts (..), commonOptsParser, runWithApi)
 import Network.ICloud.Notes
-import Network.ICloud.Session (loadSession)
+import Network.ICloud.Session (AccountData, Session)
 import Options.Applicative
-import System.Directory (createDirectoryIfMissing)
-import System.Environment.XDG.BaseDir (getUserCacheDir)
 import System.Exit (exitFailure)
-import System.FilePath ((</>))
-import System.IO (IOMode (..), stdout, withFile)
 
 
 data Command
@@ -34,15 +19,6 @@ data Command
 data ListNotesOpts = ListNotesOpts
   { lnFolder :: Maybe Text.Text
   , lnCommon :: CommonOpts
-  }
-
-
-data CommonOpts = CommonOpts
-  { optChina :: Bool
-  , optLog :: Bool
-  , optLogFile :: Maybe FilePath
-  , optLogBodies :: Bool
-  , optRedact :: Bool
   }
 
 
@@ -76,17 +52,6 @@ listNotesOptsParser =
             )
       )
     <*> commonOptsParser
-
-
-commonOptsParser :: Parser CommonOpts
-commonOptsParser =
-  CommonOpts
-    <$> switch (long "china" <> help "Use mainland China endpoints")
-    <*> switch (long "log" <> help "Append HTTP exchanges to the default log file")
-    <*> optional
-      (strOption (long "log-file" <> metavar "FILE" <> help "Append HTTP exchanges to FILE"))
-    <*> switch (long "log-bodies" <> help "Include request bodies in the HTTP exchange log")
-    <*> switch (long "redact" <> help "Redact sensitive headers (tokens, cookies) in the log")
 
 
 cliParser :: ParserInfo Command
@@ -148,49 +113,10 @@ printNote ns =
 
 
 withNotesApi :: CommonOpts -> (Api -> NotesEndpoints -> IO ()) -> IO ()
-withNotesApi opts runAction = do
-  session <- loadSession
-  mgr <- newTlsManager
-  let realm = if optChina opts then China else Usual
-  api0 <- mkApiWith session (realmEndpoints realm) mgr
-  mbLogPath <- resolveLogTarget opts
-  let mkLogger
-        | optRedact opts = redactingLogger
-        | optLogBodies opts = verboseLogger
-        | otherwise = fileLogger
-      run api = do
-        result <- login api
-        case result of
-          Authenticated sess ad -> do
-            ep <- mkNotesEndpoints ad sess
-            runAction api ep
-          _ -> do
-            putStrLn "Not authenticated — run 'icloud-auth login' first."
-            exitFailure
-      go = case mbLogPath of
-        Just fp -> withFile fp AppendMode $ \h -> run (withLogger (mkLogger h) api0)
-        Nothing
-          | optLogBodies opts && not (optRedact opts) -> run (withLogger (mkLogger stdout) api0)
-          | otherwise -> run api0
-  go
+withNotesApi opts runAction =
+  runWithApi opts (\ad sess api -> mkNotesEndpoints ad sess >>= runAction api)
     `catch` (\e -> onError (e :: AuthError))
     `catch` (\e -> onError (e :: NotesError))
  where
+  onError :: (Show a) => a -> IO ()
   onError e = putStrLn ("Error: " <> displayException e) >> exitFailure
-
-
-resolveLogTarget :: CommonOpts -> IO (Maybe FilePath)
-resolveLogTarget CommonOpts{optLogFile = Just fp} = pure (Just fp)
-resolveLogTarget CommonOpts{optLog = True} = Just <$> defaultLogFile
-resolveLogTarget _ = pure Nothing
-
-
-defaultLogFile :: IO FilePath
-defaultLogFile = do
-  dir <- getUserCacheDir appDir
-  createDirectoryIfMissing True dir
-  pure (dir </> "requests.log")
-
-
-appDir :: FilePath
-appDir = "hs-icloud"
