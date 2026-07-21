@@ -81,9 +81,7 @@ nodeDetailsReq ep =
 -- | Build the JSON request body for @retrieveItemDetailsInFolders@.
 nodeDetailsBody :: DriveNodeId -> LBS.ByteString
 nodeDetailsBody (DriveNodeId nid) =
-  "[{\"drivewsid\":\""
-    <> LBS.fromStrict (encodeUtf8 nid)
-    <> "\",\"partialData\":false}]"
+  encode [object ["drivewsid" .= nid, "partialData" .= False]]
 
 
 -- | Build the @GET download/by_id@ request for a file in the given zone.

@@ -2,7 +2,7 @@
 
 module ICloud.Drive.EndpointsSpec (spec) where
 
-import Data.Aeson (object)
+import Data.Aeson (Value, decode, object)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map.Strict as Map
@@ -15,7 +15,7 @@ import Network.ICloud.Internal.Drive.Endpoints
   , nodeDetailsBody
   , nodeDetailsReq
   )
-import Network.ICloud.Internal.Drive.Node (rootNodeId)
+import Network.ICloud.Internal.Drive.Node (DriveNodeId (..), rootNodeId)
 import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..))
 import Test.Hspec
 
@@ -31,6 +31,9 @@ spec = describe "Network.ICloud.Internal.Drive.Endpoints" $ do
                        <> ",\"partialData\":false}]"
                        :: LBS.ByteString
                    )
+    it "produces valid JSON for node ids containing quotes or backslashes" $
+      (decode (nodeDetailsBody (DriveNodeId "folder/with\"quote\\here")) :: Maybe Value)
+        `shouldNotBe` Nothing
 
   describe "nodeDetailsReq" $ do
     it "targets retrieveItemDetailsInFolders" $
