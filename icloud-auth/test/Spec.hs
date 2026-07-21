@@ -3,6 +3,7 @@
 module Main where
 
 import qualified ICloud.ApiLoggerSpec as ApiLogger
+import qualified ICloud.Http.CliSpec as HttpCli
 import qualified ICloud.Http.EndpointsSpec as HttpEndpoints
 import qualified ICloud.Http.ErrorsSpec as HttpErrors
 import qualified ICloud.Http.HeadersSpec as HttpHeaders
@@ -29,6 +30,7 @@ main = do
     Session.spec
     Http.spec
     ApiLogger.spec
+    HttpCli.spec
     HttpEndpoints.spec
     HttpErrors.spec
     HttpHeaders.spec
