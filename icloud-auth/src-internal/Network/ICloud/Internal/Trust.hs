@@ -51,7 +51,6 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.Word (Word8)
-import Fmt ((+|), (|+))
 import GHC.Generics (Generic)
 import SimplePrompt (promptNonEmpty)
 import System.IO.Error (isEOFError)
@@ -59,8 +58,11 @@ import Text.Read (readMaybe)
 
 
 putDeviceChoice :: (Int, TrustedDevice) -> IO ()
-putDeviceChoice (i, td) | tdModelName td == "" = Text.putStrLn $ "" +| i |+ ") " +| tdName td |+ "\tSMS\t" +| tdId td |+ ""
-putDeviceChoice (i, td) = Text.putStrLn $ "" +| i |+ ") " +| tdName td |+ "\t" +| tdModelName td |+ "\t" +| tdId td |+ ""
+putDeviceChoice (i, td)
+  | tdModelName td == "" =
+      Text.putStrLn $ Text.pack (show i) <> ") " <> tdName td <> "\tSMS\t" <> tdId td
+  | otherwise =
+      Text.putStrLn $ Text.pack (show i) <> ") " <> tdName td <> "\t" <> tdModelName td <> "\t" <> tdId td
 
 
 selectDevice :: [TrustedDevice] -> IO TrustedDevice
@@ -74,7 +76,7 @@ selectDevice xs = do
 
 selectPhone :: [TrustedPhone] -> IO TrustedPhone
 selectPhone xs = do
-  let putPhoneChoice (i, x) = Text.putStrLn $ "" +| i |+ ") " +| tpnNumberWithDialCode x |+ ""
+  let putPhoneChoice (i, x) = Text.putStrLn $ Text.pack (show i) <> ") " <> tpnNumberWithDialCode x
   when (null xs) $ fail "sorry, expected to pick a trusted phone number, none to choose from"
   Text.putStrLn "Please select a trusted phone number to send a code to"
   mapM_ putPhoneChoice $ zip ([1 ..] :: [Int]) xs
@@ -84,7 +86,7 @@ selectPhone xs = do
 
 pleaseChooseN :: Int -> Int -> IO Int
 pleaseChooseN low high = do
-  let prefix = "Please choose an option between " +| low |+ " and " +| high |+ ""
+  let prefix = "Please choose an option between " <> show low <> " and " <> show high
   result <- (readMaybe <$> promptNonEmpty prefix) `catch` onEof
   case result of
     Nothing -> pleaseChooseN low high
@@ -99,7 +101,7 @@ pleaseChooseN low high = do
 
 pleaseReadCode :: Word8 -> IO Text
 pleaseReadCode len = do
-  let prefix = "Please enter the " +| len |+ "-digit code you just received"
+  let prefix = "Please enter the " <> show len <> "-digit code you just received"
   Text.pack <$> promptNonEmpty prefix
 
 
@@ -277,7 +279,7 @@ selectTwoFaPhone td =
   pickPhoneOrDevice [] = pure Nothing
   pickPhoneOrDevice phones = do
     mapM_
-      (\(i, p) -> Text.putStrLn $ "" +| (i :: Int) |+ ") " +| tpnNumberWithDialCode p |+ "")
+      (\(i, p) -> Text.putStrLn $ Text.pack (show (i :: Int)) <> ") " <> tpnNumberWithDialCode p)
       (zip [1 ..] phones)
     Text.putStrLn "Press Enter to use a trusted device, or select a phone number by its index to receive an SMS:"
     response <- Text.getLine
@@ -292,7 +294,7 @@ selectSetupDevice :: [Setup2SADevice] -> IO Setup2SADevice
 selectSetupDevice xs = do
   when (null xs) $ fail "no 2SA devices available"
   Text.putStrLn "Please select a trusted device to receive a verification code"
-  mapM_ (\(i, d) -> Text.putStrLn $ "" +| (i :: Int) |+ ") " +| setup2SADeviceLabel d |+ "") (zip [1 ..] xs)
+  mapM_ (\(i, d) -> Text.putStrLn $ Text.pack (show (i :: Int)) <> ") " <> setup2SADeviceLabel d) (zip [1 ..] xs)
   idx <- pleaseChooseN 1 (length xs)
   pure (xs !! (idx - 1))
 
