@@ -26,13 +26,16 @@ import Network.ICloud.Http (Api, rawRequest)
 import Network.ICloud.Internal.Notes.CloudKit
   ( CKLookupResponse (..)
   , CKQueryResponse (..)
+  , CKZoneChangesResponse (..)
+  , CKZoneChangesZone (..)
   )
 import Network.ICloud.Internal.Notes.Endpoints
   ( NotesEndpoints
+  , changesBody
+  , changesReq
   , foldersBody
   , lookupBody
   , lookupReq
-  , notesInFolderBody
   , queryReq
   , recentsBody
   )
@@ -46,6 +49,7 @@ import Network.ICloud.Internal.Notes.Note
 import Network.ICloud.Internal.Notes.NoteData
   ( noteRecordToNote
   , parseFoldersFromQuery
+  , parseSummariesFromChanges
   , parseSummariesFromQuery
   )
 
@@ -90,12 +94,16 @@ fetchNote api ep nid = do
 fetchNotesInFolder :: Api -> NotesEndpoints -> FolderId -> IO [NoteSummary]
 fetchNotesInFolder api ep fid = go Nothing []
  where
-  go marker acc = do
-    qr <- fetchAs "fetchNotesInFolder" api (jsonReq (notesInFolderBody fid 200 marker) (queryReq ep))
-    let acc' = acc <> parseSummariesFromQuery qr
-    case qrContinuationMarker qr of
+  go mToken acc = do
+    cr <- fetchAs "fetchNotesInFolder" api (jsonReq (changesBody mToken) (changesReq ep))
+    let acc' = acc <> filter inFolder (parseSummariesFromChanges cr)
+    case nextToken cr of
       Nothing -> pure acc'
-      Just m -> go (Just m) acc'
+      Just tok -> go (Just tok) acc'
+  inFolder s = nsFolderId s == Just fid && not (nsDeleted s)
+  nextToken cr = case zcrZones cr of
+    (z : _) | zczMoreComing z == Just True -> zczSyncToken z
+    _ -> Nothing
 
 
 fetchAs :: (FromJSON a) => String -> Api -> Request -> IO a

@@ -1,6 +1,7 @@
 module Main where
 
 import Control.Exception (catch, displayException)
+import Data.List (find)
 import qualified Data.Text as Text
 import Network.HTTP.Client.TLS (newTlsManager)
 import Network.ICloud.Http
@@ -68,8 +69,8 @@ listNotesOptsParser =
       ( Text.pack
           <$> strOption
             ( long "folder"
-                <> metavar "ID"
-                <> help "Folder record name (e.g. Folder/ABCD1234)"
+                <> metavar "NAME"
+                <> help "Folder name (e.g. TukTuk)"
             )
       )
     <*> commonOptsParser
@@ -111,8 +112,22 @@ runListNotes opts =
   withNotesApi (lnCommon opts) $ \api ep -> do
     notes <- case lnFolder opts of
       Nothing -> recentNotes api ep
-      Just fid -> notesInFolder api ep (FolderId fid)
+      Just name -> do
+        fid <- resolveFolderName api ep name
+        notesInFolder api ep fid
     mapM_ printNote notes
+
+
+resolveFolderName :: Api -> NotesEndpoints -> Text.Text -> IO FolderId
+resolveFolderName api ep name = do
+  folders <- noteFolders api ep
+  case find (matchesName name) folders of
+    Just nf -> pure (nfId nf)
+    Nothing -> do
+      putStrLn $ "No folder named '" <> Text.unpack name <> "'"
+      exitFailure
+ where
+  matchesName n nf = maybe False (\fn -> Text.toCaseFold fn == Text.toCaseFold n) (nfName nf)
 
 
 printFolder :: NoteFolder -> IO ()

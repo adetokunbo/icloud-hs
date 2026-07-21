@@ -67,8 +67,8 @@ spec = describe "Network.ICloud.Notes" $ do
         result `shouldBe` Nothing
 
   describe "fetchNotesInFolder" $ do
-    it "returns notes in the given folder from a filtered query response" $
-      withNotesMock folderNotesJson "/records/query" $ \ep api -> do
+    it "returns only notes in the given folder, excluding other folders and deleted notes" $
+      withNotesMock folderChangesJson "/changes/zone" $ \ep api -> do
         notes <- fetchNotesInFolder api ep (FolderId "Folder/FOLDER-FIXTURE")
         case notes of
           [n] -> nsId n `shouldBe` NoteId "Note/NOTE-FIXTURE"
@@ -199,15 +199,23 @@ tombstoneLookupJson =
   "{\"records\":[{\"recordName\":\"Note/NOTE-DELETED-FIXTURE\",\"deleted\":true}]}"
 
 
-folderNotesJson :: LBS.ByteString
-folderNotesJson =
-  "{\"records\":[{\"recordName\":\"Note/NOTE-FIXTURE\"\
-  \,\"recordType\":\"Note\"\
-  \,\"fields\":{\
-  \\"TitleEncrypted\":{\"type\":\"ENCRYPTED_BYTES\",\"value\":\"U3ludGhldGljIG5vdGU=\"}\
+folderChangesJson :: LBS.ByteString
+folderChangesJson =
+  "{\"zones\":[{\"zoneID\":{\"zoneName\":\"Notes\",\"zoneType\":\"REGULAR_CUSTOM_ZONE\"}\
+  \,\"syncToken\":\"sync-1\",\"moreComing\":false\
+  \,\"records\":[\
+  \{\"recordName\":\"Note/NOTE-FIXTURE\",\"recordType\":\"Note\"\
+  \,\"fields\":{\"TitleEncrypted\":{\"type\":\"ENCRYPTED_BYTES\",\"value\":\"U3ludGhldGljIG5vdGU=\"}\
   \,\"Deleted\":{\"type\":\"INT64\",\"value\":0}\
-  \,\"Folder\":{\"type\":\"REFERENCE\",\"value\":{\"recordName\":\"Folder/FOLDER-FIXTURE\",\"action\":\"VALIDATE\"}}}}]\
-  \,\"continuationMarker\":null}"
+  \,\"Folder\":{\"type\":\"REFERENCE\",\"value\":{\"recordName\":\"Folder/FOLDER-FIXTURE\",\"action\":\"VALIDATE\"}}}}\
+  \,{\"recordName\":\"Note/NOTE-OTHER\",\"recordType\":\"Note\"\
+  \,\"fields\":{\"TitleEncrypted\":{\"type\":\"ENCRYPTED_BYTES\",\"value\":\"T3RoZXIgTm90ZQ==\"}\
+  \,\"Deleted\":{\"type\":\"INT64\",\"value\":0}\
+  \,\"Folder\":{\"type\":\"REFERENCE\",\"value\":{\"recordName\":\"Folder/OTHER-FOLDER\",\"action\":\"VALIDATE\"}}}}\
+  \,{\"recordName\":\"Note/NOTE-DELETED\",\"recordType\":\"Note\"\
+  \,\"fields\":{\"TitleEncrypted\":{\"type\":\"ENCRYPTED_BYTES\",\"value\":\"RGVsZXRlZCBOb3Rl\"}\
+  \,\"Deleted\":{\"type\":\"INT64\",\"value\":1}\
+  \,\"Folder\":{\"type\":\"REFERENCE\",\"value\":{\"recordName\":\"Folder/FOLDER-FIXTURE\",\"action\":\"VALIDATE\"}}}}]}]}"
 
 
 page1Json :: LBS.ByteString

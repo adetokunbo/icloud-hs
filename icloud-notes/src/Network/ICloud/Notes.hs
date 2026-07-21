@@ -1,6 +1,6 @@
 module Network.ICloud.Notes
   ( -- * Setup
-    NotesEndpoints (..)
+    NotesEndpoints
   , mkNotesEndpoints
 
     -- * Querying
@@ -30,7 +30,7 @@ import Network.ICloud.Internal.Notes.Download
   , fetchRecent
   )
 import Network.ICloud.Internal.Notes.Endpoints
-  ( NotesEndpoints (..)
+  ( NotesEndpoints
   , mkNotesEndpoints
   )
 import Network.ICloud.Notes.Note

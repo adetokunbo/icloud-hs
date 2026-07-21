@@ -2,14 +2,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Network.ICloud.Internal.Notes.Endpoints
-  ( NotesEndpoints (..)
+  ( NotesEndpoints
   , mkNotesEndpoints
   , queryReq
   , lookupReq
   , changesReq
   , foldersBody
   , recentsBody
-  , notesInFolderBody
   , lookupBody
   , changesBody
   )
@@ -30,7 +29,6 @@ import Network.ICloud.Http.Common
   , stripTrailingSlash
   , withHeaders
   )
-import Network.ICloud.Internal.Notes.Note (FolderId (..))
 import Network.ICloud.Session (AccountData (..), Session (..))
 
 
@@ -127,25 +125,6 @@ recentsBody limit marker = encode $ object $ base <> cont
   cont = maybe [] (\m -> ["continuationMarker" .= m]) marker
 
 
-{- | Build the JSON body for a notes-in-folder query.  Uses CloudKit
-@filterBy@ on the @Folder@ reference field, scoped to @recordType: "Note"@.
-Pass the previous response's @continuationMarker@ to page through results.
--}
-notesInFolderBody :: FolderId -> Int -> Maybe Value -> LBS.ByteString
-notesInFolderBody fid limit marker = encode $ object $ base <> cont
- where
-  base =
-    [ "query"
-        .= object
-          [ "recordType" .= noteRecordType
-          , "filterBy" .= [folderFilter (unFolderId fid)]
-          ]
-    , "zoneID" .= notesZoneId
-    , "resultsLimit" .= min notesMaxResults limit
-    ]
-  cont = maybe [] (\m -> ["continuationMarker" .= m]) marker
-
-
 -- | Build the JSON body for a record lookup by name.
 lookupBody :: [Text] -> LBS.ByteString
 lookupBody names =
@@ -196,21 +175,4 @@ indexFilter val =
     [ "comparator" .= ("EQUALS" :: Text)
     , "fieldName" .= ("indexName" :: Text)
     , "fieldValue" .= object ["type" .= ("STRING" :: Text), "value" .= val]
-    ]
-
-
-folderFilter :: Text -> Value
-folderFilter recordName =
-  object
-    [ "comparator" .= ("EQUALS" :: Text)
-    , "fieldName" .= ("Folder" :: Text)
-    , "fieldValue"
-        .= object
-          [ "type" .= ("REFERENCE" :: Text)
-          , "value"
-              .= object
-                [ "recordName" .= recordName
-                , "action" .= ("NONE" :: Text)
-                ]
-          ]
     ]
