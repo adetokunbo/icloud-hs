@@ -14,27 +14,6 @@ rename, delete, upload).
 - The iCloud Drive API it uses is undocumented and may change without notice.
 
 
-## Usage
-
-After a successful login with `icloud-auth`, construct a `DriveApi` value and
-use it to browse or download files.
-
-```haskell
-import Network.ICloud.Http (mkApi, login, AuthState (..))
-import Network.ICloud.Http.Endpoints (Realm (..))
-import Network.ICloud.Drive
-
-example :: IO ()
-example = do
-  api <- mkApi Usual
-  Authenticated sess ad <- login api
-  da    <- mkDriveApi ad sess api
-  root  <- driveRoot da
-  nodes <- listFolder da (fnId root)
-  mapM_ print nodes
-```
-
-
 ## Command-line tool
 
 Run `icloud-auth init` then `icloud-auth` first to store and authenticate your
@@ -57,7 +36,15 @@ Available commands:
 
 ### `icloud-drive list-root`
 
-Lists the immediate children of the top-level iCloud Drive folder.
+Lists the immediate children of the top-level iCloud Drive folder:
+
+```
+$ icloud-drive list-root
+FOLDER  Desktop
+FOLDER  Documents
+FOLDER  Photos
+FILE    notes.txt  (1024 bytes)
+```
 
 ```
 Usage: icloud-drive list-root [--china] [--log] [--log-file FILE] [--log-bodies]
@@ -76,7 +63,14 @@ Available options:
 
 ### `icloud-drive list-folder`
 
-Lists the contents of a folder by its slash-separated path from the Drive root.
+Lists the contents of a folder by its slash-separated path from the Drive root:
+
+```
+$ icloud-drive list-folder Documents/Work
+FOLDER  Archive
+FILE    report.pdf  (204800 bytes)
+FILE    budget.xlsx  (38400 bytes)
+```
 
 ```
 Usage: icloud-drive list-folder PATH [--china] [--log] [--log-file FILE]
@@ -92,4 +86,46 @@ Available options:
   --log-bodies             Include request bodies in the HTTP exchange log
   --redact                 Redact sensitive headers (tokens, cookies) in the log
   -h,--help                Show this help text
+```
+
+
+## Using the library
+
+After a successful login with `icloud-auth`, construct a `DriveApi` value and
+use it to browse or download files.
+
+### Browsing
+
+```haskell
+import Network.ICloud.Http (mkApi, login, AuthState (..))
+import Network.ICloud.Http.Endpoints (Realm (..))
+import Network.ICloud.Drive
+
+example :: IO ()
+example = do
+  api <- mkApi Usual
+  Authenticated sess ad <- login api
+  da    <- mkDriveApi ad sess api
+  root  <- driveRoot da
+  nodes <- listFolder da (fnId root)
+  mapM_ print nodes
+```
+
+### Downloading
+
+```haskell
+downloadExample :: DriveApi -> FileData -> IO ()
+downloadExample da fd = do
+  bytes <- downloadFile da fd
+  -- bytes :: Data.ByteString.Lazy.ByteString
+  print (Data.ByteString.Lazy.length bytes)
+```
+
+### Mutating
+
+```haskell
+mutationExample :: DriveApi -> FolderData -> IO ()
+mutationExample da folder = do
+  createFolder da (fnId folder) "New Folder"
+  -- renameNode, deleteNode, and uploadFile follow the same pattern
 ```
