@@ -54,6 +54,7 @@ module Network.ICloud.Session
     * @1@ — legacy two-step authentication (2SA); handled via the setup endpoint
     * @2@ — modern two-factor authentication (2FA); handled via the auth endpoint
     -}
+  , Webservice (..)
   , AccountData (..)
 
     -- * Loading a session
@@ -82,6 +83,7 @@ import Network.ICloud.Internal.Session
   ( AccountData (..)
   , Credentials (..)
   , Session (..)
+  , Webservice (..)
   , loadSession
   , saveCredentials
   )

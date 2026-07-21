@@ -21,7 +21,7 @@ import Network.ICloud.Internal.Notes.Download
   )
 import Network.ICloud.Internal.Notes.Endpoints (NotesEndpoints, mkNotesEndpoints)
 import Network.ICloud.Notes.Note
-import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..))
+import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..), Webservice (..))
 import Network.Wai (Application, rawPathInfo, responseLBS)
 import Network.Wai.Handler.Warp (testWithApplication)
 import System.IO.Temp (withSystemTempDirectory)
@@ -130,7 +130,7 @@ testAccountData baseUrl =
     { adHsaVersion = 2
     , adHsaChallengeRequired = False
     , adHsaTrustedBrowser = True
-    , adWebservices = Map.fromList [("ckdatabasews", baseUrl)]
+    , adWebservices = Map.fromList [("ckdatabasews", Webservice baseUrl Nothing)]
     , adRaw = object []
     }
 

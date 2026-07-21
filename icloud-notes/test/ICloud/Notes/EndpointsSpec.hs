@@ -20,7 +20,7 @@ import Network.ICloud.Internal.Notes.Endpoints
   , queryReq
   , recentsBody
   )
-import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..))
+import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..), Webservice (..))
 import Test.Hspec
 
 
@@ -114,7 +114,7 @@ testAccountData =
     , adHsaTrustedBrowser = True
     , adWebservices =
         Map.fromList
-          [("ckdatabasews", "https://p31-ckdatabasews.icloud.com")]
+          [("ckdatabasews", Webservice "https://p31-ckdatabasews.icloud.com" Nothing)]
     , adRaw = object []
     }
 

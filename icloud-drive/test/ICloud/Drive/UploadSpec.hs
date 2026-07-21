@@ -20,7 +20,7 @@ import Network.HTTP.Types (HeaderName, hContentType, methodPost, status200, stat
 import Network.ICloud.Drive
 import Network.ICloud.Http (mkApiWith)
 import Network.ICloud.Http.Endpoints (Endpoints (..))
-import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..))
+import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..), Webservice (..))
 import Network.Wai (Application, rawPathInfo, responseLBS)
 import Network.Wai.Handler.Warp (testWithApplication)
 import System.IO.Temp (withSystemTempDirectory)
@@ -116,7 +116,7 @@ testAccountData baseUrl =
     { adHsaVersion = 2
     , adHsaChallengeRequired = False
     , adHsaTrustedBrowser = True
-    , adWebservices = Map.fromList [("drivews", baseUrl), ("docws", baseUrl)]
+    , adWebservices = Map.fromList [("drivews", Webservice baseUrl Nothing), ("docws", Webservice baseUrl Nothing)]
     , adRaw = object []
     }
 

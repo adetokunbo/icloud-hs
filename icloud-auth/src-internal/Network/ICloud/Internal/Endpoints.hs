@@ -74,6 +74,7 @@ import Network.HTTP.Types
   , methodPut
   )
 import Network.ICloud.Internal.HttpErrors (AuthError (..))
+import Network.ICloud.Internal.Session (Webservice (..))
 
 
 -- | @RequestHeaders@ that include the @Endpoint@ @home@
@@ -287,8 +288,9 @@ stripTrailingSlash bs
 {- | Look up a service URL by key in the webservices map and parse it into a
 'Request'.  Fails with an informative message if the key is absent.
 -}
-lookupWebservice :: Text -> Map Text Text -> IO Request
+lookupWebservice :: Text -> Map Text Webservice -> IO Request
 lookupWebservice key ws =
   case Map.lookup key ws of
     Nothing -> throwIO $ WebserviceNotFound key
-    Just url -> parseRequest (toS url)
+    Just (Webservice _ (Just "inactive")) -> throwIO $ WebserviceNotFound key
+    Just (Webservice url _) -> parseRequest (toS url)

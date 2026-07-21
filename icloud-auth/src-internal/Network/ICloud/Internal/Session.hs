@@ -28,6 +28,7 @@ module Network.ICloud.Internal.Session
   , saveLoginMsg
 
     -- * AccountData
+  , Webservice (..)
   , AccountData (..)
   , accountDataRequires2FA
   , accountDataRequires2SA
@@ -150,6 +151,16 @@ saveLoginMsg :: Session -> Value -> IO ()
 saveLoginMsg Session{sessionCreds = creds, sessionTopDir = topDir} = saveValue (loginMsgPath topDir creds)
 
 
+-- | Metadata for a single iCloud webservice entry.
+data Webservice = Webservice
+  { wsUrl :: !Text
+  -- ^ the base URL for the service
+  , wsStatus :: !(Maybe Text)
+  -- ^ service status, e.g. @"active"@ or @"inactive"@; @Nothing@ if absent
+  }
+  deriving (Eq, Show)
+
+
 data AccountData = AccountData
   { adHsaVersion :: !Int
   -- ^ HSA protocol version; drives the two-factor flow selection
@@ -157,8 +168,8 @@ data AccountData = AccountData
   -- ^ @True@ when a 2FA challenge must be completed before access is granted
   , adHsaTrustedBrowser :: !Bool
   -- ^ @True@ when this session is already trusted and no challenge is needed
-  , adWebservices :: !(Map Text Text)
-  -- ^ map of webservice name to base URL, e.g. @"findme" -> "https://…"@
+  , adWebservices :: !(Map Text Webservice)
+  -- ^ map of webservice name to service info; use 'lookupWebservice' to resolve a URL
   , adRaw :: !Value
   -- ^ the original JSON value from Apple; preserved so serialisation round-trips losslessly
   }
@@ -179,9 +190,16 @@ instance FromJSON AccountData where
       pure AccountData{adHsaVersion, adHsaChallengeRequired, adHsaTrustedBrowser, adWebservices, adRaw = v}
     parseWebservices obj = do
       let pairs = KeyMap.toAscList obj
-      urlPairs <- forM pairs $ \(k, wsVal) ->
-        withObject "webservice" (\sv -> fmap (AesonKey.toText k,) <$> sv .:? "url") wsVal
-      pure $ Map.fromList $ catMaybes urlPairs
+      wsPairs <- forM pairs $ \(k, wsVal) ->
+        withObject
+          "webservice"
+          ( \sv -> do
+              mbUrl <- sv .:? "url"
+              mbStatus <- sv .:? "status"
+              pure $ fmap (\u -> (AesonKey.toText k, Webservice u mbStatus)) mbUrl
+          )
+          wsVal
+      pure $ Map.fromList $ catMaybes wsPairs
 
 
 instance ToJSON AccountData where

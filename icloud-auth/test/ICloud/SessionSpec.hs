@@ -38,7 +38,7 @@ import Network.ICloud.Internal.Session
   , updateSessionSavedHeaders
   , (</>)
   )
-import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..), loadSession)
+import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..), Webservice (..), loadSession)
 import System.Directory (createDirectory, doesFileExist)
 import System.Environment (setEnv)
 import System.IO.Temp (withSystemTempDirectory)
@@ -378,10 +378,15 @@ genAccountData = do
           [ "dsInfo" .= object ["hsaVersion" .= adHsaVersion]
           , "hsaChallengeRequired" .= adHsaChallengeRequired
           , "hsaTrustedBrowser" .= adHsaTrustedBrowser
-          , "webservices" .= fmap (\url -> object ["url" .= (url :: Text)]) adWebservices
+          , "webservices"
+              .= fmap
+                (\(Webservice url st) -> object $ ["url" .= url] <> maybe [] (\s -> ["status" .= s]) st)
+                adWebservices
           ]
   pure $ fromMaybe unknownAccountData (parseMaybe parseJSON v)
  where
-  genWsPair :: Gen (Text, Text)
-  genWsPair = (,) <$> elements wsNames <*> genIndexedSuffix "https://example.com/"
+  genWsPair :: Gen (Text, Webservice)
+  genWsPair = (,) <$> elements wsNames <*> genWebservice
+  genWebservice :: Gen Webservice
+  genWebservice = Webservice <$> genIndexedSuffix "https://example.com/" <*> elements [Nothing, Just "active", Just "inactive"]
   wsNames = ["findme", "contacts", "calendar", "mail"]

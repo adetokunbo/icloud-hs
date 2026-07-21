@@ -16,7 +16,7 @@ import Network.ICloud.Internal.Drive.Endpoints
   , nodeDetailsReq
   )
 import Network.ICloud.Internal.Drive.Node (DriveNodeId (..), rootNodeId)
-import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..))
+import Network.ICloud.Session (AccountData (..), Credentials (..), Session (..), Webservice (..))
 import Test.Hspec
 
 
@@ -72,8 +72,8 @@ testAccountData =
     , adHsaTrustedBrowser = True
     , adWebservices =
         Map.fromList
-          [ ("drivews", "https://p31-drivews.icloud.com")
-          , ("docws", "https://p31-docws.icloud.com")
+          [ ("drivews", Webservice "https://p31-drivews.icloud.com" Nothing)
+          , ("docws", Webservice "https://p31-docws.icloud.com" Nothing)
           ]
     , adRaw = object []
     }
