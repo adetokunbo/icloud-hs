@@ -11,6 +11,7 @@ import Network.ICloud.Http
   , fileLogger
   , login
   , mkApiWith
+  , redactingLogger
   , verboseLogger
   , withLogger
   )
@@ -41,6 +42,7 @@ data CommonOpts = CommonOpts
   , optLog :: Bool
   , optLogFile :: Maybe FilePath
   , optLogBodies :: Bool
+  , optRedact :: Bool
   }
 
 
@@ -84,6 +86,7 @@ commonOptsParser =
     <*> optional
       (strOption (long "log-file" <> metavar "FILE" <> help "Append HTTP exchanges to FILE"))
     <*> switch (long "log-bodies" <> help "Include request bodies in the HTTP exchange log")
+    <*> switch (long "redact" <> help "Redact sensitive headers (tokens, cookies) in the log")
 
 
 cliParser :: ParserInfo Command
@@ -151,7 +154,10 @@ withNotesApi opts runAction = do
   let realm = if optChina opts then China else Usual
   api0 <- mkApiWith session (realmEndpoints realm) mgr
   mbLogPath <- resolveLogTarget opts
-  let mkLogger = if optLogBodies opts then verboseLogger else fileLogger
+  let mkLogger
+        | optRedact opts = redactingLogger
+        | optLogBodies opts = verboseLogger
+        | otherwise = fileLogger
       run api = do
         result <- login api
         case result of
@@ -164,7 +170,7 @@ withNotesApi opts runAction = do
       go = case mbLogPath of
         Just fp -> withFile fp AppendMode $ \h -> run (withLogger (mkLogger h) api0)
         Nothing
-          | optLogBodies opts -> run (withLogger (mkLogger stdout) api0)
+          | optLogBodies opts && not (optRedact opts) -> run (withLogger (mkLogger stdout) api0)
           | otherwise -> run api0
   go
     `catch` (\e -> onError (e :: AuthError))

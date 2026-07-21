@@ -5,7 +5,7 @@ module Main where
 import Control.Exception (catch, displayException)
 import Data.String (fromString)
 import Network.HTTP.Client.TLS (newTlsManager)
-import Network.ICloud.Http (AuthError, fileLogger, login, mkApiWith, withLogger)
+import Network.ICloud.Http (AuthError, fileLogger, login, mkApiWith, redactingLogger, withLogger)
 import Network.ICloud.Http.Endpoints (Realm (..), realmEndpoints)
 import Network.ICloud.Session (Credentials (..), loadSession, saveCredentials)
 import Options.Applicative
@@ -25,6 +25,7 @@ data LoginOpts = LoginOpts
   { loginChina :: Bool
   , loginLog :: Bool
   , loginLogFile :: Maybe FilePath
+  , loginRedact :: Bool
   }
 
 
@@ -40,6 +41,7 @@ loginOptsParser =
     <$> switch (long "china" <> help "Use mainland China endpoints")
     <*> switch (long "log" <> help "Append HTTP exchanges to the default log file")
     <*> optional (strOption (long "log-file" <> metavar "FILE" <> help "Append HTTP exchanges to FILE"))
+    <*> switch (long "redact" <> help "Redact sensitive headers (tokens, cookies) in the log")
 
 
 cliParser :: ParserInfo Command
@@ -71,10 +73,11 @@ runLogin opts = do
   let realm = if loginChina opts then China else Usual
   api0 <- mkApiWith session (realmEndpoints realm) mgr
   mbLogPath <- resolveLogTarget opts
-  let go = case mbLogPath of
+  let mkLogger = if loginRedact opts then redactingLogger else fileLogger
+      go = case mbLogPath of
         Nothing -> login api0 >> putStrLn "Authenticated."
         Just fp -> withFile fp AppendMode $ \h ->
-          login (withLogger (fileLogger h) api0) >> putStrLn "Authenticated."
+          login (withLogger (mkLogger h) api0) >> putStrLn "Authenticated."
   go `catch` \e -> do
     putStrLn $ "Login failed: " <> displayException (e :: AuthError)
     exitFailure
