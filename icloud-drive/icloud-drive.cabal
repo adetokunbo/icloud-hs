@@ -14,7 +14,7 @@ description:
   without warning if Apple changes their API.
 
 license:            BSD-3-Clause
-license-file:       ../LICENSE
+license-file:       LICENSE
 maintainer:         Tim Emiola <adetokunbo@emio.la>
 category:           Network
 build-type:         Simple
