@@ -92,7 +92,7 @@ parseFileData o =
     <*> o .: "name"
     <*> o .:? "extension"
     <*> o .: "zone"
-    <*> (nothingIfZero <$> o .:? "size")
+    <*> o .:? "size"
     <*> (o .:? "dateCreated" >>= traverse parseTimestamp)
     <*> (o .:? "dateModified" >>= traverse parseTimestamp)
 
@@ -101,11 +101,6 @@ parseItems :: Object -> Parser [DriveNode]
 parseItems o = do
   items <- (o .:? "items") <&> fromMaybe []
   mapM parseNode items
-
-
-nothingIfZero :: Maybe Int64 -> Maybe Int64
-nothingIfZero (Just 0) = Nothing
-nothingIfZero x = x
 
 
 -- | Checksum metadata returned after uploading file content (step 2 of upload).

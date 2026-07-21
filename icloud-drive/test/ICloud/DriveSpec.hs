@@ -41,9 +41,13 @@ spec = describe "Network.ICloud.Drive" $ do
         all isFile nodes `shouldBe` True
 
   describe "downloadFile" $ do
-    it "returns LBS.empty for a zero-size file" $
+    it "returns LBS.empty when size is absent" $
       withNodeMock rootJson $ \da -> do
         let fd = testFileData{fdSize = Nothing}
+        downloadFile da fd `shouldReturn` LBS.empty
+    it "returns LBS.empty when size is zero" $
+      withNodeMock rootJson $ \da -> do
+        let fd = testFileData{fdSize = Just 0}
         downloadFile da fd `shouldReturn` LBS.empty
     it "downloads file contents" $
       withDownloadMock $ \da ->

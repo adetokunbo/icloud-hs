@@ -91,7 +91,7 @@ fetchChildren api ep nid = fetchWith "fetchChildren" api (nodeReq ep nid) parseC
 -- | Download the contents of a file node as a lazy 'LBS.ByteString'.
 fetchFile :: Api -> DriveEndpoints -> FileData -> IO LBS.ByteString
 fetchFile api ep fd
-  | fdSize fd == Nothing = pure LBS.empty
+  | maybe True (== 0) (fdSize fd) = pure LBS.empty
   | otherwise = do
       url <- fetchWith "fetchFile (token)" api (downloadTokenReq (fdDocId fd) (fdZone fd) ep) parseDownloadUrl
       contentReq <- getReqFromUrl url
