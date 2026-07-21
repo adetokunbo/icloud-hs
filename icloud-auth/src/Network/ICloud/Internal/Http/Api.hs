@@ -57,7 +57,7 @@ import Data.Aeson
   )
 import Data.Aeson.KeyMap (fromList)
 import Data.Aeson.Types (Value (..))
-import Data.ByteString (isPrefixOf)
+import Data.ByteString (ByteString, isPrefixOf)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.CaseInsensitive (mk, original)
@@ -89,7 +89,7 @@ import Network.ICloud.Internal.Endpoints
   , withAppleOauthHeaders
   , withBody
   , withHeaders
-  , withICloudWidgetKey
+  , withWidgetKey
   )
 import Network.ICloud.Internal.Http
   ( hCounter
@@ -377,11 +377,11 @@ authHeaders api savedHdrs =
           [ maybeHeaderOf hCounter $ shCounter savedHdrs
           , maybeHeaderOf hSessionId $ shSessionId savedHdrs
           ]
-   in withAppleOauthHeaders $ homeHeaders ep <> sdHeaders <> cidHeader
+   in withAppleOauthHeaders (epWidgetKey ep) $ homeHeaders ep <> sdHeaders <> cidHeader
 
 
-requiredHeaders :: SavedHeaders -> RequestHeaders
-requiredHeaders savedHdrs =
+requiredHeaders :: ByteString -> SavedHeaders -> RequestHeaders
+requiredHeaders key savedHdrs =
   let headerOf name x = (name, toS x)
       maybeHeaderOf name = fmap (headerOf name)
       sdHeaders =
@@ -389,13 +389,13 @@ requiredHeaders savedHdrs =
           [ maybeHeaderOf hCounter $ shCounter savedHdrs
           , maybeHeaderOf hSessionId $ shSessionId savedHdrs
           ]
-   in withAcceptJson . withICloudWidgetKey $ sdHeaders
+   in withAcceptJson . withWidgetKey key $ sdHeaders
 
 
 callRequiredHeaders :: (FromJSON a) => Api -> Request -> IO a
-callRequiredHeaders api@Api{apiSession = s} req = do
+callRequiredHeaders api@Api{apiSession = s, apiEndpoints = ep} req = do
   savedHdrs <- loadSavedHeaders s
-  callApi api (withHeaders (requiredHeaders savedHdrs) req) >>= extractOr'
+  callApi api (withHeaders (requiredHeaders (epWidgetKey ep) savedHdrs) req) >>= extractOr'
 
 
 maybeValue :: (a -> Value) -> Maybe a -> Value

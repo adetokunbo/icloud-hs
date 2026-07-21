@@ -381,7 +381,7 @@ sendSetupVerification :: Api -> Setup2SADevice -> IO ()
 sendSetupVerification api@Api{apiSession = s, apiEndpoints = ep} device = do
   savedHdrs <- loadSavedHeaders s
   let req =
-        withHeaders (requiredHeaders savedHdrs) $
+        withHeaders (requiredHeaders (epWidgetKey ep) savedHdrs) $
           withJsonRequestHeaders $
             withBody (encode device) $
               sendVerification ep
@@ -393,7 +393,7 @@ validateSetupVerification :: Api -> Setup2SADevice -> AuthCode -> IO Bool
 validateSetupVerification api@Api{apiSession = s, apiEndpoints = ep} device code = do
   savedHdrs <- loadSavedHeaders s
   let req =
-        withHeaders (requiredHeaders savedHdrs) $
+        withHeaders (requiredHeaders (epWidgetKey ep) savedHdrs) $
           withJsonRequestHeaders $
             withBody (encode $ validateSetupBody device code) $
               validateVerification ep

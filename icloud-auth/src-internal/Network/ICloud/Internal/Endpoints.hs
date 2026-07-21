@@ -33,7 +33,7 @@ module Network.ICloud.Internal.Endpoints
   , withHeaders
   , withBody
   , withAcceptJson
-  , withICloudWidgetKey
+  , withWidgetKey
   , withAppleOauthHeaders
 
     -- * Header helpers
@@ -107,6 +107,8 @@ data Endpoints = Endpoints
   -- ^ base request for the authentication endpoint (@idmsa.apple.com@)
   , epSetup :: !Request
   -- ^ base request for the setup\/account endpoint (@setup.icloud.com@)
+  , epWidgetKey :: !ByteString
+  -- ^ value sent as @X-Apple-Widget-Key@ and @X-Apple-OAuth-Client-Id@; override if Apple rotates it
   }
 
 
@@ -130,6 +132,7 @@ usualEndpoints =
     { epHome = icloudHome
     , epAuth = authReq
     , epSetup = setupReq
+    , epWidgetKey = iCloudKey
     }
 
 
@@ -139,6 +142,7 @@ chinaEndpoints =
     { epHome = "https://www.icloud.com.cn"
     , epAuth = authReq
     , epSetup = setupReq{host = "setup.icloud.com.cn"}
+    , epWidgetKey = iCloudKey
     }
 
 
@@ -159,24 +163,20 @@ setupReq :: Request
 setupReq = apiRequest{host = "setup.icloud.com", path = "/setup/ws/1"}
 
 
-appleOauthHeaders :: [Header]
-appleOauthHeaders =
-  [ ("X-Apple-OAuth-Client-Id", iCloudKey)
+appleOauthHeaders :: ByteString -> [Header]
+appleOauthHeaders key =
+  [ ("X-Apple-OAuth-Client-Id", key)
   , ("X-Apple-OAuth-Client-Type", "firstPartyAuth")
   , ("X-Apple-OAuth-Redirect-URI", "https://www.icloud.com")
   , ("X-Apple-OAuth-Require-Grant-Code", "true")
   , ("X-Apple-OAuth-Response-Mode", "web_message")
   , ("X-Apple-OAuth-Response-Type", "code")
-  , widgetKeyHeader
+  , ("X-Apple-Widget-Key", key)
   ]
 
 
 iCloudKey :: ByteString
 iCloudKey = "d39ba9916b7251055b22c7f910e2ea796ee65e98b2ddecea8f5dde8d9d1a815d"
-
-
-widgetKeyHeader :: Header
-widgetKeyHeader = ("X-Apple-Widget-Key", iCloudKey)
 
 
 browserAgent :: ByteString
@@ -259,12 +259,12 @@ withAcceptJson :: RequestHeaders -> RequestHeaders
 withAcceptJson = (acceptJson :)
 
 
-withICloudWidgetKey :: RequestHeaders -> RequestHeaders
-withICloudWidgetKey = (widgetKeyHeader :)
+withWidgetKey :: ByteString -> RequestHeaders -> RequestHeaders
+withWidgetKey key = (("X-Apple-Widget-Key", key) :)
 
 
-withAppleOauthHeaders :: RequestHeaders -> RequestHeaders
-withAppleOauthHeaders = (appleOauthHeaders <>)
+withAppleOauthHeaders :: ByteString -> RequestHeaders -> RequestHeaders
+withAppleOauthHeaders key = (appleOauthHeaders key <>)
 
 
 -- | Standard browser-style headers sent with every iCloud service request.

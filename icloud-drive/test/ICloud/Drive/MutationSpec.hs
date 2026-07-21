@@ -131,6 +131,7 @@ testAuthEndpoints serverPort =
     { epHome = "http://127.0.0.1:" <> BS8.pack (show serverPort)
     , epAuth = dummyReq "/appleauth/auth"
     , epSetup = dummyReq "/setup/ws/1"
+    , epWidgetKey = "test-widget-key"
     }
  where
   dummyReq reqPath =
