@@ -18,9 +18,7 @@ maintainer:         Tim Emiola <adetokunbo@emio.la>
 category:           Network
 build-type:         Simple
 tested-with:
-    GHC == 8.10.7
-  , GHC == 9.0.2
-  , GHC == 9.2.8
+    GHC == 9.2.8
   , GHC == 9.4.8
   , GHC == 9.6.7
   , GHC == 9.8.4
@@ -45,7 +43,7 @@ library icloud-auth-internal
                     Network.ICloud.Internal.Trust
   hs-source-dirs:   src-internal
   build-depends:
-    , aeson                >=1.5.1 && <2.3
+    , aeson                >=2.0   && <2.3
     , aeson-casing         >=0.1 && <0.3
     , base                 >=4.12 && <5
     , base16-bytestring    >=1.0 && <1.1
@@ -92,7 +90,7 @@ library
                     Network.ICloud.Internal.Http.Signin
   hs-source-dirs:   src
   build-depends:
-    , aeson                >=1.5.1 && <2.3 
+    , aeson                >=2.0   && <2.3 
     , aeson-casing         >=0.1 && <0.3
     , base                 >=4.12 && <5
     , base16-bytestring    >=1.0 && <1.1
