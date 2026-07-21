@@ -2,7 +2,7 @@
 
 module Main where
 
-import Control.Exception (catch, displayException)
+import Control.Exception (bracket_, catch, displayException)
 import Data.String (fromString)
 import Network.HTTP.Client.TLS (newTlsManager)
 import Network.ICloud.Http (AuthError, fileLogger, login, mkApiWith, redactingLogger, withLogger)
@@ -108,8 +108,7 @@ promptSecret :: String -> IO String
 promptSecret label = do
   putStr label
   hFlush stdout
-  hSetEcho stdin False
-  secret <- getLine
-  hSetEcho stdin True
-  putStrLn ""
-  pure secret
+  bracket_ (hSetEcho stdin False) (hSetEcho stdin True) $ do
+    secret <- getLine
+    putStrLn ""
+    pure secret
