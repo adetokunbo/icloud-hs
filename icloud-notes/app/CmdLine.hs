@@ -1,12 +1,12 @@
 module Main where
 
-import Control.Exception (catch, displayException)
+import Control.Exception (Exception, catch, displayException)
 import Data.List (find)
 import qualified Data.Text as Text
-import Network.ICloud.Http (AuthError)
+import Network.ICloud.Http (Api, AuthError)
 import Network.ICloud.Http.Cli (CommonOpts (..), commonOptsParser, runWithApi)
 import Network.ICloud.Notes
-import Network.ICloud.Session (AccountData, Session)
+
 import Options.Applicative
 import System.Exit (exitFailure)
 
@@ -118,5 +118,5 @@ withNotesApi opts runAction =
     `catch` (\e -> onError (e :: AuthError))
     `catch` (\e -> onError (e :: NotesError))
  where
-  onError :: (Show a) => a -> IO ()
+  onError :: (Exception a) => a -> IO ()
   onError e = putStrLn ("Error: " <> displayException e) >> exitFailure
