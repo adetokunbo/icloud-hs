@@ -23,19 +23,16 @@ at the time of writing).  When it does, authenticate again to refresh it.
 ## Command-line tool
 
 ```
-Usage: icloud-auth [COMMAND | [--china] [--log] [--log-file FILE] [--redact]]
+Usage: icloud-auth COMMAND
 
   icloud-auth: iCloud authentication tool
 
 Available options:
-  --china                  Use mainland China endpoints
-  --log                    Append HTTP exchanges to the default log file
-  --log-file FILE          Append HTTP exchanges to FILE
-  --redact                 Redact sensitive headers (tokens, cookies) in the log
   -h,--help                Show this help text
 
 Available commands:
   init                     Save Apple ID credentials to the config directory
+  login                    Authenticate with iCloud
 ```
 
 ### Saving credentials
@@ -52,12 +49,25 @@ Credentials saved.
 
 ### Authenticating
 
-Run `icloud-auth` (without a subcommand) to authenticate using the saved
-credentials.  The full sign-in flow runs interactively, prompting for a 2FA or
-2SA verification code when required:
+```
+Usage: icloud-auth login [--china] [--log] [--log-file FILE] [--redact]
+
+  Authenticate with iCloud
+
+Available options:
+  --china                  Use mainland China endpoints
+  --log                    Append HTTP exchanges to the default log file
+  --log-file FILE          Append HTTP exchanges to FILE
+  --redact                 Redact sensitive headers (tokens, cookies) in the log
+  -h,--help                Show this help text
+```
+
+Run `icloud-auth login` to authenticate using the saved credentials.  The full
+sign-in flow runs interactively, prompting for a 2FA or 2SA verification code
+when required:
 
 ```
-$ icloud-auth
+$ icloud-auth login
 Authenticated.
 ```
 

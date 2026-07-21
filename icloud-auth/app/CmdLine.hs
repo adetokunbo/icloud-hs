@@ -31,8 +31,10 @@ data LoginOpts = LoginOpts
 
 commandParser :: Parser Command
 commandParser =
-  (Init <$ subparser (command "init" (info (pure ()) (progDesc "Save Apple ID credentials to the config directory"))))
-    <|> (Login <$> loginOptsParser)
+  subparser
+    ( command "init" (info (pure Init) (progDesc "Save Apple ID credentials to the config directory"))
+        <> command "login" (info (Login <$> loginOptsParser <**> helper) (progDesc "Authenticate with iCloud"))
+    )
 
 
 loginOptsParser :: Parser LoginOpts
