@@ -87,6 +87,7 @@ import Network.ICloud.Internal.Http
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 import System.Environment.XDG.BaseDir (getUserConfigDir)
 import System.FilePath ((</>))
+import System.Posix.Files (setFileMode)
 
 
 -- | Update the @SavedHeaders@ using some response headers
@@ -251,7 +252,9 @@ saveCredentials creds = getUserConfigDir appBase >>= (`saveCredentialsTo` creds)
 saveCredentialsTo :: FilePath -> Credentials -> IO ()
 saveCredentialsTo topDir creds = do
   createDirectoryIfMissing True topDir
-  encodeFile (credentialsPath topDir) creds
+  let credPath = credentialsPath topDir
+  encodeFile credPath creds
+  setFileMode credPath 0o600
 
 
 data Credentials = Credentials
