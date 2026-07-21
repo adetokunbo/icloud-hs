@@ -184,4 +184,4 @@ defaultLogFile = do
 
 
 appDir :: FilePath
-appDir = "hs-icloud-drive"
+appDir = "hs-icloud"

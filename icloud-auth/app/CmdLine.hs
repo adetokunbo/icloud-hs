@@ -97,7 +97,7 @@ defaultLogFile = do
 
 
 appDir :: FilePath
-appDir = "hs-icloud-auth"
+appDir = "hs-icloud"
 
 
 prompt :: String -> IO String
