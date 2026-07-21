@@ -58,7 +58,7 @@ defaultScenario =
 
 
 jsonHeaders :: [(HeaderName, ByteString)]
-jsonHeaders = [(hContentType, "application/json")]
+jsonHeaders = [(hContentType, "application/json"), ("X-Apple-Session-Token", "mock-session-token-value")]
 
 
 lockedTrustData :: LBS.ByteString

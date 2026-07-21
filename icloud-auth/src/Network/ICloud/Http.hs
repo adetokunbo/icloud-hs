@@ -60,6 +60,7 @@ module Network.ICloud.Http
   , withLogger
   , fileLogger
   , verboseLogger
+  , redactingLogger
 
     -- * Errors
   , AuthError (..)
@@ -73,6 +74,7 @@ import Network.ICloud.Internal.Http.Api
   , mkApi
   , mkApiWith
   , rawRequest
+  , redactingLogger
   , verboseLogger
   , withLogger
   )

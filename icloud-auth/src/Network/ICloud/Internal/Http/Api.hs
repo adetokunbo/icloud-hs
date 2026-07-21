@@ -11,6 +11,7 @@ module Network.ICloud.Internal.Http.Api
   , withLogger
   , fileLogger
   , verboseLogger
+  , redactingLogger
 
     -- * Authenticated HTTP
   , rawRequest
@@ -61,6 +62,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.CaseInsensitive (mk, original)
 import Data.Maybe (catMaybes)
+import qualified Data.Set as Set
 import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -191,6 +193,11 @@ Each entry contains:
 * the raw response body
 * a @---@ separator
 
+__Security warning:__ all request and response headers are written verbatim,
+including @Set-Cookie@, @X-Apple-Session-Token@, @X-Apple-TwoSV-Trust-Token@,
+and @scnt@. Log files produced by this logger may contain live session tokens.
+Use 'redactingLogger' when the log destination is not fully trusted.
+
 Not safe for concurrent use from multiple threads against the same handle.
 -}
 fileLogger :: Handle -> ApiLogger
@@ -212,6 +219,10 @@ fileLogger h = ApiLogger $ \req resp -> do
 
 {- | Like 'fileLogger' but also logs the query string in the URL and the
 request body when present.
+
+__Security warning:__ carries the same token-exposure risk as 'fileLogger' and
+additionally logs request bodies, which may contain passwords or SRP parameters.
+Use 'redactingLogger' when the log destination is not fully trusted.
 -}
 verboseLogger :: Handle -> ApiLogger
 verboseLogger h = ApiLogger $ \req resp -> do
@@ -236,6 +247,50 @@ verboseLogger h = ApiLogger $ \req resp -> do
   logReqBody (RequestBodyBS bs)
     | not (BS.null bs) = hPutStrLn h "" >> LBS.hPutStr h (LBS.fromStrict bs)
   logReqBody _ = pure ()
+
+
+{- | Like 'fileLogger' but replaces the values of sensitive headers with
+@\<redacted\>@ before writing.
+
+The following headers are redacted in both request and response:
+@Set-Cookie@, @Cookie@, @X-Apple-Session-Token@, @X-Apple-TwoSV-Trust-Token@,
+@scnt@, @Authorization@.
+
+Safe to write to shared or untrusted log destinations.
+-}
+redactingLogger :: Handle -> ApiLogger
+redactingLogger h = ApiLogger $ \req resp -> do
+  now <- getCurrentTime
+  let scheme = if secure req then "https" else "http" :: String
+      uri = scheme <> "://" <> toS (host req) <> toS (path req)
+      status = statusCode (responseStatus resp)
+      summary = show now <> " " <> toS (method req) <> " " <> uri <> " " <> show status
+      fmtHdr (name, val) = toS (original name) <> ": " <> toS val
+  hPutStrLn h summary
+  mapM_ (hPutStrLn h . fmtHdr . redactHeader) (requestHeaders req)
+  hPutStrLn h ""
+  mapM_ (hPutStrLn h . fmtHdr . redactHeader) (responseHeaders resp)
+  hPutStrLn h ""
+  LBS.hPutStr h (responseBody resp)
+  hPutStrLn h "\n---"
+
+
+sensitiveHeaderNames :: Set.Set HeaderName
+sensitiveHeaderNames =
+  Set.fromList
+    [ mk "Set-Cookie"
+    , mk "Cookie"
+    , mk "X-Apple-Session-Token"
+    , mk "X-Apple-TwoSV-Trust-Token"
+    , mk "scnt"
+    , mk "Authorization"
+    ]
+
+
+redactHeader :: (HeaderName, BS.ByteString) -> (HeaderName, BS.ByteString)
+redactHeader (name, val)
+  | name `Set.member` sensitiveHeaderNames = (name, "<redacted>")
+  | otherwise = (name, val)
 
 
 -- | Make a session request and obtain the raw byte results

@@ -5,16 +5,17 @@ module ICloud.ApiLoggerSpec (spec) where
 import Data.Aeson (Value, decode)
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy.Char8 as LBS8
+import Data.List (isPrefixOf)
 import ICloud.Mock (defaultScenario, withMockApp)
 import Network.HTTP.Client (Request (..), defaultManagerSettings, defaultRequest, newManager)
 import Network.HTTP.Types (methodPost)
-import Network.ICloud.Http (fileLogger, login, mkApiWith, withLogger)
+import Network.ICloud.Http (ApiLogger, fileLogger, login, mkApiWith, redactingLogger, withLogger)
 import Network.ICloud.Http.Endpoints (Endpoints (..))
 import Network.ICloud.Session (Credentials (..), Session (..))
 import System.FilePath ((</>))
-import System.IO (IOMode (..), withFile)
+import System.IO (Handle, IOMode (..), withFile)
 import System.IO.Temp (withSystemTempDirectory)
-import Test.Hspec (Spec, describe, it, shouldContain, shouldNotBe, shouldSatisfy)
+import Test.Hspec (Spec, describe, it, shouldContain, shouldNotBe, shouldNotContain, shouldSatisfy)
 
 
 spec :: Spec
@@ -40,6 +41,29 @@ spec = describe "Network.ICloud.Http.fileLogger" $ do
         let body = firstBody contents
         (decode (LBS8.pack body) :: Maybe Value) `shouldNotBe` Nothing
 
+  describe "redactingLogger" $ do
+    it "replaces sensitive header values with <redacted>" $
+      withSystemTempDirectory "icloud-auth-redact" $ \tmpDir -> do
+        let logPath = tmpDir </> "requests.log"
+        withLoginLogUsing redactingLogger tmpDir logPath $ \contents ->
+          contents `shouldContain` "<redacted>"
+    it "preserves the method, URI and status line" $
+      withSystemTempDirectory "icloud-auth-redact" $ \tmpDir -> do
+        let logPath = tmpDir </> "requests.log"
+        withLoginLogUsing redactingLogger tmpDir logPath $ \contents -> do
+          contents `shouldContain` "POST"
+          contents `shouldContain` "signin/init"
+          contents `shouldContain` "200"
+    it "does not write raw Set-Cookie values" $
+      withSystemTempDirectory "icloud-auth-redact" $ \tmpDir -> do
+        let logPath = tmpDir </> "requests.log"
+        withLoginLogUsing fileLogger tmpDir logPath $ \verboseContents ->
+          withLoginLogUsing redactingLogger tmpDir (logPath <> ".redacted") $ \redactedContents -> do
+            let cookieLines = filter ("Set-Cookie:" `isPrefixOf`) (lines verboseContents)
+            case cookieLines of
+              [] -> pure ()
+              (firstLine : _) -> redactedContents `shouldNotContain` drop (length ("Set-Cookie: " :: String)) firstLine
+
 
 {- | Extract the body of the first log entry.
 Format: summary line, request headers, blank line, response headers, blank line, body, "---".
@@ -52,13 +76,17 @@ firstBody contents =
 
 
 withLoginLog :: FilePath -> FilePath -> (String -> IO a) -> IO a
-withLoginLog tmpDir logPath action = do
+withLoginLog = withLoginLogUsing fileLogger
+
+
+withLoginLogUsing :: (Handle -> ApiLogger) -> FilePath -> FilePath -> (String -> IO a) -> IO a
+withLoginLogUsing mkLogger tmpDir logPath action = do
   let sessionDir = tmpDir </> "session"
   withFile logPath WriteMode $ \logHandle ->
     withMockApp defaultScenario $ \serverPort -> do
       mgr <- newManager defaultManagerSettings
       api <-
-        withLogger (fileLogger logHandle)
+        withLogger (mkLogger logHandle)
           <$> mkApiWith (testSession sessionDir) (testEndpoints serverPort) mgr
       _ <- login api
       pure ()
