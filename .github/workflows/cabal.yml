@@ -18,7 +18,7 @@ jobs:
     strategy:
       matrix:
         cabal: ["latest"]
-        ghc: ["8.10.7", "9.0.2", "9.2.8", "9.4.8", "9.6", "9.8", "9.10", "9.12"]
+        ghc: ["9.2.8", "9.4.8", "9.6", "9.8", "9.10", "9.12"]
         package:
           - "icloud-auth"
           - "icloud-drive"
