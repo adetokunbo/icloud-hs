@@ -2,9 +2,9 @@
 
 `icloud-auth` authenticates with iCloud using Apple ID credentials stored on
 disk.  The full sign-in flow — SRP credential exchange followed by any required
-two-factor (2FA) or legacy two-step (2SA) challenge — is handled by a single
-`login` call.  On success the library caches a session token for use with other
-iCloud services.
+two-factor (2FA) or legacy two-step (2SA) challenge — runs automatically,
+prompting the terminal for verification codes when needed.  On success it caches
+a session token for use with other iCloud services.
 
 
 ## Warning — use at your own risk
@@ -17,34 +17,77 @@ iCloud services.
 ## Reauthentication
 
 The session token expires after a period set by iCloud (approximately two months
-at the time of writing).  When it does, call `login` again to refresh it.
+at the time of writing).  When it does, authenticate again to refresh it.
 
 
-## Usage
+## Command-line tool
 
-### Store your credentials
+```
+Usage: icloud-auth [COMMAND | [--china] [--log] [--log-file FILE] [--redact]]
 
-Save your Apple ID and password to
-`$XDG_CONFIG_HOME/hs-icloud-auth/credentials.json`:
+  icloud-auth: iCloud authentication tool
 
-```bash
-ICLOUD_CONF="${XDG_CONFIG_HOME:=${HOME}/.config}/hs-icloud-auth"
-mkdir -p "$ICLOUD_CONF"
-cat << EOF > "$ICLOUD_CONF/credentials.json"
-{
-  "accountName": "your-apple-id@example.com",
-  "password":    "your-password"
-}
-EOF
-chmod 600 "$ICLOUD_CONF/credentials.json"
+Available options:
+  --china                  Use mainland China endpoints
+  --log                    Append HTTP exchanges to the default log file
+  --log-file FILE          Append HTTP exchanges to FILE
+  --redact                 Redact sensitive headers (tokens, cookies) in the log
+  -h,--help                Show this help text
+
+Available commands:
+  init                     Save Apple ID credentials to the config directory
 ```
 
-### Typical usage
+### Saving credentials
 
-Create an `Api` handle with `mkApi`, then call `login`.  The full sign-in flow
-— SRP credential exchange, any 2FA or 2SA challenge, and the final account-login
-request — runs automatically, prompting the terminal for verification codes when
-needed.
+Run `icloud-auth init` once to save your Apple ID and password to
+`$XDG_CONFIG_HOME/hs-icloud-auth/credentials.json`:
+
+```
+$ icloud-auth init
+Apple ID: your-apple-id@example.com
+Password:
+Credentials saved.
+```
+
+### Authenticating
+
+Run `icloud-auth` (without a subcommand) to authenticate using the saved
+credentials.  The full sign-in flow runs interactively, prompting for a 2FA or
+2SA verification code when required:
+
+```
+$ icloud-auth
+Authenticated.
+```
+
+Use `--log` / `--log-file FILE` to record the HTTP exchange.  Add `--redact` to
+scrub tokens and cookies from the log before writing.
+
+
+## Using the library
+
+The same two steps — saving credentials and authenticating — are available
+programmatically.
+
+### Saving credentials
+
+Write a `credentials.json` file directly, or call `saveCredentials`:
+
+```haskell
+import Network.ICloud.Session (Credentials (..), saveCredentials)
+
+saveCreds :: IO ()
+saveCreds =
+  saveCredentials $ Credentials
+    { accountName = "your-apple-id@example.com"
+    , password    = "your-password"
+    }
+```
+
+### Authenticating
+
+Create an `Api` handle with `mkApi`, then call `login`:
 
 ```haskell
 import Network.ICloud.Http (mkApi, login, AuthState (..))
@@ -82,34 +125,3 @@ exampleWith api = loginWith readCode (\_ -> pure Nothing) chooseDevice api
 If you already hold a `Requires2FA` or `Requires2SA` value from a prior call,
 resume with `completeTwoFactor` / `completeTwoFactorWith` or `complete2SA` /
 `complete2SAWith`.
-
-
-## Command-line tool
-
-```
-Usage: icloud-auth [COMMAND | [--china] [--log] [--log-file FILE] [--redact]]
-
-  icloud-auth: iCloud authentication tool
-
-Available options:
-  --china                  Use mainland China endpoints
-  --log                    Append HTTP exchanges to the default log file
-  --log-file FILE          Append HTTP exchanges to FILE
-  --redact                 Redact sensitive headers (tokens, cookies) in the log
-  -h,--help                Show this help text
-
-Available commands:
-  init                     Save Apple ID credentials to the config directory
-```
-
-### `icloud-auth init`
-
-Prompts for your Apple ID and password and saves them to
-`$XDG_CONFIG_HOME/hs-icloud-auth/credentials.json`.
-
-### Authenticating
-
-Running `icloud-auth` without a subcommand performs authentication using the
-saved credentials.  The full sign-in flow runs interactively, prompting for a
-2FA or 2SA code when required.  Use `--log` / `--log-file` to record the HTTP
-exchange; `--redact` scrubs tokens and cookies from the log.
