@@ -1,9 +1,7 @@
 module Main where
 
-import Control.Exception (catch, displayException)
 import Data.List (find)
 import qualified Data.Text as Text
-import Network.HTTP.Client.TLS (newTlsManager)
 import Network.ICloud.Drive
   ( DriveApi
   , DriveNode (..)
@@ -15,15 +13,8 @@ import Network.ICloud.Drive
   , listFolder
   , mkDriveApi
   )
-import Network.ICloud.Http (AuthError, AuthState (..), fileLogger, login, mkApiWith, redactingLogger, verboseLogger, withLogger)
-import Network.ICloud.Http.Endpoints (Realm (..), realmEndpoints)
-import Network.ICloud.Session (loadSession)
+import Network.ICloud.Http.Cli (CommonOpts (..), commonOptsParser, runWithApi)
 import Options.Applicative
-import System.Directory (createDirectoryIfMissing)
-import System.Environment.XDG.BaseDir (getUserCacheDir)
-import System.Exit (exitFailure)
-import System.FilePath ((</>))
-import System.IO (IOMode (..), stdout, withFile)
 
 
 data Command
@@ -34,15 +25,6 @@ data Command
 data ListFolderOpts = ListFolderOpts
   { lfPath :: [Text.Text]
   , lfCommon :: CommonOpts
-  }
-
-
-data CommonOpts = CommonOpts
-  { optChina :: Bool
-  , optLog :: Bool
-  , optLogFile :: Maybe FilePath
-  , optLogBodies :: Bool
-  , optRedact :: Bool
   }
 
 
@@ -69,17 +51,6 @@ listFolderOptsParser =
   ListFolderOpts
     <$> fmap (filter (not . Text.null) . Text.splitOn (Text.pack "/") . Text.pack) (argument str (metavar "PATH" <> help "Slash-separated path from root (e.g. Documents/Work)"))
     <*> commonOptsParser
-
-
-commonOptsParser :: Parser CommonOpts
-commonOptsParser =
-  CommonOpts
-    <$> switch (long "china" <> help "Use mainland China endpoints")
-    <*> switch (long "log" <> help "Append HTTP exchanges to the default log file")
-    <*> optional
-      (strOption (long "log-file" <> metavar "FILE" <> help "Append HTTP exchanges to FILE"))
-    <*> switch (long "log-bodies" <> help "Include request bodies in the HTTP exchange log")
-    <*> switch (long "redact" <> help "Redact sensitive headers (tokens, cookies) in the log")
 
 
 cliParser :: ParserInfo Command
@@ -141,47 +112,7 @@ printNode (DriveFile fd) =
 
 
 withDriveApi :: CommonOpts -> (DriveApi -> IO ()) -> IO ()
-withDriveApi opts runAction = do
-  session <- loadSession
-  mgr <- newTlsManager
-  let realm = if optChina opts then China else Usual
-  api0 <- mkApiWith session (realmEndpoints realm) mgr
-  mbLogPath <- resolveLogTarget opts
-  let mkLogger
-        | optRedact opts = redactingLogger
-        | optLogBodies opts = verboseLogger
-        | otherwise = fileLogger
-      run api = do
-        result <- login api
-        case result of
-          Authenticated sess ad -> do
-            da <- mkDriveApi ad sess api
-            runAction da
-          _ -> do
-            putStrLn "Not authenticated — run 'icloud-auth login' first."
-            exitFailure
-  let go = case mbLogPath of
-        Just fp -> withFile fp AppendMode $ \h -> run (withLogger (mkLogger h) api0)
-        Nothing
-          | optLogBodies opts && not (optRedact opts) -> run (withLogger (mkLogger stdout) api0)
-          | otherwise -> run api0
-  go `catch` \e -> do
-    putStrLn $ "Error: " <> displayException (e :: AuthError)
-    exitFailure
-
-
-resolveLogTarget :: CommonOpts -> IO (Maybe FilePath)
-resolveLogTarget CommonOpts{optLogFile = Just fp} = pure (Just fp)
-resolveLogTarget CommonOpts{optLog = True} = Just <$> defaultLogFile
-resolveLogTarget _ = pure Nothing
-
-
-defaultLogFile :: IO FilePath
-defaultLogFile = do
-  dir <- getUserCacheDir appDir
-  createDirectoryIfMissing True dir
-  pure (dir </> "requests.log")
-
-
-appDir :: FilePath
-appDir = "hs-icloud"
+withDriveApi opts runAction =
+  runWithApi opts $ \ad sess api -> do
+    da <- mkDriveApi ad sess api
+    runAction da

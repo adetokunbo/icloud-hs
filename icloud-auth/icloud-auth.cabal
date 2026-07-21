@@ -68,6 +68,7 @@ library icloud-auth-internal
   ghc-options:      -Wall -Wincomplete-uni-patterns -Wpartial-fields -fwarn-tabs
 
 library icloud-auth-cli
+  visibility:       public
   exposed-modules:  Network.ICloud.Http.Cli
   hs-source-dirs:   src-cli
   build-depends:
