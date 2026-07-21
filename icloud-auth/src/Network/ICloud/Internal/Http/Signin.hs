@@ -50,13 +50,12 @@ import Data.Aeson
   , (.:)
   )
 import Data.Aeson.Types (Parser, Value (..))
-import Data.Base64.Types (extractBase64)
 import Data.ByteString (ByteString)
-import Data.ByteString.Base64 (decodeBase64Untyped, encodeBase64)
+import qualified Data.ByteString.Base64 as B64
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Data.Text.Encoding (encodeUtf8)
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Word (Word64)
 import Network.HTTP.Client (Request (..), Response (..))
 import Network.HTTP.Types (Status (..))
@@ -177,8 +176,8 @@ parseSigninInitReply o =
       protocol = o .: "protocol"
       publicBytes = o .: "b" >>= parseBase64Bytes
       salt = o .: "salt" >>= parseBase64Bytes
-      parseBase64Bytes s = case decodeBase64Untyped (encodeUtf8 s) of
-        Left err -> fail $ Text.unpack err
+      parseBase64Bytes s = case B64.decode (encodeUtf8 s) of
+        Left err -> fail err
         Right b -> pure b
    in SigninInitReply
         <$> tag
@@ -220,7 +219,7 @@ signinInitReq = mkJsonRequest signinInitBase signinInitValue
 
 signinInitValue :: FromClient -> Value
 signinInitValue fc =
-  let a = extractBase64 $ encodeBase64 $ fcPublicBytes fc
+  let a = decodeUtf8 $ B64.encode $ fcPublicBytes fc
    in asObject
         [ ("a", String a)
         , ("accountName", String (fcUser fc))
@@ -265,7 +264,7 @@ signinCompleteReq = mkJsonRequest signinCompleteBase signinCompleteValue
 signinCompleteValue :: SigninCompletion -> Value
 signinCompleteValue sc =
   let Results{rClientProof, rServerProof} = siResults sc
-      toBase64 = extractBase64 . encodeBase64
+      toBase64 = decodeUtf8 . B64.encode
       singleElem x = Array [String x]
       maybeArray = maybe (Array []) singleElem
    in asObject

@@ -131,6 +131,6 @@ fieldEncryptedBytesAsText key rec = do
 
 
 decodeBase64Text :: Text -> Maybe ByteString
-decodeBase64Text t = case B64.decodeBase64Untyped (TE.encodeUtf8 t) of
+decodeBase64Text t = case B64.decode (TE.encodeUtf8 t) of
   Left _ -> Nothing
   Right bs -> Just bs
