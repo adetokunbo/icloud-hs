@@ -1,48 +1,42 @@
-# icloud-auth - unofficial auth for iCloud services
+# icloud-auth — unofficial authentication for iCloud services
 
-[![GitHub CI](https://github.com/adetokunbo/icloud-hs/actions/workflows/cabal.yml/badge.svg)](https://github.com/adetokunbo/icloud-hs/actions)
-[![Stackage Nightly](http://stackage.org/package/icloud-auth/badge/nightly)](http://stackage.org/nightly/package/icloud-auth)
-[![Hackage][hackage-badge]][hackage]
-[![Hackage Dependencies][hackage-deps-badge]][hackage-deps]
-[![BSD3](https://img.shields.io/badge/license-BSD3-green.svg?dummy)](https://github.com/adetokunbo/icloud-hs/blob/master/LICENSE)
-
-`icloud-auth` allows logon to [iCloud] servers; upon provision of the username and
-password, it retrieves and stores an authorization token, for use in programmatic
-sessions with other iCloud services.
+`icloud-auth` authenticates with iCloud using Apple ID credentials stored on
+disk.  The full sign-in flow — SRP credential exchange followed by any required
+two-factor (2FA) or legacy two-step (2SA) challenge — is handled by a single
+`login` call.  On success the library caches a session token for use with other
+iCloud services.
 
 
-## Warning - use at your own risk
+## Warning — use at your own risk
 
-- It is unofficial, *not* supported by Apple, and not guaranteed to work.
-
-- The iCloud service APIs it uses are not officially documented and can be
-  changed at any time. Use at your own risk; in the worst case, Apple might ban
-  your account!
+- This library is **unofficial** and not supported by Apple.
+- The iCloud authentication protocol it uses is undocumented and may change
+  without notice.
 
 
 ## Reauthentication
 
-The retrieved authorization token expires, after which re-authentication is
-required. The expiry duration is set by iCloud; at the time of writing it is
-approximately two months.
+The session token expires after a period set by iCloud (approximately two months
+at the time of writing).  When it does, call `login` again to refresh it.
 
 
 ## Usage
 
 ### Store your credentials
 
-Save your Apple ID and password to `$XDG_CONFIG_HOME/hs-icloud-auth/credential.json`:
+Save your Apple ID and password to
+`$XDG_CONFIG_HOME/hs-icloud-auth/credentials.json`:
 
 ```bash
-ICLOUD_AUTH_CONF="${XDG_CONFIG_HOME:=${HOME}/.config}/hs-icloud-auth"
-mkdir -p "$ICLOUD_AUTH_CONF"
-cat << EOF > "$ICLOUD_AUTH_CONF/credential.json"
+ICLOUD_CONF="${XDG_CONFIG_HOME:=${HOME}/.config}/hs-icloud-auth"
+mkdir -p "$ICLOUD_CONF"
+cat << EOF > "$ICLOUD_CONF/credentials.json"
 {
   "accountName": "your-apple-id@example.com",
   "password":    "your-password"
 }
 EOF
-chmod 600 "$ICLOUD_AUTH_CONF/credential.json"
+chmod 600 "$ICLOUD_CONF/credentials.json"
 ```
 
 ### Typical usage
@@ -58,7 +52,7 @@ import Network.ICloud.Http.Endpoints (Realm (..))
 
 example :: IO ()
 example = do
-  api <- mkApi GlobalRealm  -- or ChinaRealm for mainland China accounts
+  api <- mkApi Usual  -- or China for mainland China accounts
   result <- login api
   case result of
     Authenticated _session _accountData -> putStrLn "Authenticated!"
@@ -76,11 +70,13 @@ import Network.ICloud.Http (loginWith)
 import qualified Data.Text.IO as Text
 
 exampleWith :: Api -> IO AuthState
-exampleWith api = loginWith readCode (\_ -> pure Nothing) (\ds -> pure (head ds)) api
+exampleWith api = loginWith readCode (\_ -> pure Nothing) chooseDevice api
  where
   readCode codeLen = do
-    Text.putStrLn $ "Enter the " <> Text.pack (show codeLen) <> "-digit verification code:"
+    Text.putStrLn $ "Enter the " <> Text.pack (show codeLen) <> "-digit code:"
     Text.getLine
+  chooseDevice (d:_) = pure d
+  chooseDevice []    = ioError (userError "no 2SA devices available")
 ```
 
 If you already hold a `Requires2FA` or `Requires2SA` value from a prior call,
@@ -88,8 +84,32 @@ resume with `completeTwoFactor` / `completeTwoFactorWith` or `complete2SA` /
 `complete2SAWith`.
 
 
-[hackage-deps-badge]: <https://img.shields.io/hackage-deps/v/icloud-auth.svg>
-[hackage-deps]:       <http://packdeps.haskellers.com/feed?needle=icloud-auth>
-[hackage-badge]:      <https://img.shields.io/hackage/v/icloud-auth.svg>
-[hackage]:            <https://hackage.haskell.org/package/icloud-auth>
-[iCloud]:             <https://www.icloud.com/>
+## Command-line tool
+
+```
+Usage: icloud-auth [COMMAND | [--china] [--log] [--log-file FILE] [--redact]]
+
+  icloud-auth: iCloud authentication tool
+
+Available options:
+  --china                  Use mainland China endpoints
+  --log                    Append HTTP exchanges to the default log file
+  --log-file FILE          Append HTTP exchanges to FILE
+  --redact                 Redact sensitive headers (tokens, cookies) in the log
+  -h,--help                Show this help text
+
+Available commands:
+  init                     Save Apple ID credentials to the config directory
+```
+
+### `icloud-auth init`
+
+Prompts for your Apple ID and password and saves them to
+`$XDG_CONFIG_HOME/hs-icloud-auth/credentials.json`.
+
+### Authenticating
+
+Running `icloud-auth` without a subcommand performs authentication using the
+saved credentials.  The full sign-in flow runs interactively, prompting for a
+2FA or 2SA code when required.  Use `--log` / `--log-file` to record the HTTP
+exchange; `--redact` scrubs tokens and cookies from the log.
