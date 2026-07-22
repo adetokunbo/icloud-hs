@@ -1,4 +1,5 @@
 packages:
+  hstratus/
   hstratus-auth/
   hstratus-drive/
   hstratus-notes/
