@@ -15,7 +15,7 @@ import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Network.HTTP.Types (HeaderName, RequestHeaders, hContentType, mkStatus, status200, status204, status400, status401, status404, status409)
 import Network.Wai (Application, pathInfo, rawPathInfo, requestHeaders, requestMethod, responseLBS)
 import Network.Wai.Handler.Warp (testWithApplication)
-import Paths_icloud_auth (getDataFileName)
+import Paths_hstratus_auth (getDataFileName)
 
 
 data SrpOutcome = SrpOk | SrpNeeds2FA

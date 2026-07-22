@@ -43,8 +43,8 @@ executable icloud-notes
     , directory            >=1.3 && <1.4
     , filepath             >=1.4 && <1.6
     , http-client-tls      >=0.3 && <0.4
-    , icloud-auth
-    , icloud-auth:icloud-auth-cli
+    , hstratus-auth
+    , hstratus-auth:hstratus-auth-cli
     , icloud-notes
     , optparse-applicative >=0.18 && <0.19
     , text                 >=1.2.3 && <2.2
@@ -67,7 +67,7 @@ library icloud-notes-internal
     , containers           >=0.6 && <0.8
     , http-client          >=0.5 && <0.8
     , http-types           >=0.12.1 && <0.13
-    , icloud-auth
+    , hstratus-auth
     , proto3-suite         >=0.7 && <0.11
     , proto3-wire          >=1.0 && <2.0
     , text                 >=1.2.3 && <2.2
@@ -84,7 +84,7 @@ library
   build-depends:
     , base                         >=4.12 && <5
     , bytestring                   >=0.10.8 && <0.11 || >=0.11.3 && <0.13
-    , icloud-auth
+    , hstratus-auth
     , icloud-notes:icloud-notes-internal
     , text                         >=1.2.3 && <2.2
     , time                         >=1.9 && <1.15
@@ -112,7 +112,7 @@ test-suite test
     , hspec                        >=2.1 && <3.0
     , http-client                  >=0.5 && <0.8
     , http-types                   >=0.12.1 && <0.13
-    , icloud-auth
+    , hstratus-auth
     , icloud-notes
     , icloud-notes:icloud-notes-internal
     , temporary                    >=1.2 && <1.4

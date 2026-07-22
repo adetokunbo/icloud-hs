@@ -18,7 +18,7 @@ import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified HStratus.Examples as Examples
 import Network.HStratus.Internal.Trust
-import Paths_icloud_auth (getDataFileName)
+import Paths_hstratus_auth (getDataFileName)
 import System.IO.Silently (silence)
 import Test.Hspec
   ( Spec

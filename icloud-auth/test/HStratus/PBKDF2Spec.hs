@@ -28,7 +28,7 @@ import Data.Foldable (toList)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Word (Word32, Word64, Word8)
 import Network.HStratus.Internal.PBKDF2 (PseudoRandomF, deriveKey, wrap)
-import Paths_icloud_auth (getDataFileName)
+import Paths_hstratus_auth (getDataFileName)
 import Test.Hspec (Spec, context, describe, it, runIO, shouldBe)
 import Test.Hspec.Runner (SpecWith)
 

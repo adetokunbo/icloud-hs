@@ -1,5 +1,5 @@
 cabal-version:      3.0
-name:               icloud-auth
+name:               hstratus-auth
 version:            0.1.0.0
 synopsis:           Authenticate with iCloud (unofficial)
 description:
@@ -33,7 +33,7 @@ source-repository head
   type:     git
   location: https://github.com/adetokunbo/icloud-hs.git
 
-library icloud-auth-internal
+library hstratus-auth-internal
   exposed-modules:  Network.HStratus.Internal.Endpoints
                     Network.HStratus.Internal.Http
                     Network.HStratus.Internal.HttpErrors
@@ -64,7 +64,7 @@ library icloud-auth-internal
   default-language: Haskell2010
   ghc-options:      -Wall -Wincomplete-uni-patterns -Wpartial-fields -fwarn-tabs
 
-library icloud-auth-cli
+library hstratus-auth-cli
   visibility:       public
   exposed-modules:  Network.HStratus.Http.Cli
   hs-source-dirs:   src-cli
@@ -73,7 +73,7 @@ library icloud-auth-cli
     , directory            >=1.3 && <1.4
     , filepath             >=1.4 && <1.6
     , http-client-tls      >=0.3 && <0.4
-    , icloud-auth
+    , hstratus-auth
     , optparse-applicative >=0.18 && <0.19
     , xdg-basedir          >=0.2 && <0.3
   default-language: Haskell2010
@@ -114,12 +114,12 @@ library
     , uuid                 >=1.3 && <1.4
     , web-cookiejar        >=0.1.3 && <0.2
     , xdg-basedir          >=0.2 && <0.3
-    , icloud-auth:icloud-auth-internal
+    , hstratus-auth:hstratus-auth-internal
 
   default-language: Haskell2010
   ghc-options:      -Wall -Wincomplete-uni-patterns -Wpartial-fields -fwarn-tabs
 
-executable icloud-auth
+executable hstratus-auth
   main-is:          CmdLine.hs
   hs-source-dirs:   app
   default-language: Haskell2010
@@ -129,7 +129,7 @@ executable icloud-auth
     , directory            >=1.3 && <1.4
     , filepath             >=1.4 && <1.6
     , http-client-tls      >=0.3 && <0.4
-    , icloud-auth
+    , hstratus-auth
     , optparse-applicative >=0.18 && <0.19
     , xdg-basedir          >=0.2 && <0.3
 
@@ -137,7 +137,7 @@ test-suite test
   type:             exitcode-stdio-1.0
   main-is:          Spec.hs
   hs-source-dirs:   test
-  autogen-modules:  Paths_icloud_auth
+  autogen-modules:  Paths_hstratus_auth
   other-modules:    HStratus.ApiLoggerSpec
                     HStratus.Examples
                     HStratus.Http.CliSpec
@@ -151,7 +151,7 @@ test-suite test
                     HStratus.PBKDF2Spec
                     HStratus.SessionSpec
                     HStratus.TrustSpec
-                    Paths_icloud_auth
+                    Paths_hstratus_auth
   default-language: Haskell2010
   ghc-options:      -threaded -rtsopts -with-rtsopts=-N -Wall -fwarn-tabs
   build-depends:
@@ -171,8 +171,8 @@ test-suite test
     , http-types
     , QuickCheck           >= 2.13 && < 2.16
     , temporary            >= 1.2 && < 1.4
-    , icloud-auth
-    , icloud-auth:icloud-auth-cli
+    , hstratus-auth
+    , hstratus-auth:hstratus-auth-cli
     , optparse-applicative >=0.18 && <0.19
     , silently             >= 1.2 && < 1.3
     , string-conv
@@ -180,5 +180,5 @@ test-suite test
     , wai                  >=3.2 && <3.3
     , warp                 >=3.2 && <3.5
     , main-tester          >= 0.2 && < 0.3
-    , icloud-auth:icloud-auth-internal
+    , hstratus-auth:hstratus-auth-internal
 
