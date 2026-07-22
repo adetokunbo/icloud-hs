@@ -1,6 +1,6 @@
 packages:
-  icloud-auth/
-  icloud-drive/
-  icloud-notes/
+  hstratus-auth/
+  hstratus-drive/
+  hstratus-notes/
 
 test-show-details: streaming
