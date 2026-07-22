@@ -14,11 +14,11 @@ accessing iCloud services using an Apple ID.
 
 | Package | Description |
 |---------|-------------|
-| [`icloud-auth`](icloud-auth/#readme) | Authenticate with iCloud using Apple ID credentials |
-| [`icloud-drive`](icloud-drive/#readme) | Browse and download files from iCloud Drive |
-| [`icloud-notes`](icloud-notes/#readme) | Read notes and folders from iCloud Notes |
+| [`hstratus-auth`](hstratus-auth/#readme) | Authenticate with iCloud using Apple ID credentials |
+| [`hstratus-drive`](hstratus-drive/#readme) | Browse and download files from iCloud Drive |
+| [`hstratus-notes`](hstratus-notes/#readme) | Read notes and folders from iCloud Notes |
 
-`icloud-drive` and `icloud-notes` both depend on `icloud-auth` for
+`hstratus-drive` and `hstratus-notes` both depend on `hstratus-auth` for
 authentication.  Start there.
 
 

@@ -20,9 +20,9 @@ jobs:
         cabal: ["latest"]
         ghc: ["9.2.8", "9.4.8", "9.6", "9.8", "9.10", "9.12"]
         package:
-          - "icloud-auth"
-          - "icloud-drive"
-          - "icloud-notes"
+          - "hstratus-auth"
+          - "hstratus-drive"
+          - "hstratus-notes"
     env:
       CONFIG: "--enable-tests"
     steps:
