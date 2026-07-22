@@ -35,8 +35,8 @@ example = do
 
 ## Command-line tool
 
-Run `icloud-auth init` then `icloud-auth` first to store and authenticate your
-credentials.
+Run `icloud-auth init` then `icloud-auth login` first to store and authenticate
+your credentials.
 
 ```
 Usage: icloud-notes COMMAND
