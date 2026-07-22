@@ -54,7 +54,6 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Base64 as B64
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
-import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Word (Word64)
 import Network.HTTP.Client (Request (..), Response (..))
