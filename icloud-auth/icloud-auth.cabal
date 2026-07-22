@@ -34,13 +34,13 @@ source-repository head
   location: https://github.com/adetokunbo/icloud-hs.git
 
 library icloud-auth-internal
-  exposed-modules:  Network.ICloud.Internal.Endpoints
-                    Network.ICloud.Internal.Http
-                    Network.ICloud.Internal.HttpErrors
-                    Network.ICloud.Internal.LoginFSM
-                    Network.ICloud.Internal.PBKDF2
-                    Network.ICloud.Internal.Session
-                    Network.ICloud.Internal.Trust
+  exposed-modules:  Network.HStratus.Internal.Endpoints
+                    Network.HStratus.Internal.Http
+                    Network.HStratus.Internal.HttpErrors
+                    Network.HStratus.Internal.LoginFSM
+                    Network.HStratus.Internal.PBKDF2
+                    Network.HStratus.Internal.Session
+                    Network.HStratus.Internal.Trust
   hs-source-dirs:   src-internal
   build-depends:
     , aeson                >=2.0   && <2.3
@@ -66,7 +66,7 @@ library icloud-auth-internal
 
 library icloud-auth-cli
   visibility:       public
-  exposed-modules:  Network.ICloud.Http.Cli
+  exposed-modules:  Network.HStratus.Http.Cli
   hs-source-dirs:   src-cli
   build-depends:
     , base                 >=4.12 && <5
@@ -80,14 +80,14 @@ library icloud-auth-cli
   ghc-options:      -Wall -Wincomplete-uni-patterns -Wpartial-fields -fwarn-tabs
 
 library
-  exposed-modules:  Network.ICloud.Http
-                    Network.ICloud.Http.Endpoints
-                    Network.ICloud.Http.Common
-                    Network.ICloud.Session
-                    Network.ICloud.Trust
-  other-modules:    Network.ICloud.Internal.Http.Api
-                    Network.ICloud.Internal.Http.Login
-                    Network.ICloud.Internal.Http.Signin
+  exposed-modules:  Network.HStratus.Http
+                    Network.HStratus.Http.Endpoints
+                    Network.HStratus.Http.Common
+                    Network.HStratus.Session
+                    Network.HStratus.Trust
+  other-modules:    Network.HStratus.Internal.Http.Api
+                    Network.HStratus.Internal.Http.Login
+                    Network.HStratus.Internal.Http.Signin
   hs-source-dirs:   src
   build-depends:
     , aeson                >=2.0   && <2.3 
@@ -138,19 +138,19 @@ test-suite test
   main-is:          Spec.hs
   hs-source-dirs:   test
   autogen-modules:  Paths_icloud_auth
-  other-modules:    ICloud.ApiLoggerSpec
-                    ICloud.Examples
-                    ICloud.Http.CliSpec
-                    ICloud.HttpMockSpec
-                    ICloud.HttpSpec
-                    ICloud.Http.EndpointsSpec
-                    ICloud.Http.ErrorsSpec
-                    ICloud.Http.HeadersSpec
-                    ICloud.LoginFSMSpec
-                    ICloud.Mock
-                    ICloud.PBKDF2Spec
-                    ICloud.SessionSpec
-                    ICloud.TrustSpec
+  other-modules:    HStratus.ApiLoggerSpec
+                    HStratus.Examples
+                    HStratus.Http.CliSpec
+                    HStratus.HttpMockSpec
+                    HStratus.HttpSpec
+                    HStratus.Http.EndpointsSpec
+                    HStratus.Http.ErrorsSpec
+                    HStratus.Http.HeadersSpec
+                    HStratus.LoginFSMSpec
+                    HStratus.Mock
+                    HStratus.PBKDF2Spec
+                    HStratus.SessionSpec
+                    HStratus.TrustSpec
                     Paths_icloud_auth
   default-language: Haskell2010
   ghc-options:      -threaded -rtsopts -with-rtsopts=-N -Wall -fwarn-tabs

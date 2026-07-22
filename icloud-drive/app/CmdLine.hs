@@ -2,7 +2,7 @@ module Main where
 
 import Data.List (find)
 import qualified Data.Text as Text
-import Network.ICloud.Drive
+import Network.HStratus.Drive
   ( DriveApi
   , DriveNode (..)
   , DriveNodeId
@@ -13,7 +13,7 @@ import Network.ICloud.Drive
   , listFolder
   , mkDriveApi
   )
-import Network.ICloud.Http.Cli (CommonOpts (..), commonOptsParser, runWithApi)
+import Network.HStratus.Http.Cli (CommonOpts (..), commonOptsParser, runWithApi)
 import Options.Applicative
 
 

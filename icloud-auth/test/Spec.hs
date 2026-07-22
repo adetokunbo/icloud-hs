@@ -2,17 +2,17 @@
 
 module Main where
 
-import qualified ICloud.ApiLoggerSpec as ApiLogger
-import qualified ICloud.Http.CliSpec as HttpCli
-import qualified ICloud.Http.EndpointsSpec as HttpEndpoints
-import qualified ICloud.Http.ErrorsSpec as HttpErrors
-import qualified ICloud.Http.HeadersSpec as HttpHeaders
-import qualified ICloud.HttpMockSpec as HttpMock
-import qualified ICloud.HttpSpec as Http
-import qualified ICloud.LoginFSMSpec as LoginFSM
-import qualified ICloud.PBKDF2Spec as PBKDF2
-import qualified ICloud.SessionSpec as Session
-import qualified ICloud.TrustSpec as Trust
+import qualified HStratus.ApiLoggerSpec as ApiLogger
+import qualified HStratus.Http.CliSpec as HttpCli
+import qualified HStratus.Http.EndpointsSpec as HttpEndpoints
+import qualified HStratus.Http.ErrorsSpec as HttpErrors
+import qualified HStratus.Http.HeadersSpec as HttpHeaders
+import qualified HStratus.HttpMockSpec as HttpMock
+import qualified HStratus.HttpSpec as Http
+import qualified HStratus.LoginFSMSpec as LoginFSM
+import qualified HStratus.PBKDF2Spec as PBKDF2
+import qualified HStratus.SessionSpec as Session
+import qualified HStratus.TrustSpec as Trust
 import System.IO
   ( BufferMode (..)
   , hSetBuffering

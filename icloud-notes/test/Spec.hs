@@ -1,11 +1,11 @@
 module Main where
 
-import qualified ICloud.Notes.CloudKitSpec as CloudKit
-import qualified ICloud.Notes.DecodeSpec as Decode
-import qualified ICloud.Notes.EndpointsSpec as Endpoints
-import qualified ICloud.Notes.NoteDataSpec as NoteData
-import qualified ICloud.Notes.ProtoSpec as Proto
-import qualified ICloud.NotesSpec as Notes
+import qualified HStratus.Notes.CloudKitSpec as CloudKit
+import qualified HStratus.Notes.DecodeSpec as Decode
+import qualified HStratus.Notes.EndpointsSpec as Endpoints
+import qualified HStratus.Notes.NoteDataSpec as NoteData
+import qualified HStratus.Notes.ProtoSpec as Proto
+import qualified HStratus.NotesSpec as Notes
 import System.IO
   ( BufferMode (..)
   , hSetBuffering

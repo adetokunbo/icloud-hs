@@ -51,13 +51,13 @@ executable icloud-notes
 
 library icloud-notes-internal
   exposed-modules:
-    Network.ICloud.Internal.Notes.CloudKit
-    Network.ICloud.Internal.Notes.Decode
-    Network.ICloud.Internal.Notes.Download
-    Network.ICloud.Internal.Notes.Endpoints
-    Network.ICloud.Internal.Notes.Note
-    Network.ICloud.Internal.Notes.NoteData
-    Network.ICloud.Internal.Notes.Proto
+    Network.HStratus.Internal.Notes.CloudKit
+    Network.HStratus.Internal.Notes.Decode
+    Network.HStratus.Internal.Notes.Download
+    Network.HStratus.Internal.Notes.Endpoints
+    Network.HStratus.Internal.Notes.Note
+    Network.HStratus.Internal.Notes.NoteData
+    Network.HStratus.Internal.Notes.Proto
   hs-source-dirs:   src-internal
   build-depends:
     , aeson                >=2.0   && <2.3
@@ -78,8 +78,8 @@ library icloud-notes-internal
 
 library
   exposed-modules:
-    Network.ICloud.Notes
-    Network.ICloud.Notes.Note
+    Network.HStratus.Notes
+    Network.HStratus.Notes.Note
   hs-source-dirs:   src
   build-depends:
     , base                         >=4.12 && <5
@@ -96,12 +96,12 @@ test-suite test
   main-is:          Spec.hs
   hs-source-dirs:   test
   other-modules:
-    ICloud.Notes.CloudKitSpec
-    ICloud.Notes.DecodeSpec
-    ICloud.Notes.EndpointsSpec
-    ICloud.Notes.NoteDataSpec
-    ICloud.Notes.ProtoSpec
-    ICloud.NotesSpec
+    HStratus.Notes.CloudKitSpec
+    HStratus.Notes.DecodeSpec
+    HStratus.Notes.EndpointsSpec
+    HStratus.Notes.NoteDataSpec
+    HStratus.Notes.ProtoSpec
+    HStratus.NotesSpec
   default-language: Haskell2010
   ghc-options:      -threaded -rtsopts -with-rtsopts=-N -Wall -fwarn-tabs
   build-depends:

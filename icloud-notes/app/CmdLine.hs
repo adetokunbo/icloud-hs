@@ -3,10 +3,9 @@ module Main where
 import Control.Exception (Exception, catch, displayException)
 import Data.List (find)
 import qualified Data.Text as Text
-import Network.ICloud.Http (Api, AuthError)
-import Network.ICloud.Http.Cli (CommonOpts (..), commonOptsParser, runWithApi)
-import Network.ICloud.Notes
-
+import Network.HStratus.Http (Api, AuthError)
+import Network.HStratus.Http.Cli (CommonOpts (..), commonOptsParser, runWithApi)
+import Network.HStratus.Notes
 import Options.Applicative
 import System.Exit (exitFailure)
 

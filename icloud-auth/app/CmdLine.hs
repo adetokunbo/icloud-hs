@@ -4,10 +4,10 @@ module Main where
 
 import Control.Exception (bracket_, catch, displayException)
 import Data.String (fromString)
+import Network.HStratus.Http (AuthError, fileLogger, login, mkApiWith, redactingLogger, withLogger)
+import Network.HStratus.Http.Endpoints (Realm (..), realmEndpoints)
+import Network.HStratus.Session (Credentials (..), loadSession, saveCredentials)
 import Network.HTTP.Client.TLS (newTlsManager)
-import Network.ICloud.Http (AuthError, fileLogger, login, mkApiWith, redactingLogger, withLogger)
-import Network.ICloud.Http.Endpoints (Realm (..), realmEndpoints)
-import Network.ICloud.Session (Credentials (..), loadSession, saveCredentials)
 import Options.Applicative
 import System.Directory (createDirectoryIfMissing)
 import System.Environment.XDG.BaseDir (getUserCacheDir)
