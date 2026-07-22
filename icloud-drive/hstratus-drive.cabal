@@ -1,10 +1,10 @@
 cabal-version:      3.0
-name:               icloud-drive
+name:               hstratus-drive
 version:            0.1.0.0
 synopsis:           Access iCloud Drive (unofficial)
 description:
   Browse and download files from iCloud Drive using an authenticated session
-  from the @icloud-auth@ library.
+  from the @hstratus-auth@ library.
 
   Provides access to the main CloudDocs tree: fetching the root folder,
   listing folder contents, downloading files, and mutating the tree (create,
@@ -34,7 +34,7 @@ source-repository head
   location: https://github.com/adetokunbo/icloud-hs.git
   subdir:   icloud-drive
 
-executable icloud-drive
+executable hstratus-drive
   main-is:          CmdLine.hs
   hs-source-dirs:   app
   default-language: Haskell2010
@@ -47,11 +47,11 @@ executable icloud-drive
     , http-client-tls      >=0.3 && <0.4
     , hstratus-auth
     , hstratus-auth:hstratus-auth-cli
-    , icloud-drive
+    , hstratus-drive
     , optparse-applicative >=0.18 && <0.19
     , text                 >=1.2.3 && <2.2
 
-library icloud-drive-internal
+library hstratus-drive-internal
   exposed-modules:
     Network.HStratus.Internal.Drive.Download
     Network.HStratus.Internal.Drive.Endpoints
@@ -82,7 +82,7 @@ library
     , base                 >=4.12 && <5
     , bytestring           >=0.10.8 && <0.11 || >=0.11.3 && <0.13
     , hstratus-auth
-    , icloud-drive:icloud-drive-internal
+    , hstratus-drive:hstratus-drive-internal
     , text                 >=1.2.3 && <2.2
     , time                 >=1.8 && <1.15
   default-language: Haskell2010
@@ -109,8 +109,8 @@ test-suite test
     , http-client          >=0.5 && <0.8
     , http-types           >=0.12.1 && <0.13
     , hstratus-auth
-    , icloud-drive
-    , icloud-drive:icloud-drive-internal
+    , hstratus-drive
+    , hstratus-drive:hstratus-drive-internal
     , temporary            >=1.2 && <1.4
     , text                 >=1.2.3 && <2.2
     , time                 >=1.9 && <1.15
