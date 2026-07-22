@@ -444,4 +444,4 @@ simpleOptions = aesonPrefix snakeCase
 
 
 appBase :: FilePath
-appBase = "hs-hstratus-auth"
+appBase = "hstratus-auth"

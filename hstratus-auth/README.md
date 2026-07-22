@@ -38,7 +38,7 @@ Available commands:
 ### Saving credentials
 
 Run `hstratus-auth init` once to save your Apple ID and password to
-`$XDG_CONFIG_HOME/hs-hstratus-auth/credentials.json`:
+`$XDG_CONFIG_HOME/hstratus-auth/credentials.json`:
 
 ```
 $ hstratus-auth init
