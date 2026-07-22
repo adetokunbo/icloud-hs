@@ -33,7 +33,7 @@ module Network.ICloud.Internal.PBKDF2
 where
 
 import Control.Exception (Exception, throwIO)
-import Data.Bits (xor, (.&.), (.>>.))
+import Data.Bits (shiftR, xor, (.&.))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder (byteString, toLazyByteString)
@@ -153,9 +153,9 @@ toNum = fromIntegral
 asBytes :: Word32 -> ByteString
 asBytes x =
   let !mask = 0b00000000000000000000000011111111
-      !word0 = toNum (x .>>. 24) .&. mask
-      !word1 = toNum (x .>>. 16) .&. mask
-      !word2 = toNum (x .>>. 08) .&. mask
+      !word0 = toNum (x `shiftR` 24) .&. mask
+      !word1 = toNum (x `shiftR` 16) .&. mask
+      !word2 = toNum (x `shiftR` 08) .&. mask
       !word3 = toNum x .&. mask
    in BS.cons word0 $ BS.cons word1 $ BS.cons word2 $ BS.singleton word3
 {-# INLINE asBytes #-}
