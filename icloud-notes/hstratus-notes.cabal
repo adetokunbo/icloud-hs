@@ -1,10 +1,10 @@
 cabal-version:      3.0
-name:               icloud-notes
+name:               hstratus-notes
 version:            0.1.0.0
 synopsis:           Access iCloud Notes (unofficial)
 description:
   Browse notes and folders from iCloud Notes using an authenticated session
-  from the @icloud-auth@ library.
+  from the @hstratus-auth@ library.
 
   Provides read-only access to the Notes CloudKit database: listing folders,
   fetching recent notes, and downloading note content.
@@ -33,7 +33,7 @@ source-repository head
   location: https://github.com/adetokunbo/icloud-hs.git
   subdir:   icloud-notes
 
-executable icloud-notes
+executable hstratus-notes
   main-is:          CmdLine.hs
   hs-source-dirs:   app
   default-language: Haskell2010
@@ -45,11 +45,11 @@ executable icloud-notes
     , http-client-tls      >=0.3 && <0.4
     , hstratus-auth
     , hstratus-auth:hstratus-auth-cli
-    , icloud-notes
+    , hstratus-notes
     , optparse-applicative >=0.18 && <0.19
     , text                 >=1.2.3 && <2.2
 
-library icloud-notes-internal
+library hstratus-notes-internal
   exposed-modules:
     Network.HStratus.Internal.Notes.CloudKit
     Network.HStratus.Internal.Notes.Decode
@@ -85,7 +85,7 @@ library
     , base                         >=4.12 && <5
     , bytestring                   >=0.10.8 && <0.11 || >=0.11.3 && <0.13
     , hstratus-auth
-    , icloud-notes:icloud-notes-internal
+    , hstratus-notes:hstratus-notes-internal
     , text                         >=1.2.3 && <2.2
     , time                         >=1.9 && <1.15
   default-language: Haskell2010
@@ -113,8 +113,8 @@ test-suite test
     , http-client                  >=0.5 && <0.8
     , http-types                   >=0.12.1 && <0.13
     , hstratus-auth
-    , icloud-notes
-    , icloud-notes:icloud-notes-internal
+    , hstratus-notes
+    , hstratus-notes:hstratus-notes-internal
     , temporary                    >=1.2 && <1.4
     , text                         >=1.2.3 && <2.2
     , time                         >=1.9 && <1.15
