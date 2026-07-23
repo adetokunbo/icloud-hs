@@ -25,7 +25,7 @@ import Network.HStratus.Drive
 import Network.HStratus.Http.Cli (CommonOpts (..), commonOptsParser, runWithApi)
 import Options.Applicative
 import System.Directory (createDirectoryIfMissing, getHomeDirectory)
-import System.Exit (exitFailure)
+import System.Exit (die)
 import System.FilePath (joinPath, takeDirectory, (</>))
 
 
@@ -105,7 +105,7 @@ runDrive (DriveCp opts) = runCp opts
 runCp :: CpOpts -> IO ()
 runCp opts = case (cpRoot opts, cpOutput opts) of
   (Just _, Just _) ->
-    putStrLn "Error: --root and --output cannot both be specified" >> exitFailure
+    die "Error: --root and --output cannot both be specified"
   _ ->
     withDriveApi (cpCommon opts) $ \da -> do
       root <- driveRoot da
@@ -118,21 +118,21 @@ runCp opts = case (cpRoot opts, cpOutput opts) of
 
 
 navigateToFile :: DriveApi -> DriveNodeId -> [Text.Text] -> IO FileData
-navigateToFile _ _ [] = fail "cp: PATH must not be empty"
+navigateToFile _ _ [] = die "cp: PATH must not be empty"
 navigateToFile da nid [name] = do
   children <- listFolder da nid
   case find (matchesName name) children of
     Just (DriveFile fd) -> pure fd
-    Just (DriveFolder _) -> fail $ "Not a file: " <> Text.unpack name
-    Nothing -> fail $ "File not found: " <> Text.unpack name
+    Just (DriveFolder _) -> die $ "Not a file: " <> Text.unpack name
+    Nothing -> die $ "File not found: " <> Text.unpack name
  where
   matchesName n (DriveFile fd) = fileName fd == n
   matchesName n (DriveFolder fd) = fnName fd == n
 navigateToFile da nid (seg : segs) = do
   children <- listFolder da nid
   case find (matchFolderName seg) children of
-    Nothing -> fail $ "Folder not found: " <> Text.unpack seg
-    Just (DriveFile _) -> fail $ "Not a folder: " <> Text.unpack seg
+    Nothing -> die $ "Folder not found: " <> Text.unpack seg
+    Just (DriveFile _) -> die $ "Not a folder: " <> Text.unpack seg
     Just (DriveFolder fd) -> navigateToFile da (fnId fd) segs
 
 
@@ -167,8 +167,8 @@ navigatePath _ nid [] = pure nid
 navigatePath da nid (seg : segs) = do
   children <- listFolder da nid
   case find (matchFolderName seg) children of
-    Nothing -> fail $ "Folder not found: " <> Text.unpack seg
-    Just (DriveFile _) -> fail $ "Not a folder: " <> Text.unpack seg
+    Nothing -> die $ "Folder not found: " <> Text.unpack seg
+    Just (DriveFile _) -> die $ "Not a folder: " <> Text.unpack seg
     Just (DriveFolder fd) -> navigatePath da (fnId fd) segs
 
 
