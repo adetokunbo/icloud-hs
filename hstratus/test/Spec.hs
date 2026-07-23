@@ -1,6 +1,7 @@
 module Main where
 
 import qualified Hstratus.Cli.AuthSpec as Auth
+import qualified Hstratus.Cli.DriveSpec as Drive
 import System.IO
   ( BufferMode (..)
   , hSetBuffering
@@ -14,4 +15,6 @@ main :: IO ()
 main = do
   hSetBuffering stdout NoBuffering
   hSetBuffering stderr NoBuffering
-  hspec Auth.spec
+  hspec $ do
+    Auth.spec
+    Drive.spec

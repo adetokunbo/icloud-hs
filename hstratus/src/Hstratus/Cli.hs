@@ -6,11 +6,13 @@ module Hstratus.Cli
 where
 
 import Hstratus.Cli.Auth (AuthCommand, authParser, runAuth)
+import Hstratus.Cli.Drive (DriveCommand, driveParser, runDrive)
 import Options.Applicative
 
 
 data TopCommand
   = AuthCmd AuthCommand
+  | DriveCmd DriveCommand
   deriving (Eq, Show)
 
 
@@ -24,7 +26,9 @@ cliParser =
 topParser :: Parser TopCommand
 topParser =
   subparser
-    (command "auth" (info (AuthCmd <$> authParser <**> helper) (progDesc "iCloud authentication commands")))
+    ( command "auth" (info (AuthCmd <$> authParser <**> helper) (progDesc "iCloud authentication commands"))
+        <> command "drive" (info (DriveCmd <$> driveParser <**> helper) (progDesc "iCloud Drive commands"))
+    )
 
 
 run :: IO ()
@@ -33,3 +37,4 @@ run = execParser cliParser >>= dispatch
 
 dispatch :: TopCommand -> IO ()
 dispatch (AuthCmd cmd) = runAuth cmd
+dispatch (DriveCmd cmd) = runDrive cmd

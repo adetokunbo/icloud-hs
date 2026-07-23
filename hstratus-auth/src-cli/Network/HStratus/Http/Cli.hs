@@ -55,6 +55,7 @@ data CommonOpts = CommonOpts
   , optRedact :: Bool
   -- ^ Redact sensitive headers (tokens, cookies) in the log.
   }
+  deriving (Eq, Show)
 
 
 -- | Parser for 'CommonOpts'.
