@@ -52,10 +52,29 @@ spec = describe "drive parser" $ do
 
   it "parses drive cp PATH --root DIR" $ do
     case parseCmd ["drive", "cp", "Documents/Work/report.pdf", "--root", "/tmp/dl"] of
-      Right (DriveCmd (DriveCp opts)) -> cpRoot opts `shouldBe` Just "/tmp/dl"
+      Right (DriveCmd (DriveCp opts)) -> do
+        cpSrcPath opts `shouldBe` ["Documents", "Work", "report.pdf"]
+        cpRoot opts `shouldBe` Just "/tmp/dl"
       other -> expectationFailure $ "unexpected result: " <> show other
 
   it "parses drive cp PATH --output FILE" $ do
     case parseCmd ["drive", "cp", "Documents/report.pdf", "--output", "/tmp/report.pdf"] of
-      Right (DriveCmd (DriveCp opts)) -> cpOutput opts `shouldBe` Just "/tmp/report.pdf"
+      Right (DriveCmd (DriveCp opts)) -> do
+        cpSrcPath opts `shouldBe` ["Documents", "report.pdf"]
+        cpOutput opts `shouldBe` Just "/tmp/report.pdf"
+      other -> expectationFailure $ "unexpected result: " <> show other
+
+  it "parses drive cp single-segment PATH" $ do
+    case parseCmd ["drive", "cp", "report.pdf"] of
+      Right (DriveCmd (DriveCp opts)) -> do
+        cpSrcPath opts `shouldBe` ["report.pdf"]
+        cpRoot opts `shouldBe` Nothing
+        cpOutput opts `shouldBe` Nothing
+      other -> expectationFailure $ "unexpected result: " <> show other
+
+  it "parses drive cp PATH --root and --output together (conflict caught at runtime)" $ do
+    case parseCmd ["drive", "cp", "Documents/report.pdf", "--root", "/tmp/dl", "--output", "/tmp/out.pdf"] of
+      Right (DriveCmd (DriveCp opts)) -> do
+        cpRoot opts `shouldBe` Just "/tmp/dl"
+        cpOutput opts `shouldBe` Just "/tmp/out.pdf"
       other -> expectationFailure $ "unexpected result: " <> show other
