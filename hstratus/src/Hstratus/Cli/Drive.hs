@@ -1,12 +1,17 @@
 module Hstratus.Cli.Drive
   ( DriveCommand (..)
   , ListFolderOpts (..)
+  , CpOpts (..)
   , driveParser
   , runDrive
   )
 where
 
+import qualified Data.ByteString.Lazy as LBS
 import Data.List (find)
+import Data.List.NonEmpty (NonEmpty (..))
+import qualified Data.List.NonEmpty as NE
+import Data.Text (Text)
 import qualified Data.Text as Text
 import Network.HStratus.Drive
   ( DriveApi
@@ -14,6 +19,7 @@ import Network.HStratus.Drive
   , DriveNodeId
   , FileData (..)
   , FolderData (..)
+  , downloadFile
   , driveRoot
   , fileName
   , listFolder
@@ -21,17 +27,30 @@ import Network.HStratus.Drive
   )
 import Network.HStratus.Http.Cli (CommonOpts (..), commonOptsParser, runWithApi)
 import Options.Applicative
+import System.Directory (createDirectoryIfMissing, getHomeDirectory)
+import System.Exit (die)
+import System.FilePath (joinPath, takeDirectory, (</>))
 
 
 data DriveCommand
-  = DriveListRoot CommonOpts
-  | DriveListFolder ListFolderOpts
+  = DriveListRoot !CommonOpts
+  | DriveListFolder !ListFolderOpts
+  | DriveCp !CpOpts
   deriving (Eq, Show)
 
 
 data ListFolderOpts = ListFolderOpts
-  { lfPath :: [Text.Text]
-  , lfCommon :: CommonOpts
+  { lfPath :: ![Text]
+  , lfCommon :: !CommonOpts
+  }
+  deriving (Eq, Show)
+
+
+data CpOpts = CpOpts
+  { cpSrcPath :: !(NonEmpty Text)
+  , cpRoot :: !(Maybe FilePath)
+  , cpOutput :: !(Maybe FilePath)
+  , cpCommon :: !CommonOpts
   }
   deriving (Eq, Show)
 
@@ -51,7 +70,29 @@ driveParser =
               (DriveListFolder <$> listFolderOptsParser <**> helper)
               (progDesc "List contents of a folder at a slash-separated path from root")
           )
+        <> command
+          "cp"
+          ( info
+              (DriveCp <$> cpOptsParser <**> helper)
+              (progDesc "Download a file from Drive to the local filesystem")
+          )
     )
+
+
+cpOptsParser :: Parser CpOpts
+cpOptsParser =
+  CpOpts
+    <$> argument
+      ( eitherReader $ \s ->
+          let segs = filter (not . Text.null) (Text.splitOn (Text.pack "/") (Text.pack s))
+           in case NE.nonEmpty segs of
+                Nothing -> Left "PATH must not be empty"
+                Just ne -> Right ne
+      )
+      (metavar "PATH" <> help "Slash-separated path to the file in Drive")
+    <*> optional (strOption (long "root" <> metavar "DIR" <> help "Copy under DIR, mirroring the Drive path"))
+    <*> optional (strOption (long "output" <> metavar "FILE" <> help "Copy to the exact local path FILE"))
+    <*> commonOptsParser
 
 
 listFolderOptsParser :: Parser ListFolderOpts
@@ -66,6 +107,49 @@ listFolderOptsParser =
 runDrive :: DriveCommand -> IO ()
 runDrive (DriveListRoot opts) = runListRoot opts
 runDrive (DriveListFolder opts) = runListFolder opts
+runDrive (DriveCp opts) = runCp opts
+
+
+runCp :: CpOpts -> IO ()
+runCp opts = case (cpRoot opts, cpOutput opts) of
+  (Just _, Just _) ->
+    die "Error: --root and --output cannot both be specified"
+  _otherwise ->
+    withDriveApi (cpCommon opts) $ \da -> do
+      root <- driveRoot da
+      fd <- navigateToFile da (fnId root) (cpSrcPath opts)
+      dest <- resolveLocalDest opts (cpSrcPath opts)
+      createDirectoryIfMissing True (takeDirectory dest)
+      bytes <- downloadFile da fd
+      LBS.writeFile dest bytes
+      putStrLn $ "Downloaded to " <> dest
+
+
+navigateToFile :: DriveApi -> DriveNodeId -> NonEmpty Text -> IO FileData
+navigateToFile da nid (name :| []) = do
+  children <- listFolder da nid
+  case find (matchesName name) children of
+    Just (DriveFile fd) -> pure fd
+    Just (DriveFolder _) -> die $ "Not a file: " <> Text.unpack name
+    Nothing -> die $ "File not found: " <> Text.unpack name
+ where
+  matchesName n (DriveFile fd) = fileName fd == n
+  matchesName n (DriveFolder fd) = fnName fd == n
+navigateToFile da nid (seg :| (s : rest)) = do
+  children <- listFolder da nid
+  case find (matchFolderName seg) children of
+    Nothing -> die $ "Folder not found: " <> Text.unpack seg
+    Just (DriveFile _) -> die $ "Not a folder: " <> Text.unpack seg
+    Just (DriveFolder fd) -> navigateToFile da (fnId fd) (s :| rest)
+
+
+resolveLocalDest :: CpOpts -> NonEmpty Text -> IO FilePath
+resolveLocalDest (CpOpts{cpOutput = Just out}) _ = pure out
+resolveLocalDest (CpOpts{cpRoot = Just root}) segs =
+  pure $ root </> joinPath (map Text.unpack (NE.toList segs))
+resolveLocalDest _ segs = do
+  home <- getHomeDirectory
+  pure $ home </> "icloud-drive" </> joinPath (map Text.unpack (NE.toList segs))
 
 
 runListRoot :: CommonOpts -> IO ()
@@ -85,17 +169,17 @@ runListFolder opts =
     mapM_ printNode nodes
 
 
-navigatePath :: DriveApi -> DriveNodeId -> [Text.Text] -> IO DriveNodeId
+navigatePath :: DriveApi -> DriveNodeId -> [Text] -> IO DriveNodeId
 navigatePath _ nid [] = pure nid
 navigatePath da nid (seg : segs) = do
   children <- listFolder da nid
   case find (matchFolderName seg) children of
-    Nothing -> fail $ "Folder not found: " <> Text.unpack seg
-    Just (DriveFile _) -> fail $ "Not a folder: " <> Text.unpack seg
+    Nothing -> die $ "Folder not found: " <> Text.unpack seg
+    Just (DriveFile _) -> die $ "Not a folder: " <> Text.unpack seg
     Just (DriveFolder fd) -> navigatePath da (fnId fd) segs
 
 
-matchFolderName :: Text.Text -> DriveNode -> Bool
+matchFolderName :: Text -> DriveNode -> Bool
 matchFolderName name (DriveFolder fd) = fnName fd == name
 matchFolderName _ (DriveFile _) = False
 
@@ -114,5 +198,4 @@ printNode (DriveFile fd) =
 withDriveApi :: CommonOpts -> (DriveApi -> IO ()) -> IO ()
 withDriveApi opts runAction =
   runWithApi opts $ \ad sess api -> do
-    da <- mkDriveApi ad sess api
-    runAction da
+    mkDriveApi ad sess api >>= runAction

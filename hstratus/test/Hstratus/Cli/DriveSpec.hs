@@ -2,8 +2,10 @@
 
 module Hstratus.Cli.DriveSpec (spec) where
 
+import Control.Arrow (Arrow (first))
+import Data.List.NonEmpty (NonEmpty (..))
 import Hstratus.Cli (TopCommand (..), cliParser)
-import Hstratus.Cli.Drive (DriveCommand (..), ListFolderOpts (..))
+import Hstratus.Cli.Drive (CpOpts (..), DriveCommand (..), ListFolderOpts (..))
 import Network.HStratus.Http.Cli (CommonOpts (..))
 import Options.Applicative
   ( ParserResult (..)
@@ -12,32 +14,56 @@ import Options.Applicative
   , renderFailure
   )
 import Test.Hspec
+import Test.Hspec.Benri (endsRight)
 
 
-parseCmd :: [String] -> Either String TopCommand
+parseCmd :: [String] -> IO (Either String TopCommand)
 parseCmd args =
-  case execParserPure defaultPrefs cliParser args of
+  pure $ case execParserPure defaultPrefs cliParser args of
     Success cmd -> Right cmd
     Failure failure -> Left (fst (renderFailure failure "test"))
     CompletionInvoked _ -> Left "completion invoked"
 
 
+defaultOpts :: CommonOpts
+defaultOpts = CommonOpts False False Nothing False False
+
+
 spec :: Spec
 spec = describe "drive parser" $ do
-  it "parses drive list-root" $ do
-    case parseCmd ["drive", "list-root"] of
-      Right (DriveCmd (DriveListRoot _)) -> pure ()
-      other -> expectationFailure $ "unexpected result: " <> show other
+  it "parses drive list-root" $
+    parseCmd ["drive", "list-root"]
+      `endsRight` DriveCmd (DriveListRoot defaultOpts)
 
-  it "parses drive list-folder PATH" $ do
-    case parseCmd ["drive", "list-folder", "Documents/Work"] of
-      Right (DriveCmd (DriveListFolder opts)) ->
-        lfPath opts `shouldBe` ["Documents", "Work"]
-      other -> expectationFailure $ "unexpected result: " <> show other
+  it "parses drive list-folder PATH" $
+    parseCmd ["drive", "list-folder", "Documents/Work"]
+      `endsRight` DriveCmd (DriveListFolder (ListFolderOpts ["Documents", "Work"] defaultOpts))
 
-  it "parses drive list-root --china --log" $ do
-    case parseCmd ["drive", "list-root", "--china", "--log"] of
-      Right (DriveCmd (DriveListRoot opts)) -> do
-        optChina opts `shouldBe` True
-        optLog opts `shouldBe` True
-      other -> expectationFailure $ "unexpected result: " <> show other
+  it "parses drive list-root --china --log" $
+    parseCmd ["drive", "list-root", "--china", "--log"]
+      `endsRight` DriveCmd (DriveListRoot defaultOpts{optChina = True, optLog = True})
+
+  it "parses drive cp PATH with no dest option" $
+    parseCmd ["drive", "cp", "Documents/report.pdf"]
+      `endsRight` DriveCmd
+        (DriveCp (CpOpts ("Documents" :| ["report.pdf"]) Nothing Nothing defaultOpts))
+
+  it "parses drive cp PATH --root DIR" $
+    parseCmd ["drive", "cp", "Documents/Work/report.pdf", "--root", "/tmp/dl"]
+      `endsRight` DriveCmd
+        (DriveCp (CpOpts ("Documents" :| ["Work", "report.pdf"]) (Just "/tmp/dl") Nothing defaultOpts))
+
+  it "parses drive cp PATH --output FILE" $
+    parseCmd ["drive", "cp", "Documents/report.pdf", "--output", "/tmp/report.pdf"]
+      `endsRight` DriveCmd
+        (DriveCp (CpOpts ("Documents" :| ["report.pdf"]) Nothing (Just "/tmp/report.pdf") defaultOpts))
+
+  it "parses drive cp single-segment PATH" $
+    parseCmd ["drive", "cp", "report.pdf"]
+      `endsRight` DriveCmd
+        (DriveCp (CpOpts ("report.pdf" :| []) Nothing Nothing defaultOpts))
+
+  it "parses drive cp PATH --root and --output together (conflict caught at runtime)" $
+    parseCmd ["drive", "cp", "Documents/report.pdf", "--root", "/tmp/dl", "--output", "/tmp/out.pdf"]
+      `endsRight` DriveCmd
+        (DriveCp (CpOpts ("Documents" :| ["report.pdf"]) (Just "/tmp/dl") (Just "/tmp/out.pdf") defaultOpts))
