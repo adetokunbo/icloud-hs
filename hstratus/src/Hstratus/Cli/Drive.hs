@@ -11,6 +11,7 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.List (find)
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NE
+import Data.Text (Text)
 import qualified Data.Text as Text
 import Network.HStratus.Drive
   ( DriveApi
@@ -32,24 +33,24 @@ import System.FilePath (joinPath, takeDirectory, (</>))
 
 
 data DriveCommand
-  = DriveListRoot CommonOpts
-  | DriveListFolder ListFolderOpts
-  | DriveCp CpOpts
+  = DriveListRoot !CommonOpts
+  | DriveListFolder !ListFolderOpts
+  | DriveCp !CpOpts
   deriving (Eq, Show)
 
 
 data ListFolderOpts = ListFolderOpts
-  { lfPath :: [Text.Text]
-  , lfCommon :: CommonOpts
+  { lfPath :: ![Text]
+  , lfCommon :: !CommonOpts
   }
   deriving (Eq, Show)
 
 
 data CpOpts = CpOpts
-  { cpSrcPath :: NonEmpty Text.Text
-  , cpRoot :: Maybe FilePath
-  , cpOutput :: Maybe FilePath
-  , cpCommon :: CommonOpts
+  { cpSrcPath :: !(NonEmpty Text)
+  , cpRoot :: !(Maybe FilePath)
+  , cpOutput :: !(Maybe FilePath)
+  , cpCommon :: !CommonOpts
   }
   deriving (Eq, Show)
 
@@ -113,7 +114,7 @@ runCp :: CpOpts -> IO ()
 runCp opts = case (cpRoot opts, cpOutput opts) of
   (Just _, Just _) ->
     die "Error: --root and --output cannot both be specified"
-  _ ->
+  _otherwise ->
     withDriveApi (cpCommon opts) $ \da -> do
       root <- driveRoot da
       fd <- navigateToFile da (fnId root) (cpSrcPath opts)
@@ -124,7 +125,7 @@ runCp opts = case (cpRoot opts, cpOutput opts) of
       putStrLn $ "Downloaded to " <> dest
 
 
-navigateToFile :: DriveApi -> DriveNodeId -> NonEmpty Text.Text -> IO FileData
+navigateToFile :: DriveApi -> DriveNodeId -> NonEmpty Text -> IO FileData
 navigateToFile da nid (name :| []) = do
   children <- listFolder da nid
   case find (matchesName name) children of
@@ -142,7 +143,7 @@ navigateToFile da nid (seg :| (s : rest)) = do
     Just (DriveFolder fd) -> navigateToFile da (fnId fd) (s :| rest)
 
 
-resolveLocalDest :: CpOpts -> NonEmpty Text.Text -> IO FilePath
+resolveLocalDest :: CpOpts -> NonEmpty Text -> IO FilePath
 resolveLocalDest (CpOpts{cpOutput = Just out}) _ = pure out
 resolveLocalDest (CpOpts{cpRoot = Just root}) segs =
   pure $ root </> joinPath (map Text.unpack (NE.toList segs))
@@ -168,7 +169,7 @@ runListFolder opts =
     mapM_ printNode nodes
 
 
-navigatePath :: DriveApi -> DriveNodeId -> [Text.Text] -> IO DriveNodeId
+navigatePath :: DriveApi -> DriveNodeId -> [Text] -> IO DriveNodeId
 navigatePath _ nid [] = pure nid
 navigatePath da nid (seg : segs) = do
   children <- listFolder da nid
@@ -178,7 +179,7 @@ navigatePath da nid (seg : segs) = do
     Just (DriveFolder fd) -> navigatePath da (fnId fd) segs
 
 
-matchFolderName :: Text.Text -> DriveNode -> Bool
+matchFolderName :: Text -> DriveNode -> Bool
 matchFolderName name (DriveFolder fd) = fnName fd == name
 matchFolderName _ (DriveFile _) = False
 
@@ -197,5 +198,4 @@ printNode (DriveFile fd) =
 withDriveApi :: CommonOpts -> (DriveApi -> IO ()) -> IO ()
 withDriveApi opts runAction =
   runWithApi opts $ \ad sess api -> do
-    da <- mkDriveApi ad sess api
-    runAction da
+    mkDriveApi ad sess api >>= runAction
