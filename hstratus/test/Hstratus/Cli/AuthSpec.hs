@@ -9,32 +9,35 @@ import Options.Applicative
   , renderFailure
   )
 import Test.Hspec
+import Test.Hspec.Benri (endsRight)
 
 
-parseCmd :: [String] -> Either String TopCommand
+parseCmd :: [String] -> IO (Either String TopCommand)
 parseCmd args =
-  case execParserPure defaultPrefs cliParser args of
+  pure $ case execParserPure defaultPrefs cliParser args of
     Success cmd -> Right cmd
     Failure failure -> Left (fst (renderFailure failure "test"))
     CompletionInvoked _ -> Left "completion invoked"
 
 
+defaultLoginOpts :: LoginOpts
+defaultLoginOpts = LoginOpts False False Nothing False
+
+
 spec :: Spec
 spec = describe "auth parser" $ do
   it "parses auth init" $
-    parseCmd ["auth", "init"] `shouldBe` Right (AuthCmd AuthInit)
+    parseCmd ["auth", "init"]
+      `endsRight` AuthCmd AuthInit
 
-  it "parses auth login --china" $ do
-    case parseCmd ["auth", "login", "--china"] of
-      Right (AuthCmd (AuthLogin opts)) -> loginChina opts `shouldBe` True
-      other -> expectationFailure $ "unexpected result: " <> show other
+  it "parses auth login --china" $
+    parseCmd ["auth", "login", "--china"]
+      `endsRight` AuthCmd (AuthLogin defaultLoginOpts{loginChina = True})
 
-  it "parses auth login --log-file FILE" $ do
-    case parseCmd ["auth", "login", "--log-file", "/tmp/x"] of
-      Right (AuthCmd (AuthLogin opts)) -> loginLogFile opts `shouldBe` Just "/tmp/x"
-      other -> expectationFailure $ "unexpected result: " <> show other
+  it "parses auth login --log-file FILE" $
+    parseCmd ["auth", "login", "--log-file", "/tmp/x"]
+      `endsRight` AuthCmd (AuthLogin defaultLoginOpts{loginLogFile = Just "/tmp/x"})
 
-  it "parses auth login --redact" $ do
-    case parseCmd ["auth", "login", "--redact"] of
-      Right (AuthCmd (AuthLogin opts)) -> loginRedact opts `shouldBe` True
-      other -> expectationFailure $ "unexpected result: " <> show other
+  it "parses auth login --redact" $
+    parseCmd ["auth", "login", "--redact"]
+      `endsRight` AuthCmd (AuthLogin defaultLoginOpts{loginRedact = True})
