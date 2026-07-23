@@ -22,57 +22,9 @@ at the time of writing).  When it does, authenticate again to refresh it.
 
 ## Command-line tool
 
-```
-Usage: hstratus-auth COMMAND
-
-  hstratus-auth: iCloud authentication tool
-
-Available options:
-  -h,--help                Show this help text
-
-Available commands:
-  init                     Save Apple ID credentials to the config directory
-  login                    Authenticate with iCloud
-```
-
-### Saving credentials
-
-Run `hstratus-auth init` once to save your Apple ID and password to
-`$XDG_CONFIG_HOME/hstratus-auth/credentials.json`:
-
-```
-$ hstratus-auth init
-Apple ID: your-apple-id@example.com
-Password:
-Credentials saved.
-```
-
-### Authenticating
-
-```
-Usage: hstratus-auth login [--china] [--log] [--log-file FILE] [--redact]
-
-  Authenticate with iCloud
-
-Available options:
-  --china                  Use mainland China endpoints
-  --log                    Append HTTP exchanges to the default log file
-  --log-file FILE          Append HTTP exchanges to FILE
-  --redact                 Redact sensitive headers (tokens, cookies) in the log
-  -h,--help                Show this help text
-```
-
-Run `hstratus-auth login` to authenticate using the saved credentials.  The full
-sign-in flow runs interactively, prompting for a 2FA or 2SA verification code
-when required:
-
-```
-$ hstratus-auth login
-Authenticated.
-```
-
-Use `--log` / `--log-file FILE` to record the HTTP exchange.  Add `--redact` to
-scrub tokens and cookies from the log before writing.
+The command-line interface is provided by the [`hstratus`](../hstratus/#readme)
+package.  Use `hstratus auth init` and `hstratus auth login` to save credentials
+and authenticate.
 
 
 ## Using the library
