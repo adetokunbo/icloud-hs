@@ -3,7 +3,7 @@
 module Hstratus.Cli.DriveSpec (spec) where
 
 import Hstratus.Cli (TopCommand (..), cliParser)
-import Hstratus.Cli.Drive (DriveCommand (..), ListFolderOpts (..))
+import Hstratus.Cli.Drive (CpOpts (..), DriveCommand (..), ListFolderOpts (..))
 import Network.HStratus.Http.Cli (CommonOpts (..))
 import Options.Applicative
   ( ParserResult (..)
@@ -40,4 +40,22 @@ spec = describe "drive parser" $ do
       Right (DriveCmd (DriveListRoot opts)) -> do
         optChina opts `shouldBe` True
         optLog opts `shouldBe` True
+      other -> expectationFailure $ "unexpected result: " <> show other
+
+  it "parses drive cp PATH with no dest option" $ do
+    case parseCmd ["drive", "cp", "Documents/report.pdf"] of
+      Right (DriveCmd (DriveCp opts)) -> do
+        cpSrcPath opts `shouldBe` ["Documents", "report.pdf"]
+        cpRoot opts `shouldBe` Nothing
+        cpOutput opts `shouldBe` Nothing
+      other -> expectationFailure $ "unexpected result: " <> show other
+
+  it "parses drive cp PATH --root DIR" $ do
+    case parseCmd ["drive", "cp", "Documents/Work/report.pdf", "--root", "/tmp/dl"] of
+      Right (DriveCmd (DriveCp opts)) -> cpRoot opts `shouldBe` Just "/tmp/dl"
+      other -> expectationFailure $ "unexpected result: " <> show other
+
+  it "parses drive cp PATH --output FILE" $ do
+    case parseCmd ["drive", "cp", "Documents/report.pdf", "--output", "/tmp/report.pdf"] of
+      Right (DriveCmd (DriveCp opts)) -> cpOutput opts `shouldBe` Just "/tmp/report.pdf"
       other -> expectationFailure $ "unexpected result: " <> show other

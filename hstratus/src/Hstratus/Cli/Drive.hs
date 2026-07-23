@@ -1,6 +1,7 @@
 module Hstratus.Cli.Drive
   ( DriveCommand (..)
   , ListFolderOpts (..)
+  , CpOpts (..)
   , driveParser
   , runDrive
   )
@@ -21,17 +22,28 @@ import Network.HStratus.Drive
   )
 import Network.HStratus.Http.Cli (CommonOpts (..), commonOptsParser, runWithApi)
 import Options.Applicative
+import System.Exit (exitFailure)
 
 
 data DriveCommand
   = DriveListRoot CommonOpts
   | DriveListFolder ListFolderOpts
+  | DriveCp CpOpts
   deriving (Eq, Show)
 
 
 data ListFolderOpts = ListFolderOpts
   { lfPath :: [Text.Text]
   , lfCommon :: CommonOpts
+  }
+  deriving (Eq, Show)
+
+
+data CpOpts = CpOpts
+  { cpSrcPath :: [Text.Text]
+  , cpRoot :: Maybe FilePath
+  , cpOutput :: Maybe FilePath
+  , cpCommon :: CommonOpts
   }
   deriving (Eq, Show)
 
@@ -51,7 +63,24 @@ driveParser =
               (DriveListFolder <$> listFolderOptsParser <**> helper)
               (progDesc "List contents of a folder at a slash-separated path from root")
           )
+        <> command
+          "cp"
+          ( info
+              (DriveCp <$> cpOptsParser <**> helper)
+              (progDesc "Download a file from Drive to the local filesystem")
+          )
     )
+
+
+cpOptsParser :: Parser CpOpts
+cpOptsParser =
+  CpOpts
+    <$> fmap
+      (filter (not . Text.null) . Text.splitOn (Text.pack "/") . Text.pack)
+      (argument str (metavar "PATH" <> help "Slash-separated path to the file in Drive"))
+    <*> optional (strOption (long "root" <> metavar "DIR" <> help "Copy under DIR, mirroring the Drive path"))
+    <*> optional (strOption (long "output" <> metavar "FILE" <> help "Copy to the exact local path FILE"))
+    <*> commonOptsParser
 
 
 listFolderOptsParser :: Parser ListFolderOpts
@@ -66,6 +95,11 @@ listFolderOptsParser =
 runDrive :: DriveCommand -> IO ()
 runDrive (DriveListRoot opts) = runListRoot opts
 runDrive (DriveListFolder opts) = runListFolder opts
+runDrive (DriveCp opts) = runCp opts
+
+
+runCp :: CpOpts -> IO ()
+runCp _ = putStrLn "drive cp: not yet implemented" >> exitFailure
 
 
 runListRoot :: CommonOpts -> IO ()
