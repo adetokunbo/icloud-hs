@@ -71,3 +71,4 @@ test-suite test
     , hstratus
     , hstratus-auth:hstratus-auth-cli
     , optparse-applicative >=0.18 && <0.19
+    , text                 >=1.2.3 && <2.2

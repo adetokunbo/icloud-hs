@@ -2,6 +2,7 @@
 
 module Hstratus.Cli.DriveSpec (spec) where
 
+import Data.List.NonEmpty (NonEmpty (..))
 import Hstratus.Cli (TopCommand (..), cliParser)
 import Hstratus.Cli.Drive (CpOpts (..), DriveCommand (..), ListFolderOpts (..))
 import Network.HStratus.Http.Cli (CommonOpts (..))
@@ -45,7 +46,7 @@ spec = describe "drive parser" $ do
   it "parses drive cp PATH with no dest option" $ do
     case parseCmd ["drive", "cp", "Documents/report.pdf"] of
       Right (DriveCmd (DriveCp opts)) -> do
-        cpSrcPath opts `shouldBe` ["Documents", "report.pdf"]
+        cpSrcPath opts `shouldBe` ("Documents" :| ["report.pdf"])
         cpRoot opts `shouldBe` Nothing
         cpOutput opts `shouldBe` Nothing
       other -> expectationFailure $ "unexpected result: " <> show other
@@ -53,21 +54,21 @@ spec = describe "drive parser" $ do
   it "parses drive cp PATH --root DIR" $ do
     case parseCmd ["drive", "cp", "Documents/Work/report.pdf", "--root", "/tmp/dl"] of
       Right (DriveCmd (DriveCp opts)) -> do
-        cpSrcPath opts `shouldBe` ["Documents", "Work", "report.pdf"]
+        cpSrcPath opts `shouldBe` ("Documents" :| ["Work", "report.pdf"])
         cpRoot opts `shouldBe` Just "/tmp/dl"
       other -> expectationFailure $ "unexpected result: " <> show other
 
   it "parses drive cp PATH --output FILE" $ do
     case parseCmd ["drive", "cp", "Documents/report.pdf", "--output", "/tmp/report.pdf"] of
       Right (DriveCmd (DriveCp opts)) -> do
-        cpSrcPath opts `shouldBe` ["Documents", "report.pdf"]
+        cpSrcPath opts `shouldBe` ("Documents" :| ["report.pdf"])
         cpOutput opts `shouldBe` Just "/tmp/report.pdf"
       other -> expectationFailure $ "unexpected result: " <> show other
 
   it "parses drive cp single-segment PATH" $ do
     case parseCmd ["drive", "cp", "report.pdf"] of
       Right (DriveCmd (DriveCp opts)) -> do
-        cpSrcPath opts `shouldBe` ["report.pdf"]
+        cpSrcPath opts `shouldBe` ("report.pdf" :| [])
         cpRoot opts `shouldBe` Nothing
         cpOutput opts `shouldBe` Nothing
       other -> expectationFailure $ "unexpected result: " <> show other

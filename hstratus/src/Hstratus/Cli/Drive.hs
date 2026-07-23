@@ -9,6 +9,8 @@ where
 
 import qualified Data.ByteString.Lazy as LBS
 import Data.List (find)
+import Data.List.NonEmpty (NonEmpty (..))
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Text as Text
 import Network.HStratus.Drive
   ( DriveApi
@@ -44,7 +46,7 @@ data ListFolderOpts = ListFolderOpts
 
 
 data CpOpts = CpOpts
-  { cpSrcPath :: [Text.Text]
+  { cpSrcPath :: NonEmpty Text.Text
   , cpRoot :: Maybe FilePath
   , cpOutput :: Maybe FilePath
   , cpCommon :: CommonOpts
@@ -79,9 +81,14 @@ driveParser =
 cpOptsParser :: Parser CpOpts
 cpOptsParser =
   CpOpts
-    <$> fmap
-      (filter (not . Text.null) . Text.splitOn (Text.pack "/") . Text.pack)
-      (argument str (metavar "PATH" <> help "Slash-separated path to the file in Drive"))
+    <$> argument
+      ( eitherReader $ \s ->
+          let segs = filter (not . Text.null) (Text.splitOn (Text.pack "/") (Text.pack s))
+           in case NE.nonEmpty segs of
+                Nothing -> Left "PATH must not be empty"
+                Just ne -> Right ne
+      )
+      (metavar "PATH" <> help "Slash-separated path to the file in Drive")
     <*> optional (strOption (long "root" <> metavar "DIR" <> help "Copy under DIR, mirroring the Drive path"))
     <*> optional (strOption (long "output" <> metavar "FILE" <> help "Copy to the exact local path FILE"))
     <*> commonOptsParser
@@ -117,9 +124,8 @@ runCp opts = case (cpRoot opts, cpOutput opts) of
       putStrLn $ "Downloaded to " <> dest
 
 
-navigateToFile :: DriveApi -> DriveNodeId -> [Text.Text] -> IO FileData
-navigateToFile _ _ [] = die "cp: PATH must not be empty"
-navigateToFile da nid [name] = do
+navigateToFile :: DriveApi -> DriveNodeId -> NonEmpty Text.Text -> IO FileData
+navigateToFile da nid (name :| []) = do
   children <- listFolder da nid
   case find (matchesName name) children of
     Just (DriveFile fd) -> pure fd
@@ -128,21 +134,21 @@ navigateToFile da nid [name] = do
  where
   matchesName n (DriveFile fd) = fileName fd == n
   matchesName n (DriveFolder fd) = fnName fd == n
-navigateToFile da nid (seg : segs) = do
+navigateToFile da nid (seg :| (s : rest)) = do
   children <- listFolder da nid
   case find (matchFolderName seg) children of
     Nothing -> die $ "Folder not found: " <> Text.unpack seg
     Just (DriveFile _) -> die $ "Not a folder: " <> Text.unpack seg
-    Just (DriveFolder fd) -> navigateToFile da (fnId fd) segs
+    Just (DriveFolder fd) -> navigateToFile da (fnId fd) (s :| rest)
 
 
-resolveLocalDest :: CpOpts -> [Text.Text] -> IO FilePath
+resolveLocalDest :: CpOpts -> NonEmpty Text.Text -> IO FilePath
 resolveLocalDest (CpOpts{cpOutput = Just out}) _ = pure out
 resolveLocalDest (CpOpts{cpRoot = Just root}) segs =
-  pure $ root </> joinPath (map Text.unpack segs)
+  pure $ root </> joinPath (map Text.unpack (NE.toList segs))
 resolveLocalDest _ segs = do
   home <- getHomeDirectory
-  pure $ home </> "icloud-drive" </> joinPath (map Text.unpack segs)
+  pure $ home </> "icloud-drive" </> joinPath (map Text.unpack (NE.toList segs))
 
 
 runListRoot :: CommonOpts -> IO ()
