@@ -7,6 +7,7 @@ module Hstratus.Cli.Drive
   )
 where
 
+import qualified Data.ByteString.Lazy as LBS
 import Data.List (find)
 import qualified Data.Text as Text
 import Network.HStratus.Drive
@@ -15,6 +16,7 @@ import Network.HStratus.Drive
   , DriveNodeId
   , FileData (..)
   , FolderData (..)
+  , downloadFile
   , driveRoot
   , fileName
   , listFolder
@@ -22,7 +24,9 @@ import Network.HStratus.Drive
   )
 import Network.HStratus.Http.Cli (CommonOpts (..), commonOptsParser, runWithApi)
 import Options.Applicative
+import System.Directory (createDirectoryIfMissing, getHomeDirectory)
 import System.Exit (exitFailure)
+import System.FilePath (joinPath, takeDirectory, (</>))
 
 
 data DriveCommand
@@ -99,7 +103,46 @@ runDrive (DriveCp opts) = runCp opts
 
 
 runCp :: CpOpts -> IO ()
-runCp _ = putStrLn "drive cp: not yet implemented" >> exitFailure
+runCp opts = case (cpRoot opts, cpOutput opts) of
+  (Just _, Just _) ->
+    putStrLn "Error: --root and --output cannot both be specified" >> exitFailure
+  _ ->
+    withDriveApi (cpCommon opts) $ \da -> do
+      root <- driveRoot da
+      fd <- navigateToFile da (fnId root) (cpSrcPath opts)
+      dest <- resolveLocalDest opts (cpSrcPath opts)
+      createDirectoryIfMissing True (takeDirectory dest)
+      bytes <- downloadFile da fd
+      LBS.writeFile dest bytes
+      putStrLn $ "Downloaded to " <> dest
+
+
+navigateToFile :: DriveApi -> DriveNodeId -> [Text.Text] -> IO FileData
+navigateToFile _ _ [] = fail "cp: PATH must not be empty"
+navigateToFile da nid [name] = do
+  children <- listFolder da nid
+  case find (matchesName name) children of
+    Just (DriveFile fd) -> pure fd
+    Just (DriveFolder _) -> fail $ "Not a file: " <> Text.unpack name
+    Nothing -> fail $ "File not found: " <> Text.unpack name
+ where
+  matchesName n (DriveFile fd) = fileName fd == n
+  matchesName n (DriveFolder fd) = fnName fd == n
+navigateToFile da nid (seg : segs) = do
+  children <- listFolder da nid
+  case find (matchFolderName seg) children of
+    Nothing -> fail $ "Folder not found: " <> Text.unpack seg
+    Just (DriveFile _) -> fail $ "Not a folder: " <> Text.unpack seg
+    Just (DriveFolder fd) -> navigateToFile da (fnId fd) segs
+
+
+resolveLocalDest :: CpOpts -> [Text.Text] -> IO FilePath
+resolveLocalDest (CpOpts{cpOutput = Just out}) _ = pure out
+resolveLocalDest (CpOpts{cpRoot = Just root}) segs =
+  pure $ root </> joinPath (map Text.unpack segs)
+resolveLocalDest _ segs = do
+  home <- getHomeDirectory
+  pure $ home </> "icloud-drive" </> joinPath (map Text.unpack segs)
 
 
 runListRoot :: CommonOpts -> IO ()
