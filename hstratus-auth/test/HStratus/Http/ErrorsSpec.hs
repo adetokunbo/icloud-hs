@@ -21,6 +21,7 @@ import Network.HStratus.Internal.HttpErrors
   , extractOr
   )
 import Test.Hspec (Spec, context, describe, it, shouldBe, shouldReturn)
+import Test.Hspec.Benri (endsLeft, endsRight)
 import Test.QuickCheck
   ( Gen
   , Property
@@ -91,20 +92,20 @@ authErrorSpec :: Spec
 authErrorSpec = describe "AuthError" $ do
   context "is catchable with try @AuthError" $ do
     it "catches InvalidCredentials" $
-      catchAuthError InvalidCredentials `shouldReturn` Left InvalidCredentials
+      catchAuthError InvalidCredentials `endsLeft` InvalidCredentials
     it "catches AccountLocked" $
-      catchAuthError AccountLocked `shouldReturn` Left AccountLocked
+      catchAuthError AccountLocked `endsLeft` AccountLocked
     it "catches PrivacyAgreementRequired" $
-      catchAuthError PrivacyAgreementRequired `shouldReturn` Left PrivacyAgreementRequired
+      catchAuthError PrivacyAgreementRequired `endsLeft` PrivacyAgreementRequired
     it "catches ServiceError" $
-      catchAuthError (ServiceError "reason" (Just "code")) `shouldReturn` Left (ServiceError "reason" (Just "code"))
+      catchAuthError (ServiceError "reason" (Just "code")) `endsLeft` ServiceError "reason" (Just "code")
     it "catches UnexpectedResponse" $
-      catchAuthError (UnexpectedResponse "oops") `shouldReturn` Left (UnexpectedResponse "oops")
+      catchAuthError (UnexpectedResponse "oops") `endsLeft` UnexpectedResponse "oops"
 
   context "extractOr on a Failed ApiResponse" $ do
     it "throws ServiceError with the ApiError reason and code" $
       catchAuthError' (extractOr (Failed (ApiError "bad" (Just "E1"))))
-        `shouldReturn` Right (ServiceError "bad" (Just "E1"))
+        `endsRight` ServiceError "bad" (Just "E1")
 
   context "extractOr on a Succeeded ApiResponse" $ do
     it "returns the wrapped value" $

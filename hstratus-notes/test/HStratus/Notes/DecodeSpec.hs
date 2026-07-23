@@ -7,21 +7,18 @@ import Data.ByteString (ByteString)
 import Network.HStratus.Internal.Notes.Decode (decodeNoteBody)
 import Network.HStratus.Internal.Notes.Note (NoteText (..))
 import Test.Hspec
+import Test.Hspec.Benri (endsLeft_, endsRight)
 
 
 spec :: Spec
 spec = describe "decodeNoteBody" $ do
   it "decodes a gzip-compressed protobuf note and extracts the text" $
-    case decodeNoteBody fixtureBytes of
-      Left err -> expectationFailure err
-      Right NoteText{ntText, ntRuns} -> do
-        ntText `shouldBe` "Step 6b test"
-        ntRuns `shouldBe` []
+    pure (decodeNoteBody fixtureBytes)
+      `endsRight` NoteText{ntText = "Step 6b test", ntRuns = []}
 
   it "returns Left for bytes that are valid gzip but empty protobuf" $
-    case decodeNoteBody emptyNoteBytes of
-      Left _ -> pure ()
-      Right _ -> expectationFailure "expected Left for missing note field"
+    endsLeft_ $
+      pure (decodeNoteBody emptyNoteBytes)
 
 
 -- gzip( NoteStoreProto { document=2: Document { note=3: Note { note_text=2: "Step 6b test" } } } )

@@ -26,6 +26,7 @@ import Network.Wai (Application, rawPathInfo, responseLBS)
 import Network.Wai.Handler.Warp (testWithApplication)
 import System.IO.Temp (withSystemTempDirectory)
 import Test.Hspec
+import Test.Hspec.Benri (endsNothing)
 
 
 spec :: Spec
@@ -62,9 +63,8 @@ spec = describe "Network.HStratus.Notes" $ do
           Nothing -> expectationFailure "expected Just Note"
           Just n -> noteBodyBytes n `shouldBe` "synthetic note body"
     it "returns Nothing for a tombstone record" $
-      withNotesMock tombstoneLookupJson "/records/lookup" $ \ep api -> do
-        result <- fetchNote api ep (NoteId "Note/NOTE-DELETED-FIXTURE")
-        result `shouldBe` Nothing
+      withNotesMock tombstoneLookupJson "/records/lookup" $ \ep api ->
+        endsNothing $ fetchNote api ep (NoteId "Note/NOTE-DELETED-FIXTURE")
 
   describe "fetchNotesInFolder" $ do
     it "returns only notes in the given folder, excluding other folders and deleted notes" $

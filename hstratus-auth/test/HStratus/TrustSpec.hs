@@ -28,6 +28,7 @@ import Test.Hspec
   , shouldBe
   , shouldReturn
   )
+import Test.Hspec.Benri (endsJust, endsNothing, endsRight)
 import Test.Main (withStdin)
 import Test.QuickCheck
   ( Arbitrary (arbitrary)
@@ -50,8 +51,8 @@ spec = describe "module Network.HStratus.Trust" $ do
       it "should succeed" prop_jsonRoundtripTrustData
     context "parsing a hand-crafted Apple-shaped fixture" $ do
       it "should succeed" $ do
-        result <- eitherDecodeFileStrict =<< getDataFileName "testdata/trust_data_test.json"
-        result `shouldBe` Right expectedTrustData
+        fp <- getDataFileName "testdata/trust_data_test.json"
+        eitherDecodeFileStrict fp `endsRight` expectedTrustData
   describe "CodeStatus JSON field names" $ do
     it "uses the server field names" $
       jsonKeysOf (CodeStatus 6 False False False False)
@@ -110,30 +111,30 @@ spec = describe "module Network.HStratus.Trust" $ do
     context "when noTrustedDevices is True" $ do
       it "returns the first phone without prompting" $
         silence (selectTwoFaPhone (mkTrustData True [twoFaPhone1, twoFaPhone2]))
-          `shouldReturn` Just twoFaPhone1
+          `endsJust` twoFaPhone1
       it "returns Nothing when the phone list is empty" $
-        silence (selectTwoFaPhone (mkTrustData True []))
-          `shouldReturn` Nothing
+        endsNothing $
+          silence (selectTwoFaPhone (mkTrustData True []))
     context "when noTrustedDevices is False" $ do
       context "and the phone list is empty" $ do
         it "returns Nothing without prompting" $
-          silence (selectTwoFaPhone (mkTrustData False []))
-            `shouldReturn` Nothing
+          endsNothing $
+            silence (selectTwoFaPhone (mkTrustData False []))
       context "and the user presses Enter" $ do
         it "returns Nothing" $
           withStdin "\n" $
-            silence (selectTwoFaPhone (mkTrustData False [twoFaPhone1]))
-              `shouldReturn` Nothing
+            endsNothing $
+              silence (selectTwoFaPhone (mkTrustData False [twoFaPhone1]))
       context "and the user enters a valid index" $ do
         it "returns the selected phone" $
           withStdin "2" $
             silence (selectTwoFaPhone (mkTrustData False [twoFaPhone1, twoFaPhone2]))
-              `shouldReturn` Just twoFaPhone2
+              `endsJust` twoFaPhone2
       context "and the user first enters an invalid index" $ do
         it "retries and returns the selected phone" $
           withStdin (toS ("99\n1" :: String)) $
             silence (selectTwoFaPhone (mkTrustData False [twoFaPhone1, twoFaPhone2]))
-              `shouldReturn` Just twoFaPhone1
+              `endsJust` twoFaPhone1
 
 
 prop_jsonRoundtripTrustData :: Property
