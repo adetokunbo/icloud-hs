@@ -1,4 +1,10 @@
-module Main where
+module Hstratus.Cli.Notes
+  ( NotesCommand (..)
+  , ListNotesOpts (..)
+  , notesParser
+  , runNotes
+  )
+where
 
 import Control.Exception (Exception, catch, displayException)
 import Data.List (find)
@@ -10,31 +16,33 @@ import Options.Applicative
 import System.Exit (exitFailure)
 
 
-data Command
-  = ListFolders CommonOpts
-  | ListNotes ListNotesOpts
+data NotesCommand
+  = NotesListFolders CommonOpts
+  | NotesListNotes ListNotesOpts
+  deriving (Eq, Show)
 
 
 data ListNotesOpts = ListNotesOpts
   { lnFolder :: Maybe Text.Text
   , lnCommon :: CommonOpts
   }
+  deriving (Eq, Show)
 
 
-commandParser :: Parser Command
-commandParser =
+notesParser :: Parser NotesCommand
+notesParser =
   subparser
     ( command
         "list-note-folders"
         ( info
-            (ListFolders <$> commonOptsParser <**> helper)
+            (NotesListFolders <$> commonOptsParser <**> helper)
             (progDesc "List all iCloud Notes folders")
         )
         <> command
           "list-notes"
           ( info
-              (ListNotes <$> listNotesOptsParser <**> helper)
-              (progDesc "List notes, optionally filtered by folder ID")
+              (NotesListNotes <$> listNotesOptsParser <**> helper)
+              (progDesc "List notes, optionally filtered by folder name")
           )
     )
 
@@ -53,19 +61,9 @@ listNotesOptsParser =
     <*> commonOptsParser
 
 
-cliParser :: ParserInfo Command
-cliParser =
-  info
-    (commandParser <**> helper)
-    (fullDesc <> progDesc "hstratus-notes: iCloud Notes access tool")
-
-
-main :: IO ()
-main = do
-  cmd <- execParser cliParser
-  case cmd of
-    ListFolders opts -> runListFolders opts
-    ListNotes opts -> runListNotes opts
+runNotes :: NotesCommand -> IO ()
+runNotes (NotesListFolders opts) = runListFolders opts
+runNotes (NotesListNotes opts) = runListNotes opts
 
 
 runListFolders :: CommonOpts -> IO ()

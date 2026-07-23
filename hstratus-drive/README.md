@@ -16,77 +16,9 @@ rename, delete, upload).
 
 ## Command-line tool
 
-Run `hstratus-auth init` then `hstratus-auth login` first to store and authenticate
-your credentials.
-
-```
-Usage: hstratus-drive COMMAND
-
-  hstratus-drive: iCloud Drive access tool
-
-Available options:
-  -h,--help                Show this help text
-
-Available commands:
-  list-root                List immediate children of the top-level iCloud Drive
-                           folder
-  list-folder              List contents of a folder at a slash-separated path
-                           from root
-```
-
-### `hstratus-drive list-root`
-
-Lists the immediate children of the top-level iCloud Drive folder:
-
-```
-$ hstratus-drive list-root
-FOLDER  Desktop
-FOLDER  Documents
-FOLDER  Photos
-FILE    notes.txt  (1024 bytes)
-```
-
-```
-Usage: hstratus-drive list-root [--china] [--log] [--log-file FILE] [--log-bodies]
-                              [--redact]
-
-  List immediate children of the top-level iCloud Drive folder
-
-Available options:
-  --china                  Use mainland China endpoints
-  --log                    Append HTTP exchanges to the default log file
-  --log-file FILE          Append HTTP exchanges to FILE
-  --log-bodies             Include request bodies in the HTTP exchange log
-  --redact                 Redact sensitive headers (tokens, cookies) in the log
-  -h,--help                Show this help text
-```
-
-### `hstratus-drive list-folder`
-
-Lists the contents of a folder by its slash-separated path from the Drive root:
-
-```
-$ hstratus-drive list-folder Documents/Work
-FOLDER  Archive
-FILE    report.pdf  (204800 bytes)
-FILE    budget.xlsx  (38400 bytes)
-```
-
-```
-Usage: hstratus-drive list-folder PATH [--china] [--log] [--log-file FILE]
-                                [--log-bodies] [--redact]
-
-  List contents of a folder at a slash-separated path from root
-
-Available options:
-  PATH                     Slash-separated path from root (e.g. Documents/Work)
-  --china                  Use mainland China endpoints
-  --log                    Append HTTP exchanges to the default log file
-  --log-file FILE          Append HTTP exchanges to FILE
-  --log-bodies             Include request bodies in the HTTP exchange log
-  --redact                 Redact sensitive headers (tokens, cookies) in the log
-  -h,--help                Show this help text
-```
+The command-line interface is provided by the [`hstratus`](../hstratus/#readme)
+package.  Use `hstratus drive list-root` and `hstratus drive list-folder` to
+browse iCloud Drive.
 
 
 ## Using the library

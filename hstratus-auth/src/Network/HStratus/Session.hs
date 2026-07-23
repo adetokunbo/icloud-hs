@@ -16,7 +16,7 @@ account-login endpoint, including the HSA version that determines which
 two-factor challenge flow applies.
 
 Use 'loadSession' to initialise a session from the local filesystem. The
-credentials file is read from @$XDG_CONFIG_HOME\/hstratus-auth\/credentials.json@;
+credentials file is read from @$XDG_CONFIG_HOME\/hstratus\/credentials.json@;
 other session state is created in the same directory on first use.
 
 The session value is then passed to 'Network.HStratus.Http.mkApiWith' (or
@@ -29,7 +29,7 @@ module Network.HStratus.Session
     {- | The account ID and password used to sign in to iCloud.
 
     Expected to be read from
-    @$XDG_CONFIG_HOME\/hstratus-auth\/credentials.json@ with the fields
+    @$XDG_CONFIG_HOME\/hstratus\/credentials.json@ with the fields
     @accountName@ and @password@.
     -}
     Credentials (..)
@@ -62,7 +62,7 @@ module Network.HStratus.Session
     {- | Load a 'Session' from the local filesystem.
 
     Reads 'Credentials' from
-    @$XDG_CONFIG_HOME\/hstratus-auth\/credentials.json@ and initialises the
+    @$XDG_CONFIG_HOME\/hstratus\/credentials.json@ and initialises the
     session working directory (creating it if absent). A per-client ID is read
     from disk if one exists, or generated and saved for future runs.
 
@@ -72,7 +72,7 @@ module Network.HStratus.Session
 
     -- * Saving credentials
 
-    {- | Write 'Credentials' to @$XDG_CONFIG_HOME\/hstratus-auth\/credentials.json@,
+    {- | Write 'Credentials' to @$XDG_CONFIG_HOME\/hstratus\/credentials.json@,
     creating the directory if it does not exist.
     -}
   , saveCredentials

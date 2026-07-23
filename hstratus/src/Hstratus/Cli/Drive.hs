@@ -1,4 +1,10 @@
-module Main where
+module Hstratus.Cli.Drive
+  ( DriveCommand (..)
+  , ListFolderOpts (..)
+  , driveParser
+  , runDrive
+  )
+where
 
 import Data.List (find)
 import qualified Data.Text as Text
@@ -17,30 +23,32 @@ import Network.HStratus.Http.Cli (CommonOpts (..), commonOptsParser, runWithApi)
 import Options.Applicative
 
 
-data Command
-  = ListRoot CommonOpts
-  | ListFolder ListFolderOpts
+data DriveCommand
+  = DriveListRoot CommonOpts
+  | DriveListFolder ListFolderOpts
+  deriving (Eq, Show)
 
 
 data ListFolderOpts = ListFolderOpts
   { lfPath :: [Text.Text]
   , lfCommon :: CommonOpts
   }
+  deriving (Eq, Show)
 
 
-commandParser :: Parser Command
-commandParser =
+driveParser :: Parser DriveCommand
+driveParser =
   subparser
     ( command
         "list-root"
         ( info
-            (ListRoot <$> commonOptsParser <**> helper)
+            (DriveListRoot <$> commonOptsParser <**> helper)
             (progDesc "List immediate children of the top-level iCloud Drive folder")
         )
         <> command
           "list-folder"
           ( info
-              (ListFolder <$> listFolderOptsParser <**> helper)
+              (DriveListFolder <$> listFolderOptsParser <**> helper)
               (progDesc "List contents of a folder at a slash-separated path from root")
           )
     )
@@ -49,23 +57,15 @@ commandParser =
 listFolderOptsParser :: Parser ListFolderOpts
 listFolderOptsParser =
   ListFolderOpts
-    <$> fmap (filter (not . Text.null) . Text.splitOn (Text.pack "/") . Text.pack) (argument str (metavar "PATH" <> help "Slash-separated path from root (e.g. Documents/Work)"))
+    <$> fmap
+      (filter (not . Text.null) . Text.splitOn (Text.pack "/") . Text.pack)
+      (argument str (metavar "PATH" <> help "Slash-separated path from root (e.g. Documents/Work)"))
     <*> commonOptsParser
 
 
-cliParser :: ParserInfo Command
-cliParser =
-  info
-    (commandParser <**> helper)
-    (fullDesc <> progDesc "hstratus-drive: iCloud Drive access tool")
-
-
-main :: IO ()
-main = do
-  cmd <- execParser cliParser
-  case cmd of
-    ListRoot opts -> runListRoot opts
-    ListFolder opts -> runListFolder opts
+runDrive :: DriveCommand -> IO ()
+runDrive (DriveListRoot opts) = runListRoot opts
+runDrive (DriveListFolder opts) = runListFolder opts
 
 
 runListRoot :: CommonOpts -> IO ()

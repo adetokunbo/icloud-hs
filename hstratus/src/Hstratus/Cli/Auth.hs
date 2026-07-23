@@ -1,10 +1,23 @@
 {-# LANGUAGE LambdaCase #-}
 
-module Main where
+module Hstratus.Cli.Auth
+  ( AuthCommand (..)
+  , LoginOpts (..)
+  , authParser
+  , runAuth
+  )
+where
 
 import Control.Exception (bracket_, catch, displayException)
 import Data.String (fromString)
-import Network.HStratus.Http (AuthError, fileLogger, login, mkApiWith, redactingLogger, withLogger)
+import Network.HStratus.Http
+  ( AuthError
+  , fileLogger
+  , login
+  , mkApiWith
+  , redactingLogger
+  , withLogger
+  )
 import Network.HStratus.Http.Endpoints (Realm (..), realmEndpoints)
 import Network.HStratus.Session (Credentials (..), loadSession, saveCredentials)
 import Network.HTTP.Client.TLS (newTlsManager)
@@ -16,9 +29,10 @@ import System.FilePath ((</>))
 import System.IO (IOMode (..), hFlush, hSetEcho, stdin, stdout, withFile)
 
 
-data Command
-  = Init
-  | Login LoginOpts
+data AuthCommand
+  = AuthInit
+  | AuthLogin LoginOpts
+  deriving (Eq, Show)
 
 
 data LoginOpts = LoginOpts
@@ -27,13 +41,14 @@ data LoginOpts = LoginOpts
   , loginLogFile :: Maybe FilePath
   , loginRedact :: Bool
   }
+  deriving (Eq, Show)
 
 
-commandParser :: Parser Command
-commandParser =
+authParser :: Parser AuthCommand
+authParser =
   subparser
-    ( command "init" (info (pure Init) (progDesc "Save Apple ID credentials to the config directory"))
-        <> command "login" (info (Login <$> loginOptsParser <**> helper) (progDesc "Authenticate with iCloud"))
+    ( command "init" (info (pure AuthInit) (progDesc "Save Apple ID credentials to the config directory"))
+        <> command "login" (info (AuthLogin <$> loginOptsParser <**> helper) (progDesc "Authenticate with iCloud"))
     )
 
 
@@ -46,18 +61,10 @@ loginOptsParser =
     <*> switch (long "redact" <> help "Redact sensitive headers (tokens, cookies) in the log")
 
 
-cliParser :: ParserInfo Command
-cliParser =
-  info
-    (commandParser <**> helper)
-    (fullDesc <> progDesc "hstratus-auth: iCloud authentication tool")
-
-
-main :: IO ()
-main =
-  execParser cliParser >>= \case
-    Init -> runInit
-    Login opts -> runLogin opts
+runAuth :: AuthCommand -> IO ()
+runAuth = \case
+  AuthInit -> runInit
+  AuthLogin opts -> runLogin opts
 
 
 runInit :: IO ()
@@ -86,20 +93,16 @@ runLogin opts = do
 
 
 resolveLogTarget :: LoginOpts -> IO (Maybe FilePath)
-resolveLogTarget LoginOpts{loginLogFile = Just fp} = pure (Just fp)
-resolveLogTarget LoginOpts{loginLog = True} = Just <$> defaultLogFile
+resolveLogTarget (LoginOpts{loginLogFile = Just fp}) = pure (Just fp)
+resolveLogTarget (LoginOpts{loginLog = True}) = Just <$> defaultLogFile
 resolveLogTarget _ = pure Nothing
 
 
 defaultLogFile :: IO FilePath
 defaultLogFile = do
-  dir <- getUserCacheDir appDir
+  dir <- getUserCacheDir "hs-icloud"
   createDirectoryIfMissing True dir
   pure (dir </> "requests.log")
-
-
-appDir :: FilePath
-appDir = "hs-icloud"
 
 
 prompt :: String -> IO String
