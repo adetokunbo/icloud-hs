@@ -55,7 +55,7 @@ Available commands:
 #### `hstratus auth init`
 
 Prompts for an Apple ID and password and saves them to
-`$XDG_CONFIG_HOME/hstratus-auth/credentials.json`.
+`$XDG_CONFIG_HOME/hstratus/credentials.json`.
 
 #### `hstratus auth login`
 
