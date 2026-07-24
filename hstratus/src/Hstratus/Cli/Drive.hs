@@ -4,12 +4,12 @@ module Hstratus.Cli.Drive
   , CpOpts (..)
   , driveParser
   , runDrive
+  , resolveLocalDest
   )
 where
 
 import Control.Exception (catch, displayException)
 import qualified Data.ByteString.Lazy as LBS
-import Data.List (find)
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
@@ -25,7 +25,9 @@ import Network.HStratus.Drive
   , driveRoot
   , fileName
   , listFolder
+  , matchFolderName
   , mkDriveApi
+  , selectFileNode
   )
 import Network.HStratus.Http.Cli (CommonOpts (..), commonOptsParser, runWithApi)
 import Options.Applicative
@@ -130,16 +132,13 @@ runCp opts = case (cpRoot opts, cpOutput opts) of
 navigateToFile :: DriveApi -> DriveNodeId -> NonEmpty Text -> IO FileData
 navigateToFile da nid (name :| []) = do
   children <- listFolder da nid
-  case find (matchesName name) children of
+  case selectFileNode name children of
     Just (DriveFile fd) -> pure fd
     Just (DriveFolder _) -> die $ "Not a file: " <> Text.unpack name
     Nothing -> die $ "File not found: " <> Text.unpack name
- where
-  matchesName n (DriveFile fd) = fileName fd == n
-  matchesName n (DriveFolder fd) = fnName fd == n
 navigateToFile da nid (seg :| (s : rest)) = do
   children <- listFolder da nid
-  case find (matchFolderName seg) children of
+  case selectFileNode seg children of
     Nothing -> die $ "Folder not found: " <> Text.unpack seg
     Just (DriveFile _) -> die $ "Not a folder: " <> Text.unpack seg
     Just (DriveFolder fd) -> navigateToFile da (fnId fd) (s :| rest)
@@ -175,15 +174,10 @@ navigatePath :: DriveApi -> DriveNodeId -> [Text] -> IO DriveNodeId
 navigatePath _ nid [] = pure nid
 navigatePath da nid (seg : segs) = do
   children <- listFolder da nid
-  case find (matchFolderName seg) children of
+  case selectFileNode seg children of
     Nothing -> die $ "Folder not found: " <> Text.unpack seg
     Just (DriveFile _) -> die $ "Not a folder: " <> Text.unpack seg
     Just (DriveFolder fd) -> navigatePath da (fnId fd) segs
-
-
-matchFolderName :: Text -> DriveNode -> Bool
-matchFolderName name (DriveFolder fd) = fnName fd == name
-matchFolderName _ (DriveFile _) = False
 
 
 printNode :: DriveNode -> IO ()

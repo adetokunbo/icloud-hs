@@ -25,6 +25,22 @@ import Test.Hspec
 
 spec :: Spec
 spec = describe "Network.HStratus.Drive" $ do
+  describe "matchFolderName" $ do
+    it "is True for a DriveFolder with the matching name" $
+      matchFolderName "Documents" (DriveFolder testFolderData) `shouldBe` True
+    it "is False for a DriveFolder with a different name" $
+      matchFolderName "Other" (DriveFolder testFolderData) `shouldBe` False
+    it "is False for a DriveFile" $
+      matchFolderName "Documents" (DriveFile testFileData) `shouldBe` False
+
+  describe "selectFileNode" $ do
+    it "returns Just DriveFile when a file's full name matches" $
+      selectFileNode "Scan 2.pdf" testNodes `shouldBe` Just (DriveFile testFileData)
+    it "returns Just DriveFolder when a folder name matches" $
+      selectFileNode "Documents" testNodes `shouldBe` Just (DriveFolder testFolderData)
+    it "returns Nothing when no node matches" $
+      selectFileNode "missing.txt" testNodes `shouldBe` Nothing
+
   describe "DriveError displayException" $ do
     it "DriveHttpError" $
       displayException (DriveHttpError 404) `shouldBe` "iCloud Drive: HTTP error 404"
@@ -168,6 +184,21 @@ testFileData =
     , fdDateCreated = Nothing
     , fdDateModified = Nothing
     }
+
+
+testFolderData :: FolderData
+testFolderData =
+  FolderData
+    { fnId = DriveNodeId "FOLDER::com.apple.CloudDocs::DOCS"
+    , fnEtag = "1a"
+    , fnName = "Documents"
+    , fnZone = "com.apple.CloudDocs"
+    , fnDateCreated = Nothing
+    }
+
+
+testNodes :: [DriveNode]
+testNodes = [DriveFile testFileData, DriveFolder testFolderData]
 
 
 isFile :: DriveNode -> Bool
