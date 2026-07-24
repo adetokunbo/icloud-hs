@@ -9,15 +9,16 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Network.HStratus.Http (Api, mkApiWith)
+import Network.HStratus.Http (mkApiWith)
 import Network.HStratus.Http.Endpoints (Endpoints (..))
-import Network.HStratus.Internal.Notes.Download
-  ( fetchFolders
-  , fetchNote
-  , fetchNotesInFolder
-  , fetchRecent
+import Network.HStratus.Notes
+  ( NotesApi
+  , getNote
+  , mkNotesApi
+  , noteFolders
+  , notesInFolder
+  , recentNotes
   )
-import Network.HStratus.Internal.Notes.Endpoints (NotesEndpoints, mkNotesEndpoints)
 import Network.HStratus.Notes.Note
 import Network.HStratus.Session (AccountData (..), Credentials (..), Session (..), Webservice (..))
 import Network.HTTP.Client (Request (..), defaultManagerSettings, defaultRequest, newManager)
@@ -31,45 +32,45 @@ import Test.Hspec.Benri (endsNothing)
 
 spec :: Spec
 spec = describe "Network.HStratus.Notes" $ do
-  describe "fetchFolders" $ do
+  describe "noteFolders" $ do
     it "returns NoteFolder list from a query response" $
-      withNotesMock queryFoldersJson "/records/query" $ \ep api -> do
-        folders <- fetchFolders api ep
+      withNotesMock queryFoldersJson "/records/query" $ \na -> do
+        folders <- noteFolders na
         case folders of
           [f] -> do
             nfId f `shouldBe` FolderId "Folder/FOLDER-FIXTURE"
             nfName f `shouldBe` Just "Synthetic Folder"
           _ -> expectationFailure $ "expected 1 folder, got " <> show (length folders)
 
-  describe "fetchRecent" $ do
+  describe "recentNotes" $ do
     it "returns NoteSummary list from a query response" $
-      withNotesMock queryNotesJson "/records/query" $ \ep api -> do
-        notes <- fetchRecent api ep
+      withNotesMock queryNotesJson "/records/query" $ \na -> do
+        notes <- recentNotes na
         case notes of
           [n] -> do
             nsId n `shouldBe` NoteId "Note/NOTE-FIXTURE"
             nsTitle n `shouldBe` Just "Synthetic note"
           _ -> expectationFailure $ "expected 1 note, got " <> show (length notes)
     it "accumulates results across paginated responses" $
-      withPaginatedMock $ \ep api -> do
-        notes <- fetchRecent api ep
+      withPaginatedMock $ \na -> do
+        notes <- recentNotes na
         length notes `shouldBe` 2
 
-  describe "fetchNote" $ do
+  describe "getNote" $ do
     it "returns Just Note with decoded body for a live record" $
-      withNotesMock lookupNoteJson "/records/lookup" $ \ep api -> do
-        result <- fetchNote api ep (NoteId "Note/NOTE-FIXTURE")
+      withNotesMock lookupNoteJson "/records/lookup" $ \na -> do
+        result <- getNote na (NoteId "Note/NOTE-FIXTURE")
         case result of
           Nothing -> expectationFailure "expected Just Note"
           Just n -> noteBodyBytes n `shouldBe` "synthetic note body"
     it "returns Nothing for a tombstone record" $
-      withNotesMock tombstoneLookupJson "/records/lookup" $ \ep api ->
-        endsNothing $ fetchNote api ep (NoteId "Note/NOTE-DELETED-FIXTURE")
+      withNotesMock tombstoneLookupJson "/records/lookup" $ \na ->
+        endsNothing $ getNote na (NoteId "Note/NOTE-DELETED-FIXTURE")
 
-  describe "fetchNotesInFolder" $ do
+  describe "notesInFolder" $ do
     it "returns only notes in the given folder, excluding other folders and deleted notes" $
-      withNotesMock folderChangesJson "/changes/zone" $ \ep api -> do
-        notes <- fetchNotesInFolder api ep (FolderId "Folder/FOLDER-FIXTURE")
+      withNotesMock folderChangesJson "/changes/zone" $ \na -> do
+        notes <- notesInFolder na (FolderId "Folder/FOLDER-FIXTURE")
         case notes of
           [n] -> nsId n `shouldBe` NoteId "Note/NOTE-FIXTURE"
           _ -> expectationFailure $ "expected 1 note, got " <> show (length notes)
@@ -80,22 +81,22 @@ spec = describe "Network.HStratus.Notes" $ do
 withNotesMock
   :: LBS.ByteString
   -> BS.ByteString
-  -> (NotesEndpoints -> Api -> IO a)
+  -> (NotesApi -> IO a)
   -> IO a
 withNotesMock json pathSuffix action =
   withSystemTempDirectory "icloud-notes-mock" $ \tmpDir ->
     testWithApplication (pure (simpleApp json pathSuffix)) $ \serverPort -> do
-      (ep, api) <- mkEpAndApi serverPort tmpDir
-      action ep api
+      na <- mkTestNotesApi serverPort tmpDir
+      action na
 
 
-withPaginatedMock :: (NotesEndpoints -> Api -> IO a) -> IO a
+withPaginatedMock :: (NotesApi -> IO a) -> IO a
 withPaginatedMock action =
   withSystemTempDirectory "icloud-notes-paginated" $ \tmpDir -> do
     callRef <- newIORef (0 :: Int)
     testWithApplication (pure (paginatedApp callRef)) $ \serverPort -> do
-      (ep, api) <- mkEpAndApi serverPort tmpDir
-      action ep api
+      na <- mkTestNotesApi serverPort tmpDir
+      action na
 
 
 simpleApp :: LBS.ByteString -> BS.ByteString -> Application
@@ -113,13 +114,12 @@ paginatedApp callRef _req respond = do
   respond $ responseLBS status200 jsonHeaders (if n == 0 then page1Json else page2Json)
 
 
-mkEpAndApi :: Int -> FilePath -> IO (NotesEndpoints, Api)
-mkEpAndApi serverPort tmpDir = do
+mkTestNotesApi :: Int -> FilePath -> IO NotesApi
+mkTestNotesApi serverPort tmpDir = do
   let baseUrl = Text.pack $ "http://127.0.0.1:" ++ show serverPort
-  ep <- mkNotesEndpoints (testAccountData baseUrl) (testSession tmpDir)
   mgr <- newManager defaultManagerSettings
   api <- mkApiWith (testSession tmpDir) (testAuthEndpoints serverPort) mgr
-  pure (ep, api)
+  mkNotesApi (testAccountData baseUrl) (testSession tmpDir) api
 
 
 -- Fixtures

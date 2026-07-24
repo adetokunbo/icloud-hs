@@ -10,7 +10,7 @@ where
 import Control.Exception (Exception, catch, displayException)
 import Data.List (find)
 import qualified Data.Text as Text
-import Network.HStratus.Http (Api, AuthError)
+import Network.HStratus.Http (AuthError)
 import Network.HStratus.Http.Cli (CommonOpts (..), commonOptsParser, runWithApi)
 import Network.HStratus.Notes
 import Options.Applicative
@@ -69,24 +69,24 @@ runNotes (NotesListNotes opts) = runListNotes opts
 
 runListFolders :: CommonOpts -> IO ()
 runListFolders opts =
-  withNotesApi opts $ \api ep ->
-    noteFolders api ep >>= mapM_ printFolder
+  withNotesApi opts $ \na ->
+    noteFolders na >>= mapM_ printFolder
 
 
 runListNotes :: ListNotesOpts -> IO ()
 runListNotes opts =
-  withNotesApi (lnCommon opts) $ \api ep -> do
+  withNotesApi (lnCommon opts) $ \na -> do
     notes <- case lnFolder opts of
-      Nothing -> recentNotes api ep
+      Nothing -> recentNotes na
       Just name -> do
-        fid <- resolveFolderName api ep name
-        notesInFolder api ep fid
+        fid <- resolveFolderName na name
+        notesInFolder na fid
     mapM_ printNote notes
 
 
-resolveFolderName :: Api -> NotesEndpoints -> Text.Text -> IO FolderId
-resolveFolderName api ep name = do
-  folders <- noteFolders api ep
+resolveFolderName :: NotesApi -> Text.Text -> IO FolderId
+resolveFolderName na name = do
+  folders <- noteFolders na
   case findFolderByName name folders of
     Just fid -> pure fid
     Nothing -> do
@@ -114,9 +114,9 @@ printNote ns =
   titleStr = maybe "" (("  " <>) . Text.unpack) (nsTitle ns)
 
 
-withNotesApi :: CommonOpts -> (Api -> NotesEndpoints -> IO ()) -> IO ()
+withNotesApi :: CommonOpts -> (NotesApi -> IO ()) -> IO ()
 withNotesApi opts runAction =
-  runWithApi opts (\ad sess api -> mkNotesEndpoints ad sess >>= runAction api)
+  runWithApi opts (\ad sess api -> mkNotesApi ad sess api >>= runAction)
     `catch` (\e -> onError (e :: AuthError))
     `catch` (\e -> onError (e :: NotesError))
  where
