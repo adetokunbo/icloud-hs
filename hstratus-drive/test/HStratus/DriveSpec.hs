@@ -2,6 +2,7 @@
 
 module HStratus.DriveSpec (spec) where
 
+import Control.Exception (displayException)
 import Data.Aeson (object)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
@@ -24,6 +25,14 @@ import Test.Hspec
 
 spec :: Spec
 spec = describe "Network.HStratus.Drive" $ do
+  describe "DriveError displayException" $ do
+    it "DriveHttpError" $
+      displayException (DriveHttpError 404) `shouldBe` "iCloud Drive: HTTP error 404"
+    it "DriveParseError" $
+      displayException (DriveParseError "bad json") `shouldBe` "iCloud Drive: parse error: bad json"
+    it "DriveInvalidRoot" $
+      displayException DriveInvalidRoot `shouldBe` "iCloud Drive: invalid root node"
+
   describe "driveRoot" $ do
     it "returns root FolderData" $
       withNodeMock rootJson $ \da -> do

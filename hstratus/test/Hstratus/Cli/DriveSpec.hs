@@ -2,7 +2,6 @@
 
 module Hstratus.Cli.DriveSpec (spec) where
 
-import Control.Arrow (Arrow (first))
 import Data.List.NonEmpty (NonEmpty (..))
 import Hstratus.Cli (TopCommand (..), cliParser)
 import Hstratus.Cli.Drive (CpOpts (..), DriveCommand (..), ListFolderOpts (..))

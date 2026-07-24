@@ -72,7 +72,12 @@ data DriveError
   = DriveHttpError Int
   | DriveParseError String
   | DriveInvalidRoot
-  deriving (Show)
+
+
+instance Show DriveError where
+  show (DriveHttpError n) = "iCloud Drive: HTTP error " <> show n
+  show (DriveParseError msg) = "iCloud Drive: parse error: " <> msg
+  show DriveInvalidRoot = "iCloud Drive: invalid root node"
 
 
 instance Exception DriveError

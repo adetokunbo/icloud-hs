@@ -7,6 +7,7 @@ module Hstratus.Cli.Drive
   )
 where
 
+import Control.Exception (catch, displayException)
 import qualified Data.ByteString.Lazy as LBS
 import Data.List (find)
 import Data.List.NonEmpty (NonEmpty (..))
@@ -15,6 +16,7 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Network.HStratus.Drive
   ( DriveApi
+  , DriveError
   , DriveNode (..)
   , DriveNodeId
   , FileData (..)
@@ -197,5 +199,5 @@ printNode (DriveFile fd) =
 
 withDriveApi :: CommonOpts -> (DriveApi -> IO ()) -> IO ()
 withDriveApi opts runAction =
-  runWithApi opts $ \ad sess api -> do
-    mkDriveApi ad sess api >>= runAction
+  runWithApi opts (\ad sess api -> mkDriveApi ad sess api >>= runAction)
+    `catch` (\e -> die (displayException (e :: DriveError)))
