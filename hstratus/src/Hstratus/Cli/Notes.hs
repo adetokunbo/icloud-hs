@@ -3,6 +3,7 @@ module Hstratus.Cli.Notes
   , ListNotesOpts (..)
   , notesParser
   , runNotes
+  , findFolderByName
   )
 where
 
@@ -86,13 +87,17 @@ runListNotes opts =
 resolveFolderName :: Api -> NotesEndpoints -> Text.Text -> IO FolderId
 resolveFolderName api ep name = do
   folders <- noteFolders api ep
-  case find (matchesName name) folders of
-    Just nf -> pure (nfId nf)
+  case findFolderByName name folders of
+    Just fid -> pure fid
     Nothing -> do
       putStrLn $ "No folder named '" <> Text.unpack name <> "'"
       exitFailure
+
+
+findFolderByName :: Text.Text -> [NoteFolder] -> Maybe FolderId
+findFolderByName name = fmap nfId . find matchesName
  where
-  matchesName n nf = maybe False (\fn -> Text.toCaseFold fn == Text.toCaseFold n) (nfName nf)
+  matchesName nf = maybe False (\fn -> Text.toCaseFold fn == Text.toCaseFold name) (nfName nf)
 
 
 printFolder :: NoteFolder -> IO ()
