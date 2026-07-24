@@ -111,7 +111,7 @@ testAccountData =
   AccountData
     { adHsaVersion = 2
     , adHsaChallengeRequired = False
-    , adHsaTrustedBrowser = True
+    , adHsaTrustedBrowser = Just True
     , adWebservices =
         Map.fromList
           [("ckdatabasews", Webservice "https://p31-ckdatabasews.icloud.com" Nothing)]

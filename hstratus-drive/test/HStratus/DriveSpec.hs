@@ -137,7 +137,7 @@ testAccountData baseUrl =
   AccountData
     { adHsaVersion = 2
     , adHsaChallengeRequired = False
-    , adHsaTrustedBrowser = True
+    , adHsaTrustedBrowser = Just True
     , adWebservices = Map.fromList [("drivews", Webservice baseUrl Nothing), ("docws", Webservice baseUrl Nothing)]
     , adRaw = object []
     }

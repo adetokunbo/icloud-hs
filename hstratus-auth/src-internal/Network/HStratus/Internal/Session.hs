@@ -170,8 +170,10 @@ data AccountData = AccountData
   -- ^ HSA protocol version; drives the two-factor flow selection
   , adHsaChallengeRequired :: !Bool
   -- ^ @True@ when a 2FA challenge must be completed before access is granted
-  , adHsaTrustedBrowser :: !Bool
-  -- ^ @True@ when this session is already trusted and no challenge is needed
+  , adHsaTrustedBrowser :: !(Maybe Bool)
+  {- ^ @Just True@ when this session is already trusted; @Just False@ when explicitly
+  untrusted; @Nothing@ when the key was absent from Apple's response (treated as trusted)
+  -}
   , adWebservices :: !(Map Text Webservice)
   -- ^ map of webservice name to service info; use 'lookupWebservice' to resolve a URL
   , adRaw :: !Value
@@ -187,7 +189,7 @@ instance FromJSON AccountData where
       dsInfo <- o .: "dsInfo"
       adHsaVersion <- withObject "dsInfo" (.: "hsaVersion") dsInfo
       adHsaChallengeRequired <- o .:? "hsaChallengeRequired" >>= maybe (pure False) pure
-      adHsaTrustedBrowser <- o .:? "hsaTrustedBrowser" >>= maybe (pure False) pure
+      adHsaTrustedBrowser <- o .:? "hsaTrustedBrowser"
       adWebservices <- do
         mbWs <- o .:? "webservices"
         maybe (pure Map.empty) (withObject "webservices" parseWebservices) mbWs
@@ -214,7 +216,8 @@ instance ToJSON AccountData where
 -- | True when full 2FA (auth-endpoint) challenge is required
 accountDataRequires2FA :: AccountData -> Bool
 accountDataRequires2FA ad =
-  adHsaVersion ad == 2 && (adHsaChallengeRequired ad || not (adHsaTrustedBrowser ad))
+  adHsaVersion ad == 2
+    && (adHsaChallengeRequired ad || adHsaTrustedBrowser ad == Just False)
 
 
 -- | True when legacy 2SA (setup-endpoint) challenge is required
@@ -228,7 +231,7 @@ unknownAccountData =
   AccountData
     { adHsaVersion = 0
     , adHsaChallengeRequired = False
-    , adHsaTrustedBrowser = False
+    , adHsaTrustedBrowser = Nothing
     , adWebservices = Map.empty
     , adRaw = object []
     }
