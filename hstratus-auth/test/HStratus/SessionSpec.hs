@@ -13,7 +13,7 @@ module HStratus.SessionSpec (spec) where
 import Control.Monad (when)
 import Data.Aeson (decode, eitherDecodeFileStrict, encode, encodeFile, object, (.=))
 import Data.Aeson.Types (parseJSON, parseMaybe)
-import Data.List (sort)
+import Data.List (isInfixOf, sort)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import Data.String (IsString (..))
@@ -42,6 +42,7 @@ import Network.HStratus.Internal.Session
 import Network.HStratus.Session (AccountData (..), Credentials (..), Session (..), Webservice (..), loadSession)
 import System.Directory (createDirectory, doesFileExist)
 import System.Environment (setEnv)
+import System.IO.Error (ioeGetErrorString)
 import System.IO.Temp (withSystemTempDirectory)
 import Test.Hspec
   ( Spec
@@ -133,6 +134,9 @@ loadSavedHeadersSpec = describe "loadSavedHeaders" $ around useTmp $ do
   context "with an invalid saved headers file" $ do
     it "should fail to load" $ \appRoot ->
       failsOnBadSavedHeaders appRoot `shouldThrow` anyIOException
+    it "includes a re-login hint in the error message" $ \appRoot ->
+      failsOnBadSavedHeaders appRoot
+        `shouldThrow` (\e -> "hstratus auth login" `isInfixOf` ioeGetErrorString e)
 
 
 updateSessionSavedHeadersSpec :: Spec

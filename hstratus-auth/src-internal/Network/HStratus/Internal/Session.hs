@@ -389,12 +389,17 @@ loadSession :: IO Session
 loadSession = do
   sessionTopDir <- getUserConfigDir appBase
   createDirectoryIfMissing True sessionTopDir
-  loadSessionOr sessionTopDir >>= either fail pure
+  loadSessionOr sessionTopDir
+    >>= orFail "Credentials are missing or corrupt; run 'hstratus auth login' to authenticate"
 
 
 -- | Saves a JSON @Value@ to @filepath@
 saveValue :: FilePath -> Value -> IO ()
 saveValue fp v = LBS.writeFile fp $ encode v
+
+
+orFail :: String -> Either String a -> IO a
+orFail hint = either (\e -> fail (hint <> " (" <> e <> ")")) pure
 
 
 -- | Write a JSON-encodable value to @path@ atomically via a temp file and rename.
@@ -432,7 +437,8 @@ loadSessionOr = loadCredentials' >=> loadSession'
 -- | Load the @SavedHeaders@ for this session
 loadSavedHeaders :: Session -> IO SavedHeaders
 loadSavedHeaders Session{sessionTopDir, sessionCreds} =
-  loadSavedHeaders' sessionTopDir sessionCreds >>= either fail pure
+  loadSavedHeaders' sessionTopDir sessionCreds
+    >>= orFail "Session state is corrupt; run 'hstratus auth login' to re-authenticate"
 
 
 loadSavedHeaders' :: FilePath -> Credentials -> IO (Either String SavedHeaders)
