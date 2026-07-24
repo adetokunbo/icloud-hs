@@ -53,6 +53,7 @@ import Data.Aeson.Types (Parser, Value (..))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Base64 as B64
 import Data.Maybe (fromMaybe)
+import Data.String.Conv (toS)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Word (Word64)
@@ -320,9 +321,8 @@ triggerTwoFaPush api@Api{apiEndpoints = ep} = do
         withHeaders
           (withAcceptJson $ authHeaders api savedHdrs)
           (toPut (extendPath (epAuth ep) "/verify/trusteddevice/securitycode"))
-  -- The server sometimes returns a non-2xx here when a push is already in flight;
-  -- the device still shows the notification, so errors are safe to ignore.
-  void (rawRequest api req) `catch` \(_ :: IOException) -> pure ()
+  void (rawRequest api req) `catch` \(e :: IOException) ->
+    throwIO (UnexpectedResponse ("2FA push failed: " <> toS (show e)))
 
 
 doTrustStep :: Api -> IO ()
