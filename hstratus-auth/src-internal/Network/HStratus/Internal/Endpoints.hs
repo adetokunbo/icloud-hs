@@ -141,7 +141,7 @@ chinaEndpoints :: Endpoints
 chinaEndpoints =
   Endpoints
     { epHome = "https://www.icloud.com.cn"
-    , epAuth = authReq
+    , epAuth = authReq -- idmsa.apple.com is Apple's global SRP endpoint; not region-specific
     , epSetup = setupReq{host = "setup.icloud.com.cn"}
     , epWidgetKey = iCloudKey
     }
