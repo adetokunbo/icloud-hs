@@ -13,12 +13,16 @@ import Test.Hspec.Benri (endsLeft_, endsRight)
 spec :: Spec
 spec = describe "decodeNoteBody" $ do
   it "decodes a gzip-compressed protobuf note and extracts the text" $
-    pure (decodeNoteBody fixtureBytes)
+    decodeNoteBody fixtureBytes
       `endsRight` NoteText{ntText = "Step 6b test", ntRuns = []}
 
   it "returns Left for bytes that are valid gzip but empty protobuf" $
     endsLeft_ $
-      pure (decodeNoteBody emptyNoteBytes)
+      decodeNoteBody emptyNoteBytes
+
+  it "returns Left for a corrupt gzip payload" $
+    endsLeft_ $
+      decodeNoteBody "\x00\x01\x02\x03"
 
 
 -- gzip( NoteStoreProto { document=2: Document { note=3: Note { note_text=2: "Step 6b test" } } } )
