@@ -2,7 +2,7 @@
 
 module HStratus.Notes.NoteDataSpec (spec) where
 
-import Data.Aeson (eitherDecode)
+import Data.Aeson (FromJSON, eitherDecode)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Network.HStratus.Internal.Notes.CloudKit
@@ -28,102 +28,95 @@ spec :: Spec
 spec = describe "Network.HStratus.Internal.Notes.NoteData" $ do
   describe "noteRecordToSummary" $ do
     it "parses a note record into a NoteSummary" $ do
-      case eitherDecode lookupNoteJson :: Either String CKLookupResponse of
-        Left err -> expectationFailure err
-        Right r -> case lrRecords r of
-          [] -> expectationFailure "expected records"
-          rec : _ ->
-            noteRecordToSummary rec
-              `shouldBe` Just
-                NoteSummary
-                  { nsId = NoteId "Note/NOTE-FIXTURE"
-                  , nsTitle = Just "Synthetic note"
-                  , nsSnippet = Just "Synthetic snippet"
-                  , nsModified = Just (posixSecondsToUTCTime 1735776000)
-                  , nsFolderId = Just (FolderId "Folder/FOLDER-FIXTURE")
-                  , nsDeleted = False
-                  , nsLocked = False
-                  }
+      r <- decodeOrFail lookupNoteJson :: IO CKLookupResponse
+      case lrRecords r of
+        [] -> expectationFailure "expected records"
+        rec : _ ->
+          noteRecordToSummary rec
+            `shouldBe` Just
+              NoteSummary
+                { nsId = NoteId "Note/NOTE-FIXTURE"
+                , nsTitle = Just "Synthetic note"
+                , nsSnippet = Just "Synthetic snippet"
+                , nsModified = Just (posixSecondsToUTCTime 1735776000)
+                , nsFolderId = Just (FolderId "Folder/FOLDER-FIXTURE")
+                , nsDeleted = False
+                , nsLocked = False
+                }
     it "returns Nothing for a tombstone" $ do
-      case eitherDecode zoneChangesJson :: Either String CKZoneChangesResponse of
-        Left err -> expectationFailure err
-        Right r -> case concatMap zczRecords (zcrZones r) of
-          [_, _, tombstone] -> noteRecordToSummary tombstone `shouldBe` Nothing
-          recs -> expectationFailure $ "expected 3 records, got " <> show (length recs)
+      r <- decodeOrFail zoneChangesJson :: IO CKZoneChangesResponse
+      case concatMap zczRecords (zcrZones r) of
+        [_, _, tombstone] -> noteRecordToSummary tombstone `shouldBe` Nothing
+        recs -> expectationFailure $ "expected 3 records, got " <> show (length recs)
     it "returns Nothing for a folder record" $ do
-      case eitherDecode queryFoldersJson :: Either String CKQueryResponse of
-        Left err -> expectationFailure err
-        Right r -> case qrRecords r of
-          [] -> expectationFailure "expected records"
-          rec : _ -> noteRecordToSummary rec `shouldBe` Nothing
+      r <- decodeOrFail queryFoldersJson :: IO CKQueryResponse
+      case qrRecords r of
+        [] -> expectationFailure "expected records"
+        rec : _ -> noteRecordToSummary rec `shouldBe` Nothing
 
   describe "noteRecordToFolder" $ do
     it "parses a folder record into a NoteFolder" $ do
-      case eitherDecode queryFoldersJson :: Either String CKQueryResponse of
-        Left err -> expectationFailure err
-        Right r -> case qrRecords r of
-          [] -> expectationFailure "expected records"
-          rec : _ ->
-            noteRecordToFolder rec
-              `shouldBe` Just
-                NoteFolder
-                  { nfId = FolderId "Folder/FOLDER-FIXTURE"
-                  , nfName = Just "Synthetic Folder"
-                  }
+      r <- decodeOrFail queryFoldersJson :: IO CKQueryResponse
+      case qrRecords r of
+        [] -> expectationFailure "expected records"
+        rec : _ ->
+          noteRecordToFolder rec
+            `shouldBe` Just
+              NoteFolder
+                { nfId = FolderId "Folder/FOLDER-FIXTURE"
+                , nfName = Just "Synthetic Folder"
+                }
     it "returns Nothing for a note record" $ do
-      case eitherDecode lookupNoteJson :: Either String CKLookupResponse of
-        Left err -> expectationFailure err
-        Right r -> case lrRecords r of
-          [] -> expectationFailure "expected records"
-          rec : _ -> noteRecordToFolder rec `shouldBe` Nothing
+      r <- decodeOrFail lookupNoteJson :: IO CKLookupResponse
+      case lrRecords r of
+        [] -> expectationFailure "expected records"
+        rec : _ -> noteRecordToFolder rec `shouldBe` Nothing
 
   describe "noteRecordToNote" $ do
     it "decodes the note body from TextDataEncrypted" $ do
-      case eitherDecode lookupNoteJson :: Either String CKLookupResponse of
-        Left err -> expectationFailure err
-        Right r -> case lrRecords r of
-          [] -> expectationFailure "expected records"
-          rec : _ -> case noteRecordToNote rec of
-            Nothing -> expectationFailure "expected Just Note"
-            Just n -> noteBodyBytes n `shouldBe` "synthetic note body"
+      r <- decodeOrFail lookupNoteJson :: IO CKLookupResponse
+      case lrRecords r of
+        [] -> expectationFailure "expected records"
+        rec : _ -> case noteRecordToNote rec of
+          Nothing -> expectationFailure "expected Just Note"
+          Just n -> noteBodyBytes n `shouldBe` "synthetic note body"
     it "returns Nothing when TextDataEncrypted is absent" $ do
-      case eitherDecode zoneChangesJson :: Either String CKZoneChangesResponse of
-        Left err -> expectationFailure err
-        Right r -> case concatMap zczRecords (zcrZones r) of
-          noteRec : _ -> noteRecordToNote noteRec `shouldBe` Nothing
-          [] -> expectationFailure "expected records"
+      r <- decodeOrFail zoneChangesJson :: IO CKZoneChangesResponse
+      case concatMap zczRecords (zcrZones r) of
+        noteRec : _ -> noteRecordToNote noteRec `shouldBe` Nothing
+        [] -> expectationFailure "expected records"
 
   describe "parseSummariesFromQuery" $ do
     it "returns one summary from a note query response" $ do
-      case eitherDecode queryNotesJson :: Either String CKQueryResponse of
-        Left err -> expectationFailure err
-        Right r -> length (parseSummariesFromQuery r) `shouldBe` 1
+      r <- decodeOrFail queryNotesJson :: IO CKQueryResponse
+      length (parseSummariesFromQuery r) `shouldBe` 1
     it "returns empty from a folders-only response" $ do
-      case eitherDecode queryFoldersJson :: Either String CKQueryResponse of
-        Left err -> expectationFailure err
-        Right r -> parseSummariesFromQuery r `shouldBe` []
+      r <- decodeOrFail queryFoldersJson :: IO CKQueryResponse
+      parseSummariesFromQuery r `shouldBe` []
 
   describe "parseFoldersFromQuery" $ do
     it "returns one folder from a folders query response" $ do
-      case eitherDecode queryFoldersJson :: Either String CKQueryResponse of
-        Left err -> expectationFailure err
-        Right r -> length (parseFoldersFromQuery r) `shouldBe` 1
+      r <- decodeOrFail queryFoldersJson :: IO CKQueryResponse
+      length (parseFoldersFromQuery r) `shouldBe` 1
     it "returns empty from a notes-only response" $ do
-      case eitherDecode queryNotesJson :: Either String CKQueryResponse of
-        Left err -> expectationFailure err
-        Right r -> parseFoldersFromQuery r `shouldBe` []
+      r <- decodeOrFail queryNotesJson :: IO CKQueryResponse
+      parseFoldersFromQuery r `shouldBe` []
 
   describe "parseSummariesFromChanges" $ do
     it "extracts only Note records, skipping tombstones and folders" $ do
-      case eitherDecode zoneChangesJson :: Either String CKZoneChangesResponse of
-        Left err -> expectationFailure err
-        Right r -> length (parseSummariesFromChanges r) `shouldBe` 1
+      r <- decodeOrFail zoneChangesJson :: IO CKZoneChangesResponse
+      length (parseSummariesFromChanges r) `shouldBe` 1
 
   describe "parseFoldersFromChanges" $ do
     it "extracts only Folder records" $ do
-      case eitherDecode zoneChangesJson :: Either String CKZoneChangesResponse of
-        Left err -> expectationFailure err
-        Right r -> length (parseFoldersFromChanges r) `shouldBe` 1
+      r <- decodeOrFail zoneChangesJson :: IO CKZoneChangesResponse
+      length (parseFoldersFromChanges r) `shouldBe` 1
+
+
+-- Helpers
+
+decodeOrFail :: (FromJSON a) => LBS.ByteString -> IO a
+decodeOrFail bs = either fail pure (eitherDecode bs)
 
 
 -- Fixtures

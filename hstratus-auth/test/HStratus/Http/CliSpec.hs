@@ -5,19 +5,17 @@ module HStratus.Http.CliSpec (spec) where
 import Network.HStratus.Http.Cli (CommonOpts (..), commonOptsParser)
 import Options.Applicative (ParserResult (..), defaultPrefs, execParserPure, fullDesc, info, renderFailure)
 import Test.Hspec
+import Test.Hspec.Benri (endsRight)
+
+
+defaultOpts :: CommonOpts
+defaultOpts = CommonOpts False False Nothing False False
 
 
 spec :: Spec
 spec = describe "Network.HStratus.Http.Cli.commonOptsParser" $ do
-  it "defaults all flags to False with no log file" $ do
-    case parseOpts [] of
-      Right opts -> do
-        optChina opts `shouldBe` False
-        optLog opts `shouldBe` False
-        optLogFile opts `shouldBe` Nothing
-        optLogBodies opts `shouldBe` False
-        optRedact opts `shouldBe` False
-      Left err -> expectationFailure err
+  it "defaults all flags to False with no log file" $
+    pure (parseOpts []) `endsRight` defaultOpts
 
   it "sets optChina when --china is given" $
     fmap optChina (parseOpts ["--china"]) `shouldBe` Right True
@@ -36,12 +34,8 @@ spec = describe "Network.HStratus.Http.Cli.commonOptsParser" $ do
     fmap optRedact (parseOpts ["--redact"]) `shouldBe` Right True
 
   it "accepts multiple flags together" $
-    case parseOpts ["--log", "--redact", "--china"] of
-      Right opts -> do
-        optLog opts `shouldBe` True
-        optRedact opts `shouldBe` True
-        optChina opts `shouldBe` True
-      Left err -> expectationFailure err
+    pure (parseOpts ["--log", "--redact", "--china"])
+      `endsRight` defaultOpts{optChina = True, optLog = True, optRedact = True}
 
 
 parseOpts :: [String] -> Either String CommonOpts

@@ -5,21 +5,18 @@ module HStratus.Notes.ProtoSpec (spec) where
 import Data.ByteString (ByteString)
 import Network.HStratus.Internal.Notes.Proto
 import Test.Hspec
+import Test.Hspec.Benri (endsLeft_, endsRight)
 
 
 spec :: Spec
 spec = describe "decodeNoteStoreProto" $ do
   it "decodes a minimal note with text only" $
-    case decodeNoteStoreProto minimalNoteBytes of
-      Left err -> expectationFailure err
-      Right note -> do
-        pnNoteText note `shouldBe` "hello"
-        pnAttributeRuns note `shouldBe` []
+    pure (decodeNoteStoreProto minimalNoteBytes)
+      `endsRight` ProtoNote{pnNoteText = "hello", pnAttributeRuns = []}
 
   it "returns an error for empty input" $
-    case decodeNoteStoreProto "" of
-      Left _ -> pure ()
-      Right _ -> expectationFailure "expected error for empty bytes"
+    endsLeft_ $
+      pure (decodeNoteStoreProto "")
 
   it "decodes attribute run length and paragraph style" $
     case decodeNoteStoreProto noteWithRunBytes of

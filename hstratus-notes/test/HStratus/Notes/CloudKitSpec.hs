@@ -2,7 +2,7 @@
 
 module HStratus.Notes.CloudKitSpec (spec) where
 
-import Data.Aeson (eitherDecode)
+import Data.Aeson (FromJSON, eitherDecode)
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
@@ -22,79 +22,72 @@ spec :: Spec
 spec = describe "Network.HStratus.Internal.Notes.CloudKit" $ do
   describe "CKQueryResponse" $ do
     it "parses a folders query response" $ do
-      case eitherDecode queryFoldersJson :: Either String CKQueryResponse of
-        Left err -> expectationFailure err
-        Right r -> do
-          qrContinuationMarker r `shouldBe` Nothing
-          case qrRecords r of
-            [] -> expectationFailure "expected non-empty records"
-            rec : _ -> do
-              crName rec `shouldBe` "Folder/FOLDER-FIXTURE"
-              crType rec `shouldBe` Just "SearchIndexes"
-              Map.lookup "HasSubfolder" (crFields rec)
-                `shouldBe` Just (CKInt64Field 1)
+      r <- decodeOrFail queryFoldersJson :: IO CKQueryResponse
+      qrContinuationMarker r `shouldBe` Nothing
+      case qrRecords r of
+        [] -> expectationFailure "expected non-empty records"
+        rec : _ -> do
+          crName rec `shouldBe` "Folder/FOLDER-FIXTURE"
+          crType rec `shouldBe` Just "SearchIndexes"
+          Map.lookup "HasSubfolder" (crFields rec)
+            `shouldBe` Just (CKInt64Field 1)
     it "parses an empty query response" $ do
-      case eitherDecode emptyQueryJson :: Either String CKQueryResponse of
-        Left err -> expectationFailure err
-        Right r -> qrRecords r `shouldBe` []
+      r <- decodeOrFail emptyQueryJson :: IO CKQueryResponse
+      qrRecords r `shouldBe` []
 
   describe "CKLookupResponse" $ do
     it "parses a note lookup response" $ do
-      case eitherDecode lookupNoteJson :: Either String CKLookupResponse of
-        Left err -> expectationFailure err
-        Right r -> do
-          lrSyncToken r `shouldBe` Just "notes-lookup-sync-token-fixture"
-          case lrRecords r of
-            [] -> expectationFailure "expected non-empty records"
-            rec : _ -> do
-              crName rec `shouldBe` "Note/NOTE-FIXTURE"
-              Map.lookup "TextDataEncrypted" (crFields rec)
-                `shouldBe` Just (CKEncryptedBytesField "c3ludGhldGljIG5vdGUgYm9keQ==")
-              Map.lookup "Folder" (crFields rec)
-                `shouldBe` Just (CKReferenceField (mkRef "Folder/FOLDER-FIXTURE"))
-              Map.lookup "Attachments" (crFields rec)
-                `shouldBe` Just (CKReferenceListField [mkRef "Attachment/ATTACHMENT-FIXTURE"])
+      r <- decodeOrFail lookupNoteJson :: IO CKLookupResponse
+      lrSyncToken r `shouldBe` Just "notes-lookup-sync-token-fixture"
+      case lrRecords r of
+        [] -> expectationFailure "expected non-empty records"
+        rec : _ -> do
+          crName rec `shouldBe` "Note/NOTE-FIXTURE"
+          Map.lookup "TextDataEncrypted" (crFields rec)
+            `shouldBe` Just (CKEncryptedBytesField "c3ludGhldGljIG5vdGUgYm9keQ==")
+          Map.lookup "Folder" (crFields rec)
+            `shouldBe` Just (CKReferenceField (mkRef "Folder/FOLDER-FIXTURE"))
+          Map.lookup "Attachments" (crFields rec)
+            `shouldBe` Just (CKReferenceListField [mkRef "Attachment/ATTACHMENT-FIXTURE"])
     it "parses an attachment lookup response" $ do
-      case eitherDecode lookupAttachmentJson :: Either String CKLookupResponse of
-        Left err -> expectationFailure err
-        Right r -> do
-          lrSyncToken r `shouldBe` Nothing
-          case lrRecords r of
-            [] -> expectationFailure "expected non-empty records"
-            rec : _ -> do
-              crName rec `shouldBe` "Attachment/ATTACHMENT-FIXTURE"
-              Map.lookup "AttachmentUTI" (crFields rec)
-                `shouldBe` Just (CKStringField "public.url")
-              Map.lookup "Size" (crFields rec)
-                `shouldBe` Just (CKInt64Field 128)
+      r <- decodeOrFail lookupAttachmentJson :: IO CKLookupResponse
+      lrSyncToken r `shouldBe` Nothing
+      case lrRecords r of
+        [] -> expectationFailure "expected non-empty records"
+        rec : _ -> do
+          crName rec `shouldBe` "Attachment/ATTACHMENT-FIXTURE"
+          Map.lookup "AttachmentUTI" (crFields rec)
+            `shouldBe` Just (CKStringField "public.url")
+          Map.lookup "Size" (crFields rec)
+            `shouldBe` Just (CKInt64Field 128)
 
   describe "CKZoneChangesResponse" $ do
     it "parses zone changes with records" $ do
-      case eitherDecode zoneChangesJson :: Either String CKZoneChangesResponse of
-        Left err -> expectationFailure err
-        Right r ->
-          case zcrZones r of
-            [] -> expectationFailure "expected non-empty zones"
-            zone : _ -> do
-              zczSyncToken zone `shouldBe` Just "notes-zone-sync-token-fixture"
-              zczMoreComing zone `shouldBe` Just False
-              case zczRecords zone of
-                [_, _, deleted] -> do
-                  crName deleted `shouldBe` "Note/NOTE-DELETED-FIXTURE"
-                  crDeleted deleted `shouldBe` Just True
-                recs -> expectationFailure $ "expected 3 records, got " <> show (length recs)
+      r <- decodeOrFail zoneChangesJson :: IO CKZoneChangesResponse
+      case zcrZones r of
+        [] -> expectationFailure "expected non-empty zones"
+        zone : _ -> do
+          zczSyncToken zone `shouldBe` Just "notes-zone-sync-token-fixture"
+          zczMoreComing zone `shouldBe` Just False
+          case zczRecords zone of
+            [_, _, deleted] -> do
+              crName deleted `shouldBe` "Note/NOTE-DELETED-FIXTURE"
+              crDeleted deleted `shouldBe` Just True
+            recs -> expectationFailure $ "expected 3 records, got " <> show (length recs)
     it "parses zone changes with no records" $ do
-      case eitherDecode zoneChangesEmptyJson :: Either String CKZoneChangesResponse of
-        Left err -> expectationFailure err
-        Right r ->
-          case zcrZones r of
-            [] -> expectationFailure "expected non-empty zones"
-            zone : _ -> do
-              zczRecords zone `shouldBe` []
-              zczSyncToken zone `shouldBe` Just "notes-changes-sync-token-fixture"
+      r <- decodeOrFail zoneChangesEmptyJson :: IO CKZoneChangesResponse
+      case zcrZones r of
+        [] -> expectationFailure "expected non-empty zones"
+        zone : _ -> do
+          zczRecords zone `shouldBe` []
+          zczSyncToken zone `shouldBe` Just "notes-changes-sync-token-fixture"
 
 
 -- Helpers
+
+decodeOrFail :: (FromJSON a) => LBS.ByteString -> IO a
+decodeOrFail bs = either fail pure (eitherDecode bs)
+
 
 mkRef :: Text -> CKRecordRef
 mkRef name = CKRecordRef{rrRecordName = name, rrAction = "VALIDATE"}
