@@ -30,6 +30,7 @@ import Data.Aeson.KeyMap (fromList)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base16 as Base16
 import Data.CaseInsensitive (mk)
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Word (Word64)
 import Network.HStratus.Internal.PBKDF2 (FancyPseudoRandomF, deriveKey)
@@ -103,7 +104,7 @@ phoneTriggerBody tp =
   Object $
     fromList
       [ ("phoneNumber", Object $ fromList [("id", Number $ fromIntegral $ tpnId tp)])
-      , ("mode", String $ maybe "sms" id $ tpnPushMode tp)
+      , ("mode", String $ fromMaybe "sms" $ tpnPushMode tp)
       ]
 
 
@@ -119,5 +120,5 @@ phoneCodeBody tp code =
     fromList
       [ ("phoneNumber", Object $ fromList [("id", Number $ fromIntegral $ tpnId tp)])
       , ("securityCode", Object $ fromList [("code", String code)])
-      , ("mode", String $ maybe "sms" id $ tpnPushMode tp)
+      , ("mode", String $ fromMaybe "sms" $ tpnPushMode tp)
       ]
