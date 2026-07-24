@@ -1,7 +1,8 @@
 module Hstratus.Cli.AuthSpec (spec) where
 
 import Hstratus.Cli (TopCommand (..), cliParser)
-import Hstratus.Cli.Auth (AuthCommand (..), LoginOpts (..))
+import Hstratus.Cli.Auth (AuthCommand (..))
+import Network.HStratus.Http.Cli (CommonOpts (..))
 import Options.Applicative
   ( ParserResult (..)
   , defaultPrefs
@@ -20,8 +21,8 @@ parseCmd args =
     CompletionInvoked _ -> Left "completion invoked"
 
 
-defaultLoginOpts :: LoginOpts
-defaultLoginOpts = LoginOpts False False Nothing False
+defaultOpts :: CommonOpts
+defaultOpts = CommonOpts False False Nothing False False
 
 
 spec :: Spec
@@ -32,12 +33,16 @@ spec = describe "auth parser" $ do
 
   it "parses auth login --china" $
     parseCmd ["auth", "login", "--china"]
-      `endsRight` AuthCmd (AuthLogin defaultLoginOpts{loginChina = True})
+      `endsRight` AuthCmd (AuthLogin defaultOpts{optChina = True})
 
   it "parses auth login --log-file FILE" $
     parseCmd ["auth", "login", "--log-file", "/tmp/x"]
-      `endsRight` AuthCmd (AuthLogin defaultLoginOpts{loginLogFile = Just "/tmp/x"})
+      `endsRight` AuthCmd (AuthLogin defaultOpts{optLogFile = Just "/tmp/x"})
+
+  it "parses auth login --log-bodies" $
+    parseCmd ["auth", "login", "--log-bodies"]
+      `endsRight` AuthCmd (AuthLogin defaultOpts{optLogBodies = True})
 
   it "parses auth login --redact" $
     parseCmd ["auth", "login", "--redact"]
-      `endsRight` AuthCmd (AuthLogin defaultLoginOpts{loginRedact = True})
+      `endsRight` AuthCmd (AuthLogin defaultOpts{optRedact = True})

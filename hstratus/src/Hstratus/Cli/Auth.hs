@@ -2,7 +2,6 @@
 
 module Hstratus.Cli.Auth
   ( AuthCommand (..)
-  , LoginOpts (..)
   , authParser
   , runAuth
   )
@@ -12,35 +11,27 @@ import Control.Exception (bracket_, catch, displayException)
 import Data.String (fromString)
 import Network.HStratus.Http
   ( AuthError
-  , fileLogger
   , login
   , mkApiWith
-  , redactingLogger
   , withLogger
+  )
+import Network.HStratus.Http.Cli
+  ( CommonOpts (..)
+  , commonOptsParser
+  , mkLoggerFor
+  , resolveLogTarget
   )
 import Network.HStratus.Http.Endpoints (Realm (..), realmEndpoints)
 import Network.HStratus.Session (Credentials (..), loadSession, saveCredentials)
 import Network.HTTP.Client.TLS (newTlsManager)
 import Options.Applicative
-import System.Directory (createDirectoryIfMissing)
-import System.Environment.XDG.BaseDir (getUserCacheDir)
 import System.Exit (exitFailure)
-import System.FilePath ((</>))
 import System.IO (IOMode (..), hFlush, hSetEcho, stdin, stdout, withFile)
 
 
 data AuthCommand
   = AuthInit
-  | AuthLogin LoginOpts
-  deriving (Eq, Show)
-
-
-data LoginOpts = LoginOpts
-  { loginChina :: Bool
-  , loginLog :: Bool
-  , loginLogFile :: Maybe FilePath
-  , loginRedact :: Bool
-  }
+  | AuthLogin CommonOpts
   deriving (Eq, Show)
 
 
@@ -48,17 +39,8 @@ authParser :: Parser AuthCommand
 authParser =
   subparser
     ( command "init" (info (pure AuthInit) (progDesc "Save Apple ID credentials to the config directory"))
-        <> command "login" (info (AuthLogin <$> loginOptsParser <**> helper) (progDesc "Authenticate with iCloud"))
+        <> command "login" (info (AuthLogin <$> commonOptsParser <**> helper) (progDesc "Authenticate with iCloud"))
     )
-
-
-loginOptsParser :: Parser LoginOpts
-loginOptsParser =
-  LoginOpts
-    <$> switch (long "china" <> help "Use mainland China endpoints")
-    <*> switch (long "log" <> help "Append HTTP exchanges to the default log file")
-    <*> optional (strOption (long "log-file" <> metavar "FILE" <> help "Append HTTP exchanges to FILE"))
-    <*> switch (long "redact" <> help "Redact sensitive headers (tokens, cookies) in the log")
 
 
 runAuth :: AuthCommand -> IO ()
@@ -75,34 +57,21 @@ runInit = do
   putStrLn "Credentials saved."
 
 
-runLogin :: LoginOpts -> IO ()
+runLogin :: CommonOpts -> IO ()
 runLogin opts = do
   session <- loadSession
   mgr <- newTlsManager
-  let realm = if loginChina opts then China else Usual
+  let realm = if optChina opts then China else Usual
   api0 <- mkApiWith session (realmEndpoints realm) mgr
   mbLogPath <- resolveLogTarget opts
-  let mkLogger = if loginRedact opts then redactingLogger else fileLogger
+  let mkLogger' = mkLoggerFor opts
       go = case mbLogPath of
         Nothing -> login api0 >> putStrLn "Authenticated."
         Just fp -> withFile fp AppendMode $ \h ->
-          login (withLogger (mkLogger h) api0) >> putStrLn "Authenticated."
+          login (withLogger (mkLogger' h) api0) >> putStrLn "Authenticated."
   go `catch` \e -> do
     putStrLn $ "Login failed: " <> displayException (e :: AuthError)
     exitFailure
-
-
-resolveLogTarget :: LoginOpts -> IO (Maybe FilePath)
-resolveLogTarget (LoginOpts{loginLogFile = Just fp}) = pure (Just fp)
-resolveLogTarget (LoginOpts{loginLog = True}) = Just <$> defaultLogFile
-resolveLogTarget _ = pure Nothing
-
-
-defaultLogFile :: IO FilePath
-defaultLogFile = do
-  dir <- getUserCacheDir "hs-icloud"
-  createDirectoryIfMissing True dir
-  pure (dir </> "requests.log")
 
 
 prompt :: String -> IO String

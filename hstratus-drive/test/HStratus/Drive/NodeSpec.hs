@@ -29,13 +29,18 @@ spec = describe "Network.HStratus.Internal.Drive.NodeData" $ do
       v <- decodeOrFail rootFolderJson
       parseEither parseNodeResponse v
         `shouldBe` Right (DriveFolder rootFolderData)
-    it "treats APP_LIBRARY type as DriveFolder" $ do
+    it "parses APP_LIBRARY type as DriveFolder" $ do
       v <- decodeOrFail appLibraryJson
       case parseEither parseNodeResponse v of
         Left err -> expectationFailure err
         Right (DriveFile _) -> expectationFailure "expected DriveFolder for APP_LIBRARY"
         Right (DriveFolder fd) ->
           fnId fd `shouldBe` DriveNodeId "FOLDER::com.apple.Keynote::documents"
+    it "fails with an informative message for an unknown type" $ do
+      v <- decodeOrFail unknownTypeJson
+      case parseEither parseNodeResponse v of
+        Left err -> err `shouldContain` "unknown node type: SYMLINK"
+        Right _ -> expectationFailure "expected parse failure for unknown type"
 
   describe "parseChildrenResponse" $ do
     it "returns empty list when items field is absent" $ do
@@ -103,6 +108,16 @@ appLibraryJson =
   \,\"etag\":\"2m\"\
   \,\"type\":\"APP_LIBRARY\"\
   \,\"dateCreated\":\"2019-12-12T14:33:55-08:00\"\
+  \}]"
+
+
+unknownTypeJson :: LBS.ByteString
+unknownTypeJson =
+  "[{\"drivewsid\":\"SYMLINK::com.apple.CloudDocs::ABC123\"\
+  \,\"zone\":\"com.apple.CloudDocs\"\
+  \,\"name\":\"link\"\
+  \,\"etag\":\"1a\"\
+  \,\"type\":\"SYMLINK\"\
   \}]"
 
 

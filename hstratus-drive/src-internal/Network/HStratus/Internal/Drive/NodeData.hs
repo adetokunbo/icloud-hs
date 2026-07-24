@@ -72,7 +72,9 @@ parseNode = withObject "DriveNode" $ \o -> do
   nodeType <- o .: "type" :: Parser Text
   case nodeType of
     "FILE" -> DriveFile <$> parseFileData o
-    _ -> DriveFolder <$> parseFolderData o
+    "FOLDER" -> DriveFolder <$> parseFolderData o
+    "APP_LIBRARY" -> DriveFolder <$> parseFolderData o
+    other -> fail $ "DriveNode: unknown node type: " <> Text.unpack other
 
 
 parseFolderData :: Object -> Parser FolderData

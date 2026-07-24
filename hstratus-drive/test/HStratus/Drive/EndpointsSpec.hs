@@ -69,7 +69,7 @@ testAccountData =
   AccountData
     { adHsaVersion = 2
     , adHsaChallengeRequired = False
-    , adHsaTrustedBrowser = True
+    , adHsaTrustedBrowser = Just True
     , adWebservices =
         Map.fromList
           [ ("drivews", Webservice "https://p31-drivews.icloud.com" Nothing)

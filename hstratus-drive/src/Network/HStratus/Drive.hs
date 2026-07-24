@@ -1,3 +1,5 @@
+{-# LANGUAGE NamedFieldPuns #-}
+
 {- |
 Module      : Network.HStratus.Drive
 Copyright   : (c) 2025 Tim Emiola
@@ -76,7 +78,10 @@ import Network.HStratus.Session (AccountData, Session)
 {- | A bundled handle pairing a logged-in 'Api' with its drive endpoints.
 Construct with 'mkDriveApi'; pass to all drive operations.
 -}
-data DriveApi = DriveApi !Api !DriveEndpoints
+data DriveApi = DriveApi
+  { dApi :: !Api
+  , dEp :: !DriveEndpoints
+  }
 
 
 -- | Pair a logged-in 'Api' with drive endpoints derived from its session data.
@@ -86,8 +91,8 @@ mkDriveApi ad sess api = DriveApi api <$> mkDriveEndpoints ad sess
 
 -- | Fetch the root folder of the main CloudDocs tree.
 driveRoot :: DriveApi -> IO FolderData
-driveRoot (DriveApi api ep) = do
-  node <- fetchNode api ep rootNodeId
+driveRoot DriveApi{dApi, dEp} = do
+  node <- fetchNode dApi dEp rootNodeId
   case node of
     DriveFolder fd -> pure fd
     DriveFile _ -> throwIO DriveInvalidRoot
@@ -95,29 +100,29 @@ driveRoot (DriveApi api ep) = do
 
 -- | Fetch the immediate children of a folder.
 listFolder :: DriveApi -> DriveNodeId -> IO [DriveNode]
-listFolder (DriveApi api ep) = fetchChildren api ep
+listFolder DriveApi{dApi, dEp} = fetchChildren dApi dEp
 
 
 -- | Download the contents of a file as a lazy 'LBS.ByteString'.
 downloadFile :: DriveApi -> FileData -> IO LBS.ByteString
-downloadFile (DriveApi api ep) = fetchFile api ep
+downloadFile DriveApi{dApi, dEp} = fetchFile dApi dEp
 
 
 -- | Create a new folder inside an existing folder.
 createFolder :: DriveApi -> DriveNodeId -> Text -> IO ()
-createFolder (DriveApi api ep) = execCreateFolder api ep
+createFolder DriveApi{dApi, dEp} = execCreateFolder dApi dEp
 
 
 -- | Rename a node (folder or file) to a new name.
 renameNode :: DriveApi -> DriveNode -> Text -> IO ()
-renameNode (DriveApi api ep) = execRenameNode api ep
+renameNode DriveApi{dApi, dEp} = execRenameNode dApi dEp
 
 
 -- | Move a node (folder or file) to the trash.
 deleteNode :: DriveApi -> DriveNode -> IO ()
-deleteNode (DriveApi api ep) = execDeleteNode api ep
+deleteNode DriveApi{dApi, dEp} = execDeleteNode dApi dEp
 
 
 -- | Upload a file into a folder.
 uploadFile :: DriveApi -> FolderData -> Text -> LBS.ByteString -> IO ()
-uploadFile (DriveApi api ep) = execUploadFile api ep
+uploadFile DriveApi{dApi, dEp} = execUploadFile dApi dEp

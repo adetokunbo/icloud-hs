@@ -13,7 +13,7 @@ module HStratus.SessionSpec (spec) where
 import Control.Monad (when)
 import Data.Aeson (decode, eitherDecodeFileStrict, encode, encodeFile, object, (.=))
 import Data.Aeson.Types (parseJSON, parseMaybe)
-import Data.List (sort)
+import Data.List (isInfixOf, sort)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import Data.String (IsString (..))
@@ -29,6 +29,7 @@ import Network.HStratus.Internal.Session
   , clientIdPath
   , cookiePath
   , credentialsPath
+  , encodeFileAtomic
   , loadAccountData
   , loadSavedHeaders
   , saveAccountData
@@ -41,6 +42,7 @@ import Network.HStratus.Internal.Session
 import Network.HStratus.Session (AccountData (..), Credentials (..), Session (..), Webservice (..), loadSession)
 import System.Directory (createDirectory, doesFileExist)
 import System.Environment (setEnv)
+import System.IO.Error (ioeGetErrorString)
 import System.IO.Temp (withSystemTempDirectory)
 import Test.Hspec
   ( Spec
@@ -104,6 +106,7 @@ sessionSpec = describe "module Network.HStratus.Session" $ do
   loadSessionSpec
   loadSavedHeadersSpec
   updateSessionSavedHeadersSpec
+  encodeFileAtomicSpec
 
 
 savedHeadersFieldNamesSpec :: Spec
@@ -131,6 +134,9 @@ loadSavedHeadersSpec = describe "loadSavedHeaders" $ around useTmp $ do
   context "with an invalid saved headers file" $ do
     it "should fail to load" $ \appRoot ->
       failsOnBadSavedHeaders appRoot `shouldThrow` anyIOException
+    it "includes a re-login hint in the error message" $ \appRoot ->
+      failsOnBadSavedHeaders appRoot
+        `shouldThrow` (\e -> "hstratus auth login" `isInfixOf` ioeGetErrorString e)
 
 
 updateSessionSavedHeadersSpec :: Spec
@@ -312,22 +318,24 @@ accountDataSpec = describe "module Network.HStratus.Session (AccountData)" $ do
     it "round-trips through JSON encoding" prop_jsonRoundtripAccountData
   context "accountDataRequires2FA" $ do
     it "is True when hsaVersion == 2 and challenged" $
-      accountDataRequires2FA (mkAccountData 2 True False) `shouldBe` True
-    it "is True when hsaVersion == 2, not challenged, but browser untrusted" $
-      accountDataRequires2FA (mkAccountData 2 False False) `shouldBe` True
+      accountDataRequires2FA (mkAccountData 2 True (Just False)) `shouldBe` True
+    it "is True when hsaVersion == 2, not challenged, but browser explicitly untrusted" $
+      accountDataRequires2FA (mkAccountData 2 False (Just False)) `shouldBe` True
     it "is False when hsaVersion == 2, not challenged, and browser trusted" $
-      accountDataRequires2FA (mkAccountData 2 False True) `shouldBe` False
+      accountDataRequires2FA (mkAccountData 2 False (Just True)) `shouldBe` False
+    it "is False when hsaVersion == 2, not challenged, and hsaTrustedBrowser absent" $
+      accountDataRequires2FA (mkAccountData 2 False Nothing) `shouldBe` False
     it "is False when hsaVersion is 1" $
-      accountDataRequires2FA (mkAccountData 1 True False) `shouldBe` False
+      accountDataRequires2FA (mkAccountData 1 True (Just False)) `shouldBe` False
     it "is False when hsaVersion is 3 (unknown version)" $
-      accountDataRequires2FA (mkAccountData 3 True False) `shouldBe` False
+      accountDataRequires2FA (mkAccountData 3 True (Just False)) `shouldBe` False
   context "accountDataRequires2SA" $ do
     it "is True when hsaVersion is 1" $
-      accountDataRequires2SA (mkAccountData 1 False False) `shouldBe` True
+      accountDataRequires2SA (mkAccountData 1 False (Just False)) `shouldBe` True
     it "is False when hsaVersion is 2" $
-      accountDataRequires2SA (mkAccountData 2 False False) `shouldBe` False
+      accountDataRequires2SA (mkAccountData 2 False (Just False)) `shouldBe` False
     it "is False when hsaVersion is 0" $
-      accountDataRequires2SA (mkAccountData 0 False False) `shouldBe` False
+      accountDataRequires2SA (mkAccountData 0 False (Just False)) `shouldBe` False
   context "AccountData JSON parsing" $ do
     it "fails to parse from null JSON" $
       (decode "null" :: Maybe AccountData) `shouldBe` Nothing
@@ -356,7 +364,7 @@ prop_saveLoadAccountData appRoot = monadicIO $ do
   assert $ Just ad == loaded
 
 
-mkAccountData :: Int -> Bool -> Bool -> AccountData
+mkAccountData :: Int -> Bool -> Maybe Bool -> AccountData
 mkAccountData ver challenged trusted =
   AccountData
     { adHsaVersion = ver
@@ -371,18 +379,19 @@ genAccountData :: Gen AccountData
 genAccountData = do
   adHsaVersion <- abs <$> (arbitrary :: Gen Int)
   adHsaChallengeRequired <- (arbitrary :: Gen Bool)
-  adHsaTrustedBrowser <- (arbitrary :: Gen Bool)
+  adHsaTrustedBrowser <- elements [Nothing, Just True, Just False]
   adWebservices <- Map.fromList <$> listOf genWsPair
-  let v =
-        object
+  let trustedField = maybe [] (\t -> ["hsaTrustedBrowser" .= t]) adHsaTrustedBrowser
+      v =
+        object $
           [ "dsInfo" .= object ["hsaVersion" .= adHsaVersion]
           , "hsaChallengeRequired" .= adHsaChallengeRequired
-          , "hsaTrustedBrowser" .= adHsaTrustedBrowser
           , "webservices"
               .= fmap
                 (\(Webservice url st) -> object $ ["url" .= url] <> maybe [] (\s -> ["status" .= s]) st)
                 adWebservices
           ]
+            <> trustedField
   pure $ fromMaybe unknownAccountData (parseMaybe parseJSON v)
  where
   genWsPair :: Gen (Text, Webservice)
@@ -390,3 +399,21 @@ genAccountData = do
   genWebservice :: Gen Webservice
   genWebservice = Webservice <$> genIndexedSuffix "https://example.com/" <*> elements [Nothing, Just "active", Just "inactive"]
   wsNames = ["findme", "contacts", "calendar", "mail"]
+
+
+encodeFileAtomicSpec :: Spec
+encodeFileAtomicSpec = describe "encodeFileAtomic" $ around useTmp $ do
+  it "round-trips a JSON value" $ \appRoot -> do
+    let path = appRoot </> "test.json"
+        value = object ["key" .= ("value" :: Text)]
+    encodeFileAtomic path value
+    result <- eitherDecodeFileStrict path
+    result `shouldBe` Right value
+  it "overwrites an existing file" $ \appRoot -> do
+    let path = appRoot </> "test.json"
+        old = object ["version" .= (1 :: Int)]
+        new = object ["version" .= (2 :: Int)]
+    encodeFileAtomic path old
+    encodeFileAtomic path new
+    result <- eitherDecodeFileStrict path
+    result `shouldBe` Right new

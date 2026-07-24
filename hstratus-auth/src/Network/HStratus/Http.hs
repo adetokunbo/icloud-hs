@@ -64,6 +64,7 @@ module Network.HStratus.Http
 
     -- * Errors
   , AuthError (..)
+  , HStratusError
   )
 where
 
@@ -92,5 +93,5 @@ import Network.HStratus.Internal.Http.Signin
   , requestSmsCode
   , verifySmsCode
   )
-import Network.HStratus.Internal.HttpErrors (AuthError (..))
+import Network.HStratus.Internal.HttpErrors (AuthError (..), HStratusError)
 

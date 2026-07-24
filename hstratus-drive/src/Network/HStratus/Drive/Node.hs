@@ -26,6 +26,10 @@ module Network.HStratus.Drive.Node
     -- * Identifiers
   , DriveNodeId (..)
   , rootNodeId
+
+    -- * Node lookup
+  , matchFolderName
+  , selectFileNode
   )
 where
 
@@ -35,6 +39,8 @@ import Network.HStratus.Internal.Drive.Node
   , FileData (..)
   , FolderData (..)
   , fileName
+  , matchFolderName
   , rootNodeId
+  , selectFileNode
   )
 

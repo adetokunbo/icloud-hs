@@ -17,6 +17,7 @@ module Network.HStratus.Internal.LoginFSM where
 
 import Data.Functor ((<&>))
 import Data.Kind (Type)
+import Data.List.NonEmpty (NonEmpty)
 import Data.Text (Text)
 import Data.Word (Word8)
 import Network.HStratus.Internal.Http (SrpContext (..))
@@ -35,7 +36,7 @@ data TwoFaConfig = TwoFaConfig
 
 -- | Configuration for the 2SA challenge process.
 data TwoSaConfig = TwoSaConfig
-  { tscPickDevice :: [Setup2SADevice] -> IO Setup2SADevice
+  { tscPickDevice :: NonEmpty Setup2SADevice -> IO Setup2SADevice
   -- ^ select the device to receive a verification code
   , tscReadCode :: IO Text
   -- ^ prompt the user for the verification code
@@ -200,9 +201,9 @@ data LoginFSM s where
   TwoFaVerifying :: Credentials -> TrustData -> Maybe TrustedPhone -> LoginFSM TwoFaVerifying
   DoTrust :: Credentials -> LoginFSM DoTrust
   NeedsTwoSa :: Credentials -> LoginFSM NeedsTwoSa
-  TwoSaReady :: Credentials -> [Setup2SADevice] -> LoginFSM TwoSaReady
-  ReadyForTwoSa :: Credentials -> [Setup2SADevice] -> LoginFSM ReadyForTwoSa
-  TwoSaVerifying :: Credentials -> Setup2SADevice -> [Setup2SADevice] -> LoginFSM TwoSaVerifying
+  TwoSaReady :: Credentials -> NonEmpty Setup2SADevice -> LoginFSM TwoSaReady
+  ReadyForTwoSa :: Credentials -> NonEmpty Setup2SADevice -> LoginFSM ReadyForTwoSa
+  TwoSaVerifying :: Credentials -> Setup2SADevice -> NonEmpty Setup2SADevice -> LoginFSM TwoSaVerifying
   HaltInvalidSrp :: Credentials -> LoginFSM HaltInvalidSrp
   HaltTwoFaLocked :: Credentials -> LoginFSM HaltTwoFaLocked
 

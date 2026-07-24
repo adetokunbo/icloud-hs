@@ -3,17 +3,13 @@
 -- Converts gzip-compressed protobuf note bodies to the domain NoteText type.
 -- This is the bridge between Internal.Notes.Proto (wire representation) and
 -- the public NoteText/NoteRun/NoteStyle types.
---
--- Note: GZip.decompress is lazy.  If the input bytes are not valid gzip, a
--- runtime exception is thrown when the decompressed stream is first consumed.
--- Callers that need to handle corrupt payloads gracefully should wrap
--- decodeNoteBody in Control.Exception.try.
 module Network.HStratus.Internal.Notes.Decode
   ( decodeNoteBody
   )
 where
 
 import qualified Codec.Compression.GZip as GZip
+import Control.Exception (SomeException, evaluate, try)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as T
@@ -34,14 +30,14 @@ import Network.HStratus.Internal.Notes.Proto
 {- | Decode a note body.  The input is the raw bytes from the CloudKit
 @TextDataEncrypted@ field after base64-decoding (Phase 1 does this in
 'noteRecordToNote').  The encoding is: gzip( protobuf( NoteStoreProto ) ).
+Returns @Left@ if decompression fails or the protobuf cannot be parsed.
 -}
-decodeNoteBody :: ByteString -> Either String NoteText
-decodeNoteBody =
-  fmap toNoteText
-    . decodeNoteStoreProto
-    . LBS.toStrict
-    . GZip.decompress
-    . LBS.fromStrict
+decodeNoteBody :: ByteString -> IO (Either String NoteText)
+decodeNoteBody bs = do
+  decompressed <- try (evaluate (LBS.toStrict (GZip.decompress (LBS.fromStrict bs))))
+  pure $ case (decompressed :: Either SomeException ByteString) of
+    Left e -> Left ("gzip decompression failed: " <> show e)
+    Right strict -> fmap toNoteText (decodeNoteStoreProto strict)
 
 
 -- Map ProtoNote → NoteText.  The proto layer mirrors the wire schema; this

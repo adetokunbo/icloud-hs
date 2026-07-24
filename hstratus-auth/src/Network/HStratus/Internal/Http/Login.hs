@@ -34,6 +34,7 @@ import qualified Control.Monad.Trans.Reader as Reader
 import Crypto.SRP (calcResults, mkFromClient)
 import Data.Aeson (FromJSON (..))
 import Data.Aeson.Types (Value (..), parseEither)
+import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Text as Text
 import Data.Word (Word8)
 import Network.HStratus.Internal.Http (SrpContext (..))
@@ -124,7 +125,7 @@ data AuthState
   | -- | Sign-in requires a two-factor code; use 'completeTwoFactor' or 'completeTwoFactorWith' to proceed.
     Requires2FA Session
   | -- | Sign-in requires a legacy two-step code; use 'complete2SA' or 'complete2SAWith' to proceed.
-    Requires2SA Session [Setup2SADevice]
+    Requires2SA Session (NonEmpty Setup2SADevice)
 
 
 instance Show AuthState where
@@ -142,7 +143,7 @@ login = loginWith pleaseReadCode selectTwoFaPhone selectSetupDevice
 loginWith
   :: (Word8 -> IO AuthCode)
   -> (TrustData -> IO (Maybe TrustedPhone))
-  -> ([Setup2SADevice] -> IO Setup2SADevice)
+  -> (NonEmpty Setup2SADevice -> IO Setup2SADevice)
   -> Api
   -> IO AuthState
 loginWith readCode pickPhone pickDevice api =
@@ -314,16 +315,16 @@ completeTwoFactorWith readCode pickPhone api = do
 
 
 -- | Used when already holding a 'Requires2SA' result from 'completeTwoFactor' or 'completeTwoFactorWith'
-complete2SA :: Api -> [Setup2SADevice] -> IO AuthState
+complete2SA :: Api -> NonEmpty Setup2SADevice -> IO AuthState
 complete2SA = complete2SAWith selectSetupDevice (pleaseReadCode 6)
 
 
 -- | Like 'complete2SA' with injectable device selector and code prompt, for testing
 complete2SAWith
-  :: ([Setup2SADevice] -> IO Setup2SADevice)
+  :: (NonEmpty Setup2SADevice -> IO Setup2SADevice)
   -> IO AuthCode
   -> Api
-  -> [Setup2SADevice]
+  -> NonEmpty Setup2SADevice
   -> IO AuthState
 complete2SAWith pickDevice readCode api devices = do
   let start = ReadyForTwoSa (sessionCreds (apiSession api)) devices

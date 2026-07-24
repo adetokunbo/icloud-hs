@@ -65,7 +65,8 @@ lockedTrustData :: LBS.ByteString
 lockedTrustData =
   "{\"securityCode\":{\"length\":6,\"tooManyCodesSent\":false,\"tooManyCodesValidated\":false\
   \,\"securityCodeLocked\":true,\"securityCodeCooldown\":false}\
-  \,\"trustedPhoneNumbers\":[],\"noTrustedDevices\":false}"
+  \,\"trustedPhoneNumbers\":[{\"id\":1,\"numberWithDialCode\":\"+1 test\",\"pushMode\":null}]\
+  \,\"noTrustedDevices\":false}"
 
 
 withMockApp :: Scenario -> (Int -> IO a) -> IO a

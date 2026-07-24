@@ -40,10 +40,14 @@ module Network.HStratus.Internal.Session
     -- * path components
   , appBase
   , (</>)
+
+    -- * Utilities
+  , encodeFileAtomic
   )
 where
 
 import Control.Applicative ((<|>))
+import Control.Exception (bracketOnError)
 import Control.Monad (forM, (>=>))
 import Data.Aeson
   ( FromJSON (..)
@@ -53,7 +57,6 @@ import Data.Aeson
   , Value
   , eitherDecodeFileStrict
   , encode
-  , encodeFile
   , genericParseJSON
   , genericToEncoding
   , genericToJSON
@@ -85,9 +88,10 @@ import Network.HStratus.Internal.Http
   , hTrustToken
   )
 import Network.HTTP.Types.Header (Header)
-import System.Directory (createDirectoryIfMissing, doesFileExist)
+import System.Directory (createDirectoryIfMissing, doesFileExist, removeFile, renameFile)
 import System.Environment.XDG.BaseDir (getUserConfigDir)
-import System.FilePath ((</>))
+import System.FilePath (takeDirectory, (</>))
+import System.IO (hClose, openTempFile)
 import System.Posix.Files (setFileMode)
 
 
@@ -166,8 +170,10 @@ data AccountData = AccountData
   -- ^ HSA protocol version; drives the two-factor flow selection
   , adHsaChallengeRequired :: !Bool
   -- ^ @True@ when a 2FA challenge must be completed before access is granted
-  , adHsaTrustedBrowser :: !Bool
-  -- ^ @True@ when this session is already trusted and no challenge is needed
+  , adHsaTrustedBrowser :: !(Maybe Bool)
+  {- ^ @Just True@ when this session is already trusted; @Just False@ when explicitly
+  untrusted; @Nothing@ when the key was absent from Apple's response (treated as trusted)
+  -}
   , adWebservices :: !(Map Text Webservice)
   -- ^ map of webservice name to service info; use 'lookupWebservice' to resolve a URL
   , adRaw :: !Value
@@ -183,7 +189,7 @@ instance FromJSON AccountData where
       dsInfo <- o .: "dsInfo"
       adHsaVersion <- withObject "dsInfo" (.: "hsaVersion") dsInfo
       adHsaChallengeRequired <- o .:? "hsaChallengeRequired" >>= maybe (pure False) pure
-      adHsaTrustedBrowser <- o .:? "hsaTrustedBrowser" >>= maybe (pure False) pure
+      adHsaTrustedBrowser <- o .:? "hsaTrustedBrowser"
       adWebservices <- do
         mbWs <- o .:? "webservices"
         maybe (pure Map.empty) (withObject "webservices" parseWebservices) mbWs
@@ -210,7 +216,8 @@ instance ToJSON AccountData where
 -- | True when full 2FA (auth-endpoint) challenge is required
 accountDataRequires2FA :: AccountData -> Bool
 accountDataRequires2FA ad =
-  adHsaVersion ad == 2 && (adHsaChallengeRequired ad || not (adHsaTrustedBrowser ad))
+  adHsaVersion ad == 2
+    && (adHsaChallengeRequired ad || adHsaTrustedBrowser ad == Just False)
 
 
 -- | True when legacy 2SA (setup-endpoint) challenge is required
@@ -224,7 +231,7 @@ unknownAccountData =
   AccountData
     { adHsaVersion = 0
     , adHsaChallengeRequired = False
-    , adHsaTrustedBrowser = False
+    , adHsaTrustedBrowser = Nothing
     , adWebservices = Map.empty
     , adRaw = object []
     }
@@ -242,7 +249,7 @@ accountDataPath topDir creds = topDir </> Text.unpack (accountDataBase creds)
 -- | Persist @AccountData@ to the session's filesystem location
 saveAccountData :: Session -> AccountData -> IO ()
 saveAccountData Session{sessionCreds = creds, sessionTopDir = topDir} =
-  encodeFile (accountDataPath topDir creds)
+  encodeFileAtomic (accountDataPath topDir creds)
 
 
 -- | Load persisted @AccountData@; returns @Nothing@ if the file is absent
@@ -271,7 +278,7 @@ saveCredentialsTo :: FilePath -> Credentials -> IO ()
 saveCredentialsTo topDir creds = do
   createDirectoryIfMissing True topDir
   let credPath = credentialsPath topDir
-  encodeFile credPath creds
+  encodeFileAtomic credPath creds
   setFileMode credPath 0o600
 
 
@@ -374,7 +381,7 @@ updateSessionSavedHeaders
   -> IO ()
 updateSessionSavedHeaders s modSavedHeaders = do
   let dataPath = savedHeadersPath (sessionTopDir s) (sessionCreds s)
-      updateAndSave = encodeFile dataPath . modSavedHeaders
+      updateAndSave = encodeFileAtomic dataPath . modSavedHeaders
       loadLast False = pure pristine
       loadLast True = eitherDecodeFileStrict dataPath >>= either (fail . show) pure
 
@@ -385,12 +392,30 @@ loadSession :: IO Session
 loadSession = do
   sessionTopDir <- getUserConfigDir appBase
   createDirectoryIfMissing True sessionTopDir
-  loadSessionOr sessionTopDir >>= either fail pure
+  loadSessionOr sessionTopDir
+    >>= orFail "Credentials are missing or corrupt; run 'hstratus auth login' to authenticate"
 
 
 -- | Saves a JSON @Value@ to @filepath@
 saveValue :: FilePath -> Value -> IO ()
 saveValue fp v = LBS.writeFile fp $ encode v
+
+
+orFail :: String -> Either String a -> IO a
+orFail hint = either (\e -> fail (hint <> " (" <> e <> ")")) pure
+
+
+-- | Write a JSON-encodable value to @path@ atomically via a temp file and rename.
+encodeFileAtomic :: (ToJSON a) => FilePath -> a -> IO ()
+encodeFileAtomic path value =
+  bracketOnError
+    (openTempFile (takeDirectory path) ".tmp")
+    (\(tmpPath, h) -> hClose h >> removeFile tmpPath)
+    ( \(tmpPath, h) -> do
+        LBS.hPut h (encode value)
+        hClose h
+        renameFile tmpPath path
+    )
 
 
 loadCredentials :: FilePath -> IO (Either String Credentials)
@@ -415,7 +440,8 @@ loadSessionOr = loadCredentials' >=> loadSession'
 -- | Load the @SavedHeaders@ for this session
 loadSavedHeaders :: Session -> IO SavedHeaders
 loadSavedHeaders Session{sessionTopDir, sessionCreds} =
-  loadSavedHeaders' sessionTopDir sessionCreds >>= either fail pure
+  loadSavedHeaders' sessionTopDir sessionCreds
+    >>= orFail "Session state is corrupt; run 'hstratus auth login' to re-authenticate"
 
 
 loadSavedHeaders' :: FilePath -> Credentials -> IO (Either String SavedHeaders)

@@ -1,7 +1,9 @@
+{-# LANGUAGE NamedFieldPuns #-}
+
 module Network.HStratus.Notes
   ( -- * Setup
-    NotesEndpoints
-  , mkNotesEndpoints
+    NotesApi
+  , mkNotesApi
 
     -- * Querying
   , recentNotes
@@ -34,23 +36,38 @@ import Network.HStratus.Internal.Notes.Endpoints
   , mkNotesEndpoints
   )
 import Network.HStratus.Notes.Note
+import Network.HStratus.Session (AccountData, Session)
+
+
+{- | A bundled handle pairing a logged-in 'Api' with its notes endpoints.
+Construct with 'mkNotesApi'; pass to all notes operations.
+-}
+data NotesApi = NotesApi
+  { nApi :: !Api
+  , nEp :: !NotesEndpoints
+  }
+
+
+-- | Pair a logged-in 'Api' with notes endpoints derived from its session data.
+mkNotesApi :: AccountData -> Session -> Api -> IO NotesApi
+mkNotesApi ad sess api = NotesApi api <$> mkNotesEndpoints ad sess
 
 
 -- | Fetch recent notes, sorted by modification time descending.
-recentNotes :: Api -> NotesEndpoints -> IO [NoteSummary]
-recentNotes = fetchRecent
+recentNotes :: NotesApi -> IO [NoteSummary]
+recentNotes NotesApi{nApi, nEp} = fetchRecent nApi nEp
 
 
 -- | Fetch all Notes folders.
-noteFolders :: Api -> NotesEndpoints -> IO [NoteFolder]
-noteFolders = fetchFolders
+noteFolders :: NotesApi -> IO [NoteFolder]
+noteFolders NotesApi{nApi, nEp} = fetchFolders nApi nEp
 
 
 -- | Fetch notes belonging to the given folder.
-notesInFolder :: Api -> NotesEndpoints -> FolderId -> IO [NoteSummary]
-notesInFolder = fetchNotesInFolder
+notesInFolder :: NotesApi -> FolderId -> IO [NoteSummary]
+notesInFolder NotesApi{nApi, nEp} = fetchNotesInFolder nApi nEp
 
 
 -- | Fetch a single note by ID. Returns 'Nothing' if the note has been deleted.
-getNote :: Api -> NotesEndpoints -> NoteId -> IO (Maybe Note)
-getNote = fetchNote
+getNote :: NotesApi -> NoteId -> IO (Maybe Note)
+getNote NotesApi{nApi, nEp} = fetchNote nApi nEp

@@ -1,5 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Network.HStratus.Http.Cli
   ( -- * Common CLI options
@@ -15,6 +16,9 @@ module Network.HStratus.Http.Cli
 
     -- * Authenticated API runner
   , runWithApi
+
+    -- * Error handler
+  , onServiceError
   )
 where
 
@@ -24,6 +28,7 @@ import Network.HStratus.Http
   , ApiLogger
   , AuthError
   , AuthState (..)
+  , HStratusError
   , fileLogger
   , login
   , mkApiWith
@@ -118,4 +123,9 @@ runWithApi opts runAction = do
         Nothing
           | optLogBodies opts && not (optRedact opts) -> run (withLogger (mkLogger' stdout) api0)
           | otherwise -> run api0
-  go `catch` \e -> putStrLn ("Error: " <> displayException (e :: AuthError)) >> exitFailure
+  go `catch` onServiceError @AuthError
+
+
+-- | Print a service error and exit. Use as the catch handler in CLI wrappers.
+onServiceError :: (HStratusError e) => e -> IO a
+onServiceError e = putStrLn ("Error: " <> displayException e) >> exitFailure

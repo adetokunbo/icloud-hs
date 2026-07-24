@@ -15,10 +15,15 @@ module Network.HStratus.Internal.Drive.Node
   , nodeId
   , nodeEtag
   , folderDocId
+
+    -- * Node lookup
+  , matchFolderName
+  , selectFileNode
   )
 where
 
 import Data.Int (Int64)
+import Data.List (find)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -84,6 +89,20 @@ fileName :: FileData -> Text
 fileName fd = case fdExtension fd of
   Nothing -> fdName fd
   Just ext -> fdName fd <> Text.pack "." <> ext
+
+
+-- | True when the node is a folder whose display name equals the given text.
+matchFolderName :: Text -> DriveNode -> Bool
+matchFolderName name (DriveFolder fd) = fnName fd == name
+matchFolderName _ (DriveFile _) = False
+
+
+-- | Find the first node whose name matches, checking file and folder names.
+selectFileNode :: Text -> [DriveNode] -> Maybe DriveNode
+selectFileNode name = find matchesName
+ where
+  matchesName (DriveFile fd) = fileName fd == name
+  matchesName (DriveFolder fd) = fnName fd == name
 
 
 -- | Extract the stable identifier from any node.

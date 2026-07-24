@@ -9,6 +9,7 @@ import Control.Exception (try)
 import Data.Aeson (decode, encodeFile)
 import qualified Data.ByteString.Char8 as BS8
 import Data.IORef (newIORef, readIORef, writeIORef)
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Maybe (fromJust)
 import qualified Data.Text as Text
 import HStratus.Mock (Scenario (..), SrpOutcome (..), defaultScenario, withMockApp, withMockAppCapturing)
@@ -60,7 +61,7 @@ spec = describe "Network.HStratus.Http.login" $ do
 
   it "complete2SA returns Authenticated after 2SA challenge" $
     withFreshMockApi "icloud-auth-2sa" defaultScenario $ \api -> do
-      result <- complete2SAWith (\_ -> pure testDevice) (pure "0") api [testDevice]
+      result <- complete2SAWith (\_ -> pure testDevice) (pure "0") api (testDevice :| [])
       isAuthenticated result `shouldBe` True
 
   it "completes 2SA automatically when account login signals 2SA required" $
@@ -84,7 +85,7 @@ spec = describe "Network.HStratus.Http.login" $ do
             [] -> fail "no more codes"
             (c : rest) -> writeIORef codeRef rest >> pure c
     withFreshMockApi "icloud-auth-2sa-retry" defaultScenario{snValidateCodeFails = True} $ \api -> do
-      result <- complete2SAWith (\_ -> pure testDevice) readCode api [testDevice]
+      result <- complete2SAWith (\_ -> pure testDevice) readCode api (testDevice :| [])
       isAuthenticated result `shouldBe` True
 
   it "completes 2FA via SMS when phone selector returns a phone" $

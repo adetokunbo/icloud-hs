@@ -14,7 +14,7 @@ import Control.Monad (when)
 import Data.Aeson (FromJSON, eitherDecode)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Maybe (listToMaybe, mapMaybe)
-import Network.HStratus.Http (Api, rawRequest)
+import Network.HStratus.Http (Api, HStratusError, rawRequest)
 import Network.HStratus.Internal.Notes.CloudKit
   ( CKLookupResponse (..)
   , CKQueryResponse (..)
@@ -57,10 +57,17 @@ import Network.HTTP.Types (hContentType, statusCode)
 data NotesError
   = NotesHttpError Int
   | NotesParseError String
-  deriving (Show)
+
+
+instance Show NotesError where
+  show (NotesHttpError n) = "iCloud Notes: HTTP error " <> show n
+  show (NotesParseError msg) = "iCloud Notes: parse error: " <> msg
 
 
 instance Exception NotesError
+
+
+instance HStratusError NotesError
 
 
 fetchFolders :: Api -> NotesEndpoints -> IO [NoteFolder]

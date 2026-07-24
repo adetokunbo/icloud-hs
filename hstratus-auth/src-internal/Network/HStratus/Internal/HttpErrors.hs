@@ -18,6 +18,9 @@ module Network.HStratus.Internal.HttpErrors
     -- * Public exception type
   , AuthError (..)
 
+    -- * Common service-error marker
+  , HStratusError
+
     -- * Extracting results
   , extractOr
   )
@@ -87,6 +90,17 @@ data AuthError
 
 
 instance Exception AuthError
+
+
+{- | Marker class for exceptions thrown by iCloud service libraries.
+
+Declare an instance for each library-level error type so that 'onServiceError'
+in "Network.HStratus.Http.Cli" can be used as a uniform catch handler.
+-}
+class (Exception e) => HStratusError e
+
+
+instance HStratusError AuthError
 
 
 -- | Extract the result from an 'ApiResponse', throwing 'ServiceError' on failure.
