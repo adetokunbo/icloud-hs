@@ -13,6 +13,8 @@ import Data.Aeson (Key, ToJSON (..), Value (..), decode, eitherDecodeFileStrict,
 import Data.Aeson.KeyMap (fromList)
 import qualified Data.Aeson.KeyMap as KeyMap
 import Data.List (sort)
+import Data.List.NonEmpty (NonEmpty (..))
+import qualified Data.List.NonEmpty as NE
 import Data.Maybe (catMaybes)
 import Data.String.Conv (toS)
 import Data.Text (Text)
@@ -26,7 +28,6 @@ import Test.Hspec
   , describe
   , it
   , shouldBe
-  , shouldReturn
   )
 import Test.Hspec.Benri (endsJust, endsNothing, endsRight)
 import Test.Main (withStdin)
@@ -184,8 +185,8 @@ genTrustedDevice = TrustedDevice <$> genExWord <*> genExWord <*> genExWord
 genTrustedList :: Gen TrustedList
 genTrustedList =
   frequency
-    [ (1, TrustedPhoneNumbers <$> listOf1 genTrustedPhone)
-    , (1, TrustedDevices <$> listOf1 genTrustedDevice)
+    [ (1, TrustedPhoneNumbers . NE.fromList <$> listOf1 genTrustedPhone)
+    , (1, TrustedDevices . NE.fromList <$> listOf1 genTrustedDevice)
     ]
 
 
@@ -200,39 +201,39 @@ twoFaPhone2 = TrustedPhone 2 "+1 test-2" Nothing
 mkTrustData :: Bool -> [TrustedPhone] -> TrustData
 mkTrustData noDevices phones =
   TrustData
-    { tdList = TrustedPhoneNumbers phones
+    { tdList = case NE.nonEmpty phones of
+        Just nep -> TrustedPhoneNumbers nep
+        Nothing -> TrustedDevices (TrustedDevice "" "" "" :| [])
     , tdSecurityCode = CodeStatus 6 False False False False
     , tdNoTrustedDevices = noDevices
     }
 
 
-useIOSelector :: (Eq a) => ([a] -> IO a) -> (Int, a, [a]) -> IO Bool
+useIOSelector :: (Eq a) => (NonEmpty a -> IO a) -> (Int, a, NonEmpty a) -> IO Bool
 useIOSelector selector (idx, want, xs) = do
   withStdin (toS $ show idx) $ do
     selected <- silence $ selector xs
     pure $ selected == want
 
 
-prop_selectsWithNonMaxIndex :: (Eq a, Show a) => ([a] -> IO a) -> Gen a -> Property
+prop_selectsWithNonMaxIndex :: (Eq a, Show a) => (NonEmpty a -> IO a) -> Gen a -> Property
 prop_selectsWithNonMaxIndex selector generator = monadicIO $ do
   pick (genWithNonMaxIndex generator) >>= run . useIOSelector selector >>= assert
 
 
-prop_selectsWithMaxIndex :: (Eq a, Show a) => ([a] -> IO a) -> Gen a -> Property
+prop_selectsWithMaxIndex :: (Eq a, Show a) => (NonEmpty a -> IO a) -> Gen a -> Property
 prop_selectsWithMaxIndex selector generator = monadicIO $ do
-  let useMax (_ignoredIndex, _ignoredSelection, xs) =
-        let num = length xs
-         in (num, xs !! (num - 1), xs)
+  let useMax (_ignoredIndex, _ignoredSelection, xs) = (NE.length xs, NE.last xs, xs)
       withNonMax = genWithNonMaxIndex generator
   pick (fmap useMax withNonMax) >>= run . useIOSelector selector >>= assert
 
 
-genWithNonMaxIndex :: Gen a -> Gen (Int, a, [a])
+genWithNonMaxIndex :: Gen a -> Gen (Int, a, NonEmpty a)
 genWithNonMaxIndex sourceGen = do
   low <- chooseInt (1, 5)
   high <- chooseInt (low, 10)
-  xs <- vectorOf high sourceGen
-  pure (low, xs !! (low - 1), xs)
+  xs <- NE.fromList <$> vectorOf high sourceGen -- vectorOf high always gives exactly high elements, high >= 1
+  pure (low, NE.toList xs !! (low - 1), xs) -- low in [1..high], so in-bounds
 
 
 genTrustData :: Gen TrustData
@@ -256,7 +257,7 @@ jsonKeysOf x = case toJSON x of
 expectedTrustData :: TrustData
 expectedTrustData =
   TrustData
-    { tdList = TrustedPhoneNumbers [TrustedPhone 1 "+81 \x2022\x2022 \x2022\x2022\x2022\x2022 \x2022\&34" (Just "sms")]
+    { tdList = TrustedPhoneNumbers (TrustedPhone 1 "+81 \x2022\x2022 \x2022\x2022\x2022\x2022 \x2022\&34" (Just "sms") :| [])
     , tdSecurityCode = CodeStatus 6 False False False False
     , tdNoTrustedDevices = False
     }

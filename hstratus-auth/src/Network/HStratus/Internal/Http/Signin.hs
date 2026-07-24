@@ -52,6 +52,8 @@ import Data.Aeson
 import Data.Aeson.Types (Parser, Value (..))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Base64 as B64
+import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NE
 import Data.Maybe (fromMaybe)
 import Data.String.Conv (toS)
 import Data.Text (Text)
@@ -370,9 +372,10 @@ instance FromJSON ListDevicesReply where
   parseJSON = withObject "ListDevicesReply" $ \o -> ListDevicesReply <$> o .: "devices"
 
 
-listSetupDevices :: Api -> IO [Setup2SADevice]
-listSetupDevices api@Api{apiEndpoints = ep} =
-  ldrDevices <$> callRequiredHeaders api (listDevices ep)
+listSetupDevices :: Api -> IO (NonEmpty Setup2SADevice)
+listSetupDevices api@Api{apiEndpoints = ep} = do
+  devices <- ldrDevices <$> callRequiredHeaders api (listDevices ep)
+  maybe (throwIO (UnexpectedResponse "2SA: server returned no trusted devices")) pure (NE.nonEmpty devices)
 
 
 sendSetupVerification :: Api -> Setup2SADevice -> IO ()

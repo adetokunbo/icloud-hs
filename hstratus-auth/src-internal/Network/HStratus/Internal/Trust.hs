@@ -26,7 +26,6 @@ where
 
 import Control.Applicative ((<|>))
 import Control.Exception (IOException, catch, throwIO)
-import Control.Monad (when)
 import Data.Aeson
   ( FromJSON (..)
   , KeyValue (..)
@@ -44,8 +43,10 @@ import Data.Aeson
   , (.:?)
   )
 import Data.Aeson.Casing (aesonPrefix, camelCase)
-import Data.Aeson.KeyMap (filterWithKey, toList)
+import Data.Aeson.KeyMap (filterWithKey)
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Aeson.Types (Parser)
+import Data.List.NonEmpty (NonEmpty (..), toList)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -65,23 +66,26 @@ putDeviceChoice (i, td)
       Text.putStrLn $ Text.pack (show i) <> ") " <> tdName td <> "\t" <> tdModelName td <> "\t" <> tdId td
 
 
-selectDevice :: [TrustedDevice] -> IO TrustedDevice
+-- idx is 1-based and in [1, length xs], as enforced by pleaseChooseN
+nthOf :: NonEmpty a -> Int -> a
+nthOf xs idx = toList xs !! (idx - 1)
+
+
+selectDevice :: NonEmpty TrustedDevice -> IO TrustedDevice
 selectDevice xs = do
-  when (null xs) $ fail "sorry, expected to pick a trusted device, none to choose from"
   Text.putStrLn "Please select a trusted device to send a code to"
-  mapM_ putDeviceChoice $ zip ([1 ..] :: [Int]) xs
+  mapM_ putDeviceChoice $ zip ([1 ..] :: [Int]) (toList xs)
   idx <- pleaseChooseN 1 (length xs)
-  pure (xs !! (idx - 1))
+  pure (nthOf xs idx)
 
 
-selectPhone :: [TrustedPhone] -> IO TrustedPhone
+selectPhone :: NonEmpty TrustedPhone -> IO TrustedPhone
 selectPhone xs = do
   let putPhoneChoice (i, x) = Text.putStrLn $ Text.pack (show i) <> ") " <> tpnNumberWithDialCode x
-  when (null xs) $ fail "sorry, expected to pick a trusted phone number, none to choose from"
   Text.putStrLn "Please select a trusted phone number to send a code to"
-  mapM_ putPhoneChoice $ zip ([1 ..] :: [Int]) xs
+  mapM_ putPhoneChoice $ zip ([1 ..] :: [Int]) (toList xs)
   idx <- pleaseChooseN 1 (length xs)
-  pure (xs !! (idx - 1))
+  pure (nthOf xs idx)
 
 
 pleaseChooseN :: Int -> Int -> IO Int
@@ -170,10 +174,10 @@ instance ToJSON TrustedDevice where
   toEncoding = genericToEncoding simpleOptions
 
 
--- | A list of @TrustedPhone@ or @TrustedDevice@
+-- | A non-empty list of @TrustedPhone@ or @TrustedDevice@
 data TrustedList
-  = TrustedPhoneNumbers ![TrustedPhone]
-  | TrustedDevices ![TrustedDevice]
+  = TrustedPhoneNumbers !(NonEmpty TrustedPhone)
+  | TrustedDevices !(NonEmpty TrustedDevice)
   deriving (Eq, Show, Generic)
 
 
@@ -211,14 +215,14 @@ withSelectedPhoneOrDevice
   :: (TrustedPhone -> IO a) -> (TrustedDevice -> IO a) -> TrustData -> IO a
 withSelectedPhoneOrDevice handlePhone handleDevice = do
   let ikou (TrustedDevices ys) = selectDevice ys >>= handleDevice
-      ikou (TrustedPhoneNumbers [y]) = handlePhone y
+      ikou (TrustedPhoneNumbers (y :| [])) = handlePhone y
       ikou (TrustedPhoneNumbers ys) = selectPhone ys >>= handlePhone
   ikou . tdList
 
 
 toJSONTrustData :: TrustData -> Value
 toJSONTrustData td =
-  let asPairs (Object o) = toList o
+  let asPairs (Object o) = KeyMap.toList o
       asPairs _other = []
       fromOthers =
         [ "securityCode" .= tdSecurityCode td
@@ -264,13 +268,13 @@ setup2SADeviceLabel (Setup2SADevice o) = fromMaybe "(unknown)" $ do
     String t -> Just t
     _ -> Nothing
  where
-  pairs = toList o
+  pairs = KeyMap.toList o
 
 
 selectTwoFaPhone :: TrustData -> IO (Maybe TrustedPhone)
 selectTwoFaPhone td =
   let phones = case tdList td of
-        TrustedPhoneNumbers ps -> ps
+        TrustedPhoneNumbers ps -> toList ps
         TrustedDevices _ -> []
    in if tdNoTrustedDevices td
         then pure (listToMaybe phones)
@@ -286,17 +290,16 @@ selectTwoFaPhone td =
     if Text.null response
       then pure Nothing
       else case readMaybe (Text.unpack response) of
-        Just n | n >= (1 :: Int) && n <= length phones -> pure $ Just (phones !! (n - 1))
+        Just n | n >= (1 :: Int) && n <= length phones -> pure $ listToMaybe $ drop (n - 1) phones
         _ -> pickPhoneOrDevice phones
 
 
-selectSetupDevice :: [Setup2SADevice] -> IO Setup2SADevice
+selectSetupDevice :: NonEmpty Setup2SADevice -> IO Setup2SADevice
 selectSetupDevice xs = do
-  when (null xs) $ fail "no 2SA devices available"
   Text.putStrLn "Please select a trusted device to receive a verification code"
-  mapM_ (\(i, d) -> Text.putStrLn $ Text.pack (show (i :: Int)) <> ") " <> setup2SADeviceLabel d) (zip [1 ..] xs)
+  mapM_ (\(i, d) -> Text.putStrLn $ Text.pack (show (i :: Int)) <> ") " <> setup2SADeviceLabel d) (zip [1 ..] (toList xs))
   idx <- pleaseChooseN 1 (length xs)
-  pure (xs !! (idx - 1))
+  pure (nthOf xs idx)
 
 
 simpleOptions :: Options

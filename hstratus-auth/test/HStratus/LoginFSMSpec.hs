@@ -8,6 +8,7 @@ module HStratus.LoginFSMSpec
   )
 where
 
+import Data.List.NonEmpty (NonEmpty (..))
 import Network.HStratus.Internal.LoginFSM
 import Test.Hspec (Spec, describe, it, shouldBe)
 
@@ -192,9 +193,7 @@ dummyTwoFaConfig = TwoFaConfig{tfcPickPhone = \_ -> pure Nothing, tfcReadCode = 
 dummyTwoSaConfig :: TwoSaConfig
 dummyTwoSaConfig =
   TwoSaConfig
-    { tscPickDevice = \case
-        (d : _) -> pure d
-        [] -> fail "dummyTwoSaConfig: empty device list"
+    { tscPickDevice = \(d :| _) -> pure d
     , tscReadCode = pure ""
     }
 
