@@ -40,10 +40,14 @@ module Network.HStratus.Internal.Session
     -- * path components
   , appBase
   , (</>)
+
+    -- * Utilities
+  , encodeFileAtomic
   )
 where
 
 import Control.Applicative ((<|>))
+import Control.Exception (bracketOnError)
 import Control.Monad (forM, (>=>))
 import Data.Aeson
   ( FromJSON (..)
@@ -53,7 +57,6 @@ import Data.Aeson
   , Value
   , eitherDecodeFileStrict
   , encode
-  , encodeFile
   , genericParseJSON
   , genericToEncoding
   , genericToJSON
@@ -85,9 +88,10 @@ import Network.HStratus.Internal.Http
   , hTrustToken
   )
 import Network.HTTP.Types.Header (Header)
-import System.Directory (createDirectoryIfMissing, doesFileExist)
+import System.Directory (createDirectoryIfMissing, doesFileExist, removeFile, renameFile)
 import System.Environment.XDG.BaseDir (getUserConfigDir)
-import System.FilePath ((</>))
+import System.FilePath (takeDirectory, (</>))
+import System.IO (hClose, openTempFile)
 import System.Posix.Files (setFileMode)
 
 
@@ -242,7 +246,7 @@ accountDataPath topDir creds = topDir </> Text.unpack (accountDataBase creds)
 -- | Persist @AccountData@ to the session's filesystem location
 saveAccountData :: Session -> AccountData -> IO ()
 saveAccountData Session{sessionCreds = creds, sessionTopDir = topDir} =
-  encodeFile (accountDataPath topDir creds)
+  encodeFileAtomic (accountDataPath topDir creds)
 
 
 -- | Load persisted @AccountData@; returns @Nothing@ if the file is absent
@@ -271,7 +275,7 @@ saveCredentialsTo :: FilePath -> Credentials -> IO ()
 saveCredentialsTo topDir creds = do
   createDirectoryIfMissing True topDir
   let credPath = credentialsPath topDir
-  encodeFile credPath creds
+  encodeFileAtomic credPath creds
   setFileMode credPath 0o600
 
 
@@ -374,7 +378,7 @@ updateSessionSavedHeaders
   -> IO ()
 updateSessionSavedHeaders s modSavedHeaders = do
   let dataPath = savedHeadersPath (sessionTopDir s) (sessionCreds s)
-      updateAndSave = encodeFile dataPath . modSavedHeaders
+      updateAndSave = encodeFileAtomic dataPath . modSavedHeaders
       loadLast False = pure pristine
       loadLast True = eitherDecodeFileStrict dataPath >>= either (fail . show) pure
 
@@ -391,6 +395,19 @@ loadSession = do
 -- | Saves a JSON @Value@ to @filepath@
 saveValue :: FilePath -> Value -> IO ()
 saveValue fp v = LBS.writeFile fp $ encode v
+
+
+-- | Write a JSON-encodable value to @path@ atomically via a temp file and rename.
+encodeFileAtomic :: (ToJSON a) => FilePath -> a -> IO ()
+encodeFileAtomic path value =
+  bracketOnError
+    (openTempFile (takeDirectory path) ".tmp")
+    (\(tmpPath, h) -> hClose h >> removeFile tmpPath)
+    ( \(tmpPath, h) -> do
+        LBS.hPut h (encode value)
+        hClose h
+        renameFile tmpPath path
+    )
 
 
 loadCredentials :: FilePath -> IO (Either String Credentials)

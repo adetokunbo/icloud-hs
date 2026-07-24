@@ -25,7 +25,6 @@ import Network.HStratus.Drive
   , driveRoot
   , fileName
   , listFolder
-  , matchFolderName
   , mkDriveApi
   , selectFileNode
   )

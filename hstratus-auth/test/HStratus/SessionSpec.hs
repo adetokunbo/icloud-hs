@@ -29,6 +29,7 @@ import Network.HStratus.Internal.Session
   , clientIdPath
   , cookiePath
   , credentialsPath
+  , encodeFileAtomic
   , loadAccountData
   , loadSavedHeaders
   , saveAccountData
@@ -104,6 +105,7 @@ sessionSpec = describe "module Network.HStratus.Session" $ do
   loadSessionSpec
   loadSavedHeadersSpec
   updateSessionSavedHeadersSpec
+  encodeFileAtomicSpec
 
 
 savedHeadersFieldNamesSpec :: Spec
@@ -390,3 +392,21 @@ genAccountData = do
   genWebservice :: Gen Webservice
   genWebservice = Webservice <$> genIndexedSuffix "https://example.com/" <*> elements [Nothing, Just "active", Just "inactive"]
   wsNames = ["findme", "contacts", "calendar", "mail"]
+
+
+encodeFileAtomicSpec :: Spec
+encodeFileAtomicSpec = describe "encodeFileAtomic" $ around useTmp $ do
+  it "round-trips a JSON value" $ \appRoot -> do
+    let path = appRoot </> "test.json"
+        value = object ["key" .= ("value" :: Text)]
+    encodeFileAtomic path value
+    result <- eitherDecodeFileStrict path
+    result `shouldBe` Right value
+  it "overwrites an existing file" $ \appRoot -> do
+    let path = appRoot </> "test.json"
+        old = object ["version" .= (1 :: Int)]
+        new = object ["version" .= (2 :: Int)]
+    encodeFileAtomic path old
+    encodeFileAtomic path new
+    result <- eitherDecodeFileStrict path
+    result `shouldBe` Right new
