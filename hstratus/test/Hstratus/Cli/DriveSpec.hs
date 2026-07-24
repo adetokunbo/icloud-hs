@@ -2,9 +2,10 @@
 
 module Hstratus.Cli.DriveSpec (spec) where
 
+import Data.Either (isLeft)
 import Data.List.NonEmpty (NonEmpty (..))
 import Hstratus.Cli (TopCommand (..), cliParser)
-import Hstratus.Cli.Drive (CpOpts (..), DriveCommand (..), ListFolderOpts (..), resolveLocalDest)
+import Hstratus.Cli.Drive (CpDest (..), CpOpts (..), DriveCommand (..), ListFolderOpts (..), resolveLocalDest)
 import Network.HStratus.Http.Cli (CommonOpts (..))
 import Options.Applicative
   ( ParserResult (..)
@@ -31,18 +32,18 @@ defaultOpts = CommonOpts False False Nothing False False
 
 
 defaultCpOpts :: CpOpts
-defaultCpOpts = CpOpts ("report.pdf" :| []) Nothing Nothing defaultOpts
+defaultCpOpts = CpOpts ("report.pdf" :| []) Nothing defaultOpts
 
 
 spec :: Spec
 spec = do
   describe "resolveLocalDest" $ do
     it "returns the exact output path when --output is set" $
-      resolveLocalDest defaultCpOpts{cpOutput = Just "/tmp/out.pdf"} ("report.pdf" :| [])
+      resolveLocalDest defaultCpOpts{cpDest = Just (CpDestOutput "/tmp/out.pdf")} ("report.pdf" :| [])
         `shouldReturn` "/tmp/out.pdf"
 
     it "mirrors the Drive path under --root DIR" $
-      resolveLocalDest defaultCpOpts{cpRoot = Just "/tmp/dl"} ("Documents" :| ["report.pdf"])
+      resolveLocalDest defaultCpOpts{cpDest = Just (CpDestRoot "/tmp/dl")} ("Documents" :| ["report.pdf"])
         `shouldReturn` "/tmp/dl/Documents/report.pdf"
 
     it "uses ~/icloud-drive as the default destination" $ do
@@ -66,24 +67,23 @@ spec = do
     it "parses drive cp PATH with no dest option" $
       parseCmd ["drive", "cp", "Documents/report.pdf"]
         `endsRight` DriveCmd
-          (DriveCp (CpOpts ("Documents" :| ["report.pdf"]) Nothing Nothing defaultOpts))
+          (DriveCp (CpOpts ("Documents" :| ["report.pdf"]) Nothing defaultOpts))
 
     it "parses drive cp PATH --root DIR" $
       parseCmd ["drive", "cp", "Documents/Work/report.pdf", "--root", "/tmp/dl"]
         `endsRight` DriveCmd
-          (DriveCp (CpOpts ("Documents" :| ["Work", "report.pdf"]) (Just "/tmp/dl") Nothing defaultOpts))
+          (DriveCp (CpOpts ("Documents" :| ["Work", "report.pdf"]) (Just (CpDestRoot "/tmp/dl")) defaultOpts))
 
     it "parses drive cp PATH --output FILE" $
       parseCmd ["drive", "cp", "Documents/report.pdf", "--output", "/tmp/report.pdf"]
         `endsRight` DriveCmd
-          (DriveCp (CpOpts ("Documents" :| ["report.pdf"]) Nothing (Just "/tmp/report.pdf") defaultOpts))
+          (DriveCp (CpOpts ("Documents" :| ["report.pdf"]) (Just (CpDestOutput "/tmp/report.pdf")) defaultOpts))
 
     it "parses drive cp single-segment PATH" $
       parseCmd ["drive", "cp", "report.pdf"]
         `endsRight` DriveCmd
-          (DriveCp (CpOpts ("report.pdf" :| []) Nothing Nothing defaultOpts))
+          (DriveCp (CpOpts ("report.pdf" :| []) Nothing defaultOpts))
 
-    it "parses drive cp PATH --root and --output together (conflict caught at runtime)" $
-      parseCmd ["drive", "cp", "Documents/report.pdf", "--root", "/tmp/dl", "--output", "/tmp/out.pdf"]
-        `endsRight` DriveCmd
-          (DriveCp (CpOpts ("Documents" :| ["report.pdf"]) (Just "/tmp/dl") (Just "/tmp/out.pdf") defaultOpts))
+    it "rejects --root and --output together at parse time" $ do
+      result <- parseCmd ["drive", "cp", "Documents/report.pdf", "--root", "/tmp/dl", "--output", "/tmp/out.pdf"]
+      result `shouldSatisfy` isLeft

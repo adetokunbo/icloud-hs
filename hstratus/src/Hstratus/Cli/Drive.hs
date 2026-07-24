@@ -2,6 +2,7 @@ module Hstratus.Cli.Drive
   ( DriveCommand (..)
   , ListFolderOpts (..)
   , CpOpts (..)
+  , CpDest (..)
   , driveParser
   , runDrive
   , resolveLocalDest
@@ -49,10 +50,15 @@ data ListFolderOpts = ListFolderOpts
   deriving (Eq, Show)
 
 
+data CpDest
+  = CpDestRoot !FilePath
+  | CpDestOutput !FilePath
+  deriving (Eq, Show)
+
+
 data CpOpts = CpOpts
   { cpSrcPath :: !(NonEmpty Text)
-  , cpRoot :: !(Maybe FilePath)
-  , cpOutput :: !(Maybe FilePath)
+  , cpDest :: !(Maybe CpDest)
   , cpCommon :: !CommonOpts
   }
   deriving (Eq, Show)
@@ -93,8 +99,10 @@ cpOptsParser =
                 Just ne -> Right ne
       )
       (metavar "PATH" <> help "Slash-separated path to the file in Drive")
-    <*> optional (strOption (long "root" <> metavar "DIR" <> help "Copy under DIR, mirroring the Drive path"))
-    <*> optional (strOption (long "output" <> metavar "FILE" <> help "Copy to the exact local path FILE"))
+    <*> optional
+      ( (CpDestRoot <$> strOption (long "root" <> metavar "DIR" <> help "Copy under DIR, mirroring the Drive path"))
+          <|> (CpDestOutput <$> strOption (long "output" <> metavar "FILE" <> help "Copy to the exact local path FILE"))
+      )
     <*> commonOptsParser
 
 
@@ -114,18 +122,15 @@ runDrive (DriveCp opts) = runCp opts
 
 
 runCp :: CpOpts -> IO ()
-runCp opts = case (cpRoot opts, cpOutput opts) of
-  (Just _, Just _) ->
-    die "Error: --root and --output cannot both be specified"
-  _otherwise ->
-    withDriveApi (cpCommon opts) $ \da -> do
-      root <- driveRoot da
-      fd <- navigateToFile da (fnId root) (cpSrcPath opts)
-      dest <- resolveLocalDest opts (cpSrcPath opts)
-      createDirectoryIfMissing True (takeDirectory dest)
-      bytes <- downloadFile da fd
-      LBS.writeFile dest bytes
-      putStrLn $ "Downloaded to " <> dest
+runCp opts =
+  withDriveApi (cpCommon opts) $ \da -> do
+    root <- driveRoot da
+    fd <- navigateToFile da (fnId root) (cpSrcPath opts)
+    dest <- resolveLocalDest opts (cpSrcPath opts)
+    createDirectoryIfMissing True (takeDirectory dest)
+    bytes <- downloadFile da fd
+    LBS.writeFile dest bytes
+    putStrLn $ "Downloaded to " <> dest
 
 
 navigateToFile :: DriveApi -> DriveNodeId -> NonEmpty Text -> IO FileData
@@ -144,8 +149,8 @@ navigateToFile da nid (seg :| (s : rest)) = do
 
 
 resolveLocalDest :: CpOpts -> NonEmpty Text -> IO FilePath
-resolveLocalDest (CpOpts{cpOutput = Just out}) _ = pure out
-resolveLocalDest (CpOpts{cpRoot = Just root}) segs =
+resolveLocalDest (CpOpts{cpDest = Just (CpDestOutput out)}) _ = pure out
+resolveLocalDest (CpOpts{cpDest = Just (CpDestRoot root)}) segs =
   pure $ root </> joinPath (map Text.unpack (NE.toList segs))
 resolveLocalDest _ segs = do
   home <- getHomeDirectory
