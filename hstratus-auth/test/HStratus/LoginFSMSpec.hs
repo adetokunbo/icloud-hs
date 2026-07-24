@@ -23,6 +23,7 @@ data Script = Script
   , scriptSessionValid :: !Bool
   , scriptSrpInvalidKey :: !Bool
   , scriptAcct :: !Bool
+  , scriptAcctTwoFa :: !Bool
   , scriptTwoFa :: ![Bool]
   , scriptTwoSa :: ![Bool]
   , scriptNoTrustedDevices :: !Bool
@@ -40,6 +41,7 @@ allTrue =
     , scriptSessionValid = False
     , scriptSrpInvalidKey = False
     , scriptAcct = True
+    , scriptAcctTwoFa = False
     , scriptTwoFa = [True]
     , scriptTwoSa = [True]
     , scriptNoTrustedDevices = False
@@ -106,9 +108,12 @@ instance LoginEvent TestM where
 
 
   acctLogin (TestState ()) = asksScript $ \s ->
-    if scriptAcct s
-      then AcctLoginOk (TestState ())
-      else AcctLogin2SA (TestState ())
+    if scriptAcctTwoFa s
+      then AcctLogin2FA (TestState ())
+      else
+        if scriptAcct s
+          then AcctLoginOk (TestState ())
+          else AcctLogin2SA (TestState ())
 
 
   listTwoSaDevices (TestState ()) = pure (TestState ())
@@ -208,6 +213,9 @@ spec = do
 
     it "reaches Authenticated on the happy path" $
       runScript allTrue `shouldBe` Authenticated
+
+    it "produces LoginNeedsTwoFa when account login signals 2FA required" $
+      runScript (allTrue{scriptAcctTwoFa = True}) `shouldBe` TwoFa
 
     it "reaches Requires2SA when account login signals 2SA required" $
       runScript (allTrue{scriptAcct = False}) `shouldBe` TwoSa
