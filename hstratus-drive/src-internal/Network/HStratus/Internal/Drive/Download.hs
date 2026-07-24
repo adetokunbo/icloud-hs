@@ -18,7 +18,6 @@ import Control.Exception (Exception, throwIO)
 import Control.Monad (when)
 import Data.Aeson (Value, eitherDecode, encode, object, (.=))
 import Data.Aeson.Types (Parser, parseEither)
-import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as LBS
 import Data.Int (Int64)
 import Data.Text (Text)
@@ -60,12 +59,12 @@ import Network.HTTP.Client
   ( Request
   , RequestBody (..)
   , Response (..)
-  , method
   , parseRequest
   , requestBody
   , requestHeaders
   )
-import Network.HTTP.Types (hContentType, methodPost, statusCode)
+import Network.HTTP.Client.MultipartFormData (formDataBody, partContentType, partFilename, partLBS)
+import Network.HTTP.Types (hContentType, statusCode)
 
 
 data DriveError
@@ -184,31 +183,13 @@ uploadTokenBodyBytes filename size =
 
 buildUploadReq :: Text -> LBS.ByteString -> Text -> IO Request
 buildUploadReq filename content url = do
-  req <- getReqFromUrl url
-  let body = buildMultipartBody filename content
-      ct = "multipart/form-data; boundary=" <> uploadBoundary
-  pure
-    req
-      { requestBody = RequestBodyLBS body
-      , requestHeaders = (hContentType, ct) : requestHeaders req
-      , method = methodPost
-      }
-
-
-buildMultipartBody :: Text -> LBS.ByteString -> LBS.ByteString
-buildMultipartBody filename content =
-  let fn = LBS.fromStrict (BS8.pack (Text.unpack filename))
-      bd = LBS.fromStrict ("--" <> uploadBoundary)
-   in bd
-        <> "\r\nContent-Disposition: form-data; name=\""
-        <> fn
-        <> "\"; filename=\""
-        <> fn
-        <> "\"\r\nContent-Type: application/octet-stream\r\n\r\n"
-        <> content
-        <> "\r\n"
-        <> bd
-        <> "--\r\n"
+  baseReq <- getReqFromUrl url
+  let part =
+        (partLBS filename content)
+          { partFilename = Just (Text.unpack filename)
+          , partContentType = Just "application/octet-stream"
+          }
+  formDataBody [part] baseReq
 
 
 buildCommitBody :: Text -> Text -> Text -> UploadReceipt -> Int64 -> LBS.ByteString
@@ -251,10 +232,6 @@ currentTimeMs :: IO Int64
 currentTimeMs = do
   t <- getPOSIXTime
   pure $ round (t * 1000)
-
-
-uploadBoundary :: BS8.ByteString
-uploadBoundary = "WebKitFormBoundaryicloud"
 
 
 nodeReq :: DriveEndpoints -> DriveNodeId -> Request
