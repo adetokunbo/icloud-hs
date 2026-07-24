@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Hstratus.Cli.Notes
   ( NotesCommand (..)
   , ListNotesOpts (..)
@@ -7,11 +9,10 @@ module Hstratus.Cli.Notes
   )
 where
 
-import Control.Exception (Exception, catch, displayException)
+import Control.Exception (catch)
 import Data.List (find)
 import qualified Data.Text as Text
-import Network.HStratus.Http (AuthError)
-import Network.HStratus.Http.Cli (CommonOpts (..), commonOptsParser, runWithApi)
+import Network.HStratus.Http.Cli (CommonOpts (..), commonOptsParser, onServiceError, runWithApi)
 import Network.HStratus.Notes
 import Options.Applicative
 import System.Exit (exitFailure)
@@ -117,8 +118,4 @@ printNote ns =
 withNotesApi :: CommonOpts -> (NotesApi -> IO ()) -> IO ()
 withNotesApi opts runAction =
   runWithApi opts (\ad sess api -> mkNotesApi ad sess api >>= runAction)
-    `catch` (\e -> onError (e :: AuthError))
-    `catch` (\e -> onError (e :: NotesError))
- where
-  onError :: (Exception a) => a -> IO ()
-  onError e = putStrLn ("Error: " <> displayException e) >> exitFailure
+    `catch` onServiceError @NotesError

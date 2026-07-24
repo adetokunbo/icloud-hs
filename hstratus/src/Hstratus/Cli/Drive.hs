@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Hstratus.Cli.Drive
   ( DriveCommand (..)
   , ListFolderOpts (..)
@@ -9,7 +11,7 @@ module Hstratus.Cli.Drive
   )
 where
 
-import Control.Exception (catch, displayException)
+import Control.Exception (catch)
 import qualified Data.ByteString.Lazy as LBS
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NE
@@ -29,7 +31,7 @@ import Network.HStratus.Drive
   , mkDriveApi
   , selectFileNode
   )
-import Network.HStratus.Http.Cli (CommonOpts (..), commonOptsParser, runWithApi)
+import Network.HStratus.Http.Cli (CommonOpts (..), commonOptsParser, onServiceError, runWithApi)
 import Options.Applicative
 import System.Directory (createDirectoryIfMissing, getHomeDirectory)
 import System.Exit (die)
@@ -198,4 +200,4 @@ printNode (DriveFile fd) =
 withDriveApi :: CommonOpts -> (DriveApi -> IO ()) -> IO ()
 withDriveApi opts runAction =
   runWithApi opts (\ad sess api -> mkDriveApi ad sess api >>= runAction)
-    `catch` (\e -> die (displayException (e :: DriveError)))
+    `catch` onServiceError @DriveError

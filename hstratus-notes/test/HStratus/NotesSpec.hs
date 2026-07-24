@@ -2,6 +2,7 @@
 
 module HStratus.NotesSpec (spec) where
 
+import Control.Exception (displayException)
 import Data.Aeson (object)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
@@ -13,6 +14,7 @@ import Network.HStratus.Http (mkApiWith)
 import Network.HStratus.Http.Endpoints (Endpoints (..))
 import Network.HStratus.Notes
   ( NotesApi
+  , NotesError (..)
   , getNote
   , mkNotesApi
   , noteFolders
@@ -32,6 +34,12 @@ import Test.Hspec.Benri (endsNothing)
 
 spec :: Spec
 spec = describe "Network.HStratus.Notes" $ do
+  describe "NotesError displayException" $ do
+    it "NotesHttpError" $
+      displayException (NotesHttpError 404) `shouldBe` "iCloud Notes: HTTP error 404"
+    it "NotesParseError" $
+      displayException (NotesParseError "bad json") `shouldBe` "iCloud Notes: parse error: bad json"
+
   describe "noteFolders" $ do
     it "returns NoteFolder list from a query response" $
       withNotesMock queryFoldersJson "/records/query" $ \na -> do

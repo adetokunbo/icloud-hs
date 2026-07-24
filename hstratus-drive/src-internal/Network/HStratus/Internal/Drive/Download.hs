@@ -23,7 +23,7 @@ import Data.Int (Int64)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Time.Clock.POSIX (getPOSIXTime)
-import Network.HStratus.Http (Api, rawRequest)
+import Network.HStratus.Http (Api, HStratusError, rawRequest)
 import Network.HStratus.Internal.Drive.Endpoints
   ( DriveEndpoints
   , commitUploadReq
@@ -80,6 +80,9 @@ instance Show DriveError where
 
 
 instance Exception DriveError
+
+
+instance HStratusError DriveError
 
 
 -- | Fetch metadata for a single node.
